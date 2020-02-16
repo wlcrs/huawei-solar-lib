@@ -1,18 +1,16 @@
 from pymodbus.client.sync import ModbusTcpClient
 from collections import namedtuple
-from time import gmtime
 
-import logging
 from datetime import datetime
 
-
-__version__ = "1.1.0"
+__version__ = "0.0.1"
 
 RegisterDefinitions = namedtuple(
     "RegisterDefinitions", "type unit gain register length"
 )
 GridCodes = namedtuple("GridCodes", "standard country")
 Result = namedtuple("Result", "value unit")
+Alarm = namedtuple("Alarm", "name id level")
 
 
 class HuaweiInverter:
@@ -21,10 +19,7 @@ class HuaweiInverter:
 
     def get(self, name):
         reg = registers[name]
-        #        try:
         response = read_register(self.client, reg.register, reg.length)
-        #        except:
-        #            pass
         if reg.type == "str":
             result = response.decode("utf-8").strip("\0")
         elif reg.type == "u16" and reg.unit == "status_enum":
@@ -34,8 +29,8 @@ class HuaweiInverter:
             result = grid_codes[tmp]
         elif reg.type == "u32" and reg.unit == "epoch":
             tmp = int.from_bytes(response, byteorder="big")
-            # epoch is in local time so this gives local time, not gmtime
-            result = gmtime(tmp)
+            # epoch is in local time, not in UTC. Using utcfromtimestamp gives correct hour
+            result = datetime.utcfromtimestamp(tmp)
         elif reg.type == "u16" or reg.type == "u32":
             result = int.from_bytes(response, byteorder="big") / reg.gain
         elif reg.type == "i16":
@@ -50,6 +45,8 @@ class HuaweiInverter:
             if (tmp & 0x80000000) == 0x80000000:
                 tmp = -((tmp ^ 0xFFFF) + 1)
             result = tmp / reg.gain
+        else:
+            result = int.from_bytes(response, byteorder="big")
 
         return Result(result, reg.unit)
 
@@ -57,8 +54,9 @@ class HuaweiInverter:
 def read_register(client, register, length):
     i = 0
     # 5 tries and then we give up
-    # usually works after 3 tries if we haven't connected for a while (independend of timeout). It seems to only support one connected device at the same time
-    while i < 4:
+    # usually works after 3 tries if we haven't connected for a while (independend of timeout).
+    # It seems to only support one connected device at the same time
+    while i < 5:
         print(i)
         response = client.read_holding_registers(register, length)
 
@@ -136,14 +134,14 @@ registers = {
     "pv_24_voltage": RegisterDefinitions("i16", "V", 10, 32062, 1),
     "pv_24_current": RegisterDefinitions("i16", "A", 100, 32063, 1),
     "input_power": RegisterDefinitions("i32", "W", 1, 32064, 2),
-    "power_grid_voltage": RegisterDefinitions("u16", "V", 10, 32066, 1),
+    "grid_voltage": RegisterDefinitions("u16", "V", 10, 32066, 1),
     "line_voltage_A_B": RegisterDefinitions("u16", "V", 10, 32066, 1),
     "line_voltage_B_C": RegisterDefinitions("u16", "V", 10, 32067, 1),
     "line_voltage_C_A": RegisterDefinitions("u16", "V", 10, 32068, 1),
     "phase_A_voltage": RegisterDefinitions("u16", "V", 10, 32069, 1),
     "phase_B_voltage": RegisterDefinitions("u16", "V", 10, 32070, 1),
     "phase_C_voltage": RegisterDefinitions("u16", "V", 10, 32071, 1),
-    "power_grid_current": RegisterDefinitions("i32", "A", 1000, 32072, 2),
+    "grid_current": RegisterDefinitions("i32", "A", 1000, 32072, 2),
     "phase_A_current": RegisterDefinitions("i32", "A", 1000, 32072, 2),
     "phase_B_current": RegisterDefinitions("i32", "A", 1000, 32074, 2),
     "phase_C_current": RegisterDefinitions("i32", "A", 1000, 32076, 2),
@@ -161,6 +159,8 @@ registers = {
     "shutdown_time": RegisterDefinitions("u32", "epoch", 1, 32093, 2),
     "accumulated_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32106, 2),
     "daily_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32114, 2),
+    "nb_optimizers": RegisterDefinitions("u16", None, 1, 37200, 1),
+    "nb_online_optimizers": RegisterDefinitions("u16", None, 1, 37201, 1),
     "system_time": RegisterDefinitions("u32", "epoch", 1, 40000, 2),
     "grid_code": RegisterDefinitions("u16", "grid_enum", 1, 42000, 1),
 }
@@ -199,6 +199,7 @@ device_status_definitions = {
     "a000": "Standby: no irradiation",
 }
 
+# TODO there's a lot more of them...
 grid_codes = {
     0: GridCodes("VDE-AR-N-4105", "Germany"),
     1: GridCodes("NB/T 32004", "China"),
@@ -229,4 +230,23 @@ grid_codes = {
     26: GridCodes("TAI-PEA", "Thailand"),
     27: GridCodes("TAI-MEA", "Thailand"),
     28: GridCodes("BDEW-MV480", "Germany"),
+}
+
+ALARM_1 = {
+    0b0000_0000_0000_0001: Alarm("High String Input Voltage", 2001, "Major"),
+    0b0000_0000_0000_0010: Alarm("DC Arc Fault", 2002, "Major"),
+    0b0000_0000_0000_0100: Alarm("String Reverse Connection", 2011, "Major"),
+    0b0000_0000_0000_1000: Alarm("String Current Backfeed", 2012, "Warning"),
+    0b0000_0000_0001_0000: Alarm("Abnormal String Power", 2013, "Warning"),
+    0b0000_0000_0010_0000: Alarm("AFCI Self-Check Fail", 2021, "Major"),
+    0b0000_0000_0100_0000: Alarm("Phase Wire Short-Circuited to PE", 2031, "Major"),
+    0b0000_0000_1000_0000: Alarm("Grid Loss", 2032, "Major"),
+    0b0000_0001_0000_0000: Alarm("Grid Undervoltage", 2033, "Major"),
+    0b0000_0010_0000_0000: Alarm("Grid Overvoltage", 2034, "Major"),
+    0b0000_0100_0000_0000: Alarm("Grid Volt. Imbalance", 2035, "Major"),
+    0b0000_1000_0000_0000: Alarm("Grid Overfrequency", 2036, "Major"),
+    0b0001_0000_0000_0000: Alarm("Grid Underfrequency", 2037, "Major"),
+    0b0010_0000_0000_0000: Alarm("Unstable Grid Frequency", 2038, "Major"),
+    0b0100_0000_0000_0000: Alarm("Output Overcurrent", 2039, "Major"),
+    0b1000_0000_0000_0000: Alarm("Output DC Component Overhigh", 2040, "Major"),
 }
