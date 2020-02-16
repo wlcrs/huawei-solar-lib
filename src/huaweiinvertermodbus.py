@@ -18,15 +18,15 @@ class HuaweiInverter:
         self.client = ModbusTcpClient(host, port=port, timeout=timeout)
 
     def get(self, name):
-        reg = registers[name]
+        reg = REGISTERS[name]
         response = read_register(self.client, reg.register, reg.length)
         if reg.type == "str":
             result = response.decode("utf-8").strip("\0")
         elif reg.type == "u16" and reg.unit == "status_enum":
-            result = device_status_definitions[response.hex()]
+            result = DEVICE_STATUS_DEFINITIONS[response.hex()]
         elif reg.type == "u16" and reg.unit == "grid_enum":
             tmp = int.from_bytes(response, byteorder="big")
-            result = grid_codes[tmp]
+            result = GRID_CODES[tmp]
         elif reg.type == "u32" and reg.unit == "epoch":
             tmp = int.from_bytes(response, byteorder="big")
             # epoch is in local time, not in UTC. Using utcfromtimestamp gives correct hour
@@ -68,7 +68,7 @@ def read_register(client, register, length):
     return response.encode()[1:]
 
 
-registers = {
+REGISTERS = {
     "model_name": RegisterDefinitions("str", None, 1, 30000, 15),
     "serial_number": RegisterDefinitions("str", None, 1, 30015, 10),
     "model_id": RegisterDefinitions("u16", None, 1, 30070, 1),
@@ -166,7 +166,7 @@ registers = {
 }
 
 
-device_status_definitions = {
+DEVICE_STATUS_DEFINITIONS = {
     "0000": "Standby: initializing",
     "0001": "Standby: detecting insulation resistance",
     "0002": "Standby: detecting irradiation",
@@ -200,7 +200,7 @@ device_status_definitions = {
 }
 
 # TODO there's a lot more of them...
-grid_codes = {
+GRID_CODES = {
     0: GridCodes("VDE-AR-N-4105", "Germany"),
     1: GridCodes("NB/T 32004", "China"),
     2: GridCodes("UTE C 15-712-1(A)", "France"),
