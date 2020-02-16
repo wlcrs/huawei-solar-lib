@@ -69,7 +69,7 @@ class HuaweiInverterSensor(Entity):
         self._grid_standard = tmp.standard
         self._grid_country = tmp.country
         self._hidden = False
-        self._unit = "kW"
+        self._unit = "W"
         self._icon = "mdi:solar-power"
         self._state = self._inverter.get("active_power").value
         self._daily_yield = self._inverter.get("accumulated_yield_energy").value
@@ -180,11 +180,11 @@ registers = {
     "model_id": RegisterDefinitions("u16", None, 1, 30070, 1),
     "nb_pv_strings": RegisterDefinitions("u16", None, 1, 30071, 1),
     "nb_mpp_tracks": RegisterDefinitions("u16", None, 1, 30072, 1),
-    "rated_power": RegisterDefinitions("u32", "kW", 1000, 30073, 2),
-    "P_max": RegisterDefinitions("u32", "kW", 1000, 30075, 2),
-    "S_max": RegisterDefinitions("u32", "kVA", 1000, 30077, 2),
-    "Q_max_out": RegisterDefinitions("u32", "kVAr", 1000, 30079, 2),
-    "Q_max_in": RegisterDefinitions("u32", "kVAr", 1000, 30081, 2),
+    "rated_power": RegisterDefinitions("u32", "W", 1, 30073, 2),
+    "P_max": RegisterDefinitions("u32", "W", 1, 30075, 2),
+    "S_max": RegisterDefinitions("u32", "VA", 1, 30077, 2),
+    "Q_max_out": RegisterDefinitions("u32", "VAr", 1, 30079, 2),
+    "Q_max_in": RegisterDefinitions("u32", "VAr", 1, 30081, 2),
     "state_1": RegisterDefinitions("bitfield16", None, 1, 32000, 1),
     "state_2": RegisterDefinitions("bitfield16", None, 1, 32002, 1),
     "state_3": RegisterDefinitions("bitfield32", None, 1, 32003, 2),
@@ -239,7 +239,7 @@ registers = {
     "pv_23_current": RegisterDefinitions("i16", "A", 100, 32061, 1),
     "pv_24_voltage": RegisterDefinitions("i16", "V", 10, 32062, 1),
     "pv_24_current": RegisterDefinitions("i16", "A", 100, 32063, 1),
-    "input_power": RegisterDefinitions("i32", "kW", 1000, 32064, 2),
+    "input_power": RegisterDefinitions("i32", "W", 1, 32064, 2),
     "power_grid_voltage": RegisterDefinitions("u16", "V", 10, 32066, 1),
     "line_voltage_A_B": RegisterDefinitions("u16", "V", 10, 32066, 1),
     "line_voltage_B_C": RegisterDefinitions("u16", "V", 10, 32067, 1),
@@ -251,9 +251,9 @@ registers = {
     "phase_A_current": RegisterDefinitions("i32", "A", 1000, 32072, 2),
     "phase_B_current": RegisterDefinitions("i32", "A", 1000, 32074, 2),
     "phase_C_current": RegisterDefinitions("i32", "A", 1000, 32076, 2),
-    "day_active_power_peak": RegisterDefinitions("i32", "kW", 1000, 32078, 2),
-    "active_power": RegisterDefinitions("i32", "kW", 1000, 32080, 2),
-    "reactive_power": RegisterDefinitions("i32", "kVA", 1000, 32082, 2),
+    "day_active_power_peak": RegisterDefinitions("i32", "W", 1, 32078, 2),
+    "active_power": RegisterDefinitions("i32", "W", 1, 32080, 2),
+    "reactive_power": RegisterDefinitions("i32", "VA", 1, 32082, 2),
     "power_factor": RegisterDefinitions("i16", None, 1000, 32084, 1),
     "grid_frequency": RegisterDefinitions("u16", "Hz", 100, 32085, 1),
     "efficiency": RegisterDefinitions("u16", "%", 100, 32086, 1),
