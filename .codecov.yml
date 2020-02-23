@@ -1,0 +1,16 @@
+---
+coverage:
+  status:
+    project:
+      default: false
+      tests:
+        target: 90%
+        paths: "tests/"
+      app:
+        target: 90%
+        paths: "src/"
+    patch:
+      default:
+        target: 90%
+        threshold: 2%
+...

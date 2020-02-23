@@ -1,0 +1,36 @@
+---
+repos:
+  - repo: https://github.com/python/black
+    rev: 19.3b0
+    hooks:
+      - id: black
+        language_version: python3.7
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.2.3
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+        description: This hook trims trailing whitespace.
+        entry: trailing-whitespace-fixer
+        language: python
+        types: [text]
+      - id: flake8
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+      - id: debug-statements
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.16.0
+    hooks:
+      - id: yamllint
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v4.3.20
+    hooks:
+      - id: isort
+        description: sort python imports
+  - repo: https://gitlab.com/emilv2/pre-commit-hooks
+    rev: 0.0.4
+    hooks:
+      - id: check-config
+...
