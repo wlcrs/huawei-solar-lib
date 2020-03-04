@@ -26,31 +26,32 @@ codecov:
   stage: test
   script:
     - tox -e coverage
-    - codecov --token=673d3fbf-c00a-49f6-871c-c5b8a12ba89e
+    - codecov
 
 linting:
   stage: test
   script:
     - tox -e black, yamllint, flake8
 
-pypi_release:
+deploy_staging:
   stage: deploy
-  cache: {}
+  variables:
+    TWINE_USERNAME: $STAGING_USERNAME
+    TWINE_PASSWORD: $STAGING_PASSWORD
   script:
-    - python setup.py sdist bdist_wheel
-    - twine check dist/*
-    # try upload in test platform before the oficial
-    - twine upload --repository-url https://test.pypi.org/legacy/ dist/*
-    - >
-      pip install --no-deps
-      --index-url https://test.pypi.org/simple/
-      helpdev==$CI_COMMIT_TAG
-    - pip uninstall helpdev -y
-    # upload to oficial
-    - twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
-    - pip install helpdev==$CI_COMMIT_TAG
-    - helpdev --version
-    - pip uninstall helpdev -y
+    - python setup.py egg_info -b.$CI_JOB_ID bdist bdist_wheel
+    - twine upload --repository-url $PYTEST_REPOSITORY_URL dist/*
+  except:
+    - tags
+
+deploy_production:
+  stage: deploy
+  variables:
+    TWINE_USERNAME: $PRODUCTION_USERNAME
+    TWINE_PASSWORD: $PRODUCTION_PASSWORD
+  script:
+    - python setup.py bdist bdist_wheel
+    - twine upload dist/*
   only:
     - tags
 
