@@ -20,10 +20,10 @@ def mock_read_holding_registers(self, register, length):
 
 
 MOCK_REGISTERS = {
-    (
-        30000,
-        15,
-    ): b"\x1eSUN2000L-3KTL\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+    (30000, 15): (
+        b"\x1eSUN2000L-3KTL\x00\x00\x00\x00\x00\x00\x00"
+        b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    ),
     (30015, 10): b"\x140000000000HVK0000000",
     (30070, 1): b"\x02\x010",
     (30071, 1): b"\x02\x00\x02",
@@ -81,7 +81,8 @@ MOCK_REGISTERS = {
 
 def get_mock_registers(host):
     """
-    Get the registers from a huawei device. Can be used to add more tests for new devices
+    Get the registers from a huawei device.
+    Can be used to add more tests for new devices.
     """
 
     api = HuaweiSolar(host)
