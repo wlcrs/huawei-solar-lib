@@ -1,10 +1,15 @@
+"""
+Get production and status information from the Huawei Inverter using Modbus over TCP
+"""
+import logging
 from collections import namedtuple
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytz
 from pymodbus.client.sync import ModbusTcpClient
+from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 
-__version__ = "0.0.1"
+LOGGER = logging.getLogger(__name__)
 
 RegisterDefinitions = namedtuple(
     "RegisterDefinitions", "type unit gain register length"
@@ -14,12 +19,17 @@ Result = namedtuple("Result", "value unit")
 Alarm = namedtuple("Alarm", "name id level")
 
 
+# pylint: disable=too-few-public-methods
 class HuaweiSolar:
+    """Interface to the Huawei solar inverter"""
+
     def __init__(self, host, port="502", timeout=5):
         self.client = ModbusTcpClient(host, port=port, timeout=timeout)
         self._time_offset = None
 
+    # pylint: disable=too-many-branches, too-many-statements
     def get(self, name):
+        """get named register from device"""
         reg = REGISTERS[name]
         response = read_register(self.client, reg.register, reg.length)
 
@@ -74,21 +84,21 @@ class HuaweiSolar:
             code = int.from_bytes(response, byteorder="big")
             result = []
             alarm_codes = ALARM_CODES[name]
-            for key in alarm_codes.keys():
+            for key in alarm_codes:
                 if key & code:
                     result.append(alarm_codes[key])
 
         elif reg.type == "state_bitfield16":
             code = int.from_bytes(response, byteorder="big")
             result = []
-            for key in STATE_CODES_1.keys():
+            for key in STATE_CODES_1:
                 if key & code:
                     result.append(STATE_CODES_1[key])
 
         elif reg.type == "state_opt_bitfield16":
             code = int.from_bytes(response, byteorder="big")
             result = []
-            for key in STATE_CODES_2.keys():
+            for key in STATE_CODES_2:
                 bit = key & code
                 if bit:
                     result.append(STATE_CODES_2[key][1])
@@ -98,7 +108,7 @@ class HuaweiSolar:
         elif reg.type == "state_opt_bitfield32":
             code = int.from_bytes(response, byteorder="big")
             result = []
-            for key in STATE_CODES_3.keys():
+            for key in STATE_CODES_3:
                 bit = key & code
                 if bit:
                     result.append(STATE_CODES_3[key][1])
@@ -112,20 +122,39 @@ class HuaweiSolar:
 
 
 def read_register(client, register, length):
+    """
+    Read register from device
+    5 tries and then we give up.
+    Consistently works after 3 tries if we haven't made requests for a while;
+    for sequential requests 1 try is enough from the second request.
+    With faster timeout it goes faster, but also fails more than 3 times.
+    It seems to only support connections from one device at the same time.
+    """
     i = 0
-    # 5 tries and then we give up.
-    # Consistently works after 3 tries if we haven't made requests for a while;
-    # for sequential requests 1 try is enough from the second request.
-    # With faster timeout it goes faster, but also fails more than 3 times.
-    # It seems to only support connections from one device at the same time.
     while i < 5:
-        response = client.read_holding_registers(register, length)
+        try:
+            response = client.read_holding_registers(register, length)
+        except ModbusConnectionException as ex:
+            LOGGER.exception("failed to connect to device, is the host correct?")
+            raise ConnectionException(ex)
         if not response.isError():
             break
+
+        LOGGER.debug("Failed reading register %s time(s)", i)
         i = i + 1
     else:
-        raise Exception("could not read register value")
+        message = "could not read register value, is an other device already connected?"
+        LOGGER.error(message)
+        raise ReadException(message)
     return response.encode()[1:]
+
+
+class ConnectionException(Exception):
+    """Exception connecting to device"""
+
+
+class ReadException(Exception):
+    """Exception reading register from device"""
 
 
 REGISTERS = {
@@ -260,6 +289,7 @@ DEVICE_STATUS_DEFINITIONS = {
     "a000": "Standby: no irradiation",
 }
 
+# pylint: disable=fixme
 # TODO there's a lot more of them...
 GRID_CODES = {
     0: GridCode("VDE-AR-N-4105", "Germany"),
@@ -320,7 +350,9 @@ STATE_CODES_1 = {
     0b0000_0000_0000_0010: "grid-connected",
     0b0000_0000_0000_0100: "grid-connected normally",
     0b0000_0000_0000_1000: "grid connection with derating due to power rationing",
-    0b0000_0000_0001_0000: "grid connection with derating due to internal causes of the solar inverter",
+    0b0000_0000_0001_0000: (
+        "grid connection with derating due to internalcauses" "of the solar inverter"
+    ),
     0b0000_0000_0010_0000: "normal stop",
     0b0000_0000_0100_0000: "stop due to faults",
     0b0000_0000_1000_0000: "stop due to power rationing",
