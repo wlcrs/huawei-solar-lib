@@ -157,9 +157,11 @@ class AsyncHuaweiSolar:
 
     def __init__(self, host, port="502", timeout=5, loop=None):
         # pylint: disable=unpacking-non-sequence
+        LOGGER.debug("creating loop and client")
         self.loop, self.client = AsyncModbusTCPClient(
             schedulers.ASYNC_IO, port=port, host=host, loop=loop
         )
+        LOGGER.debug("created loop and client")
         self.timeout = timeout
         self._time_offset = None
 
