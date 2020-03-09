@@ -1,11 +1,14 @@
 """
 Get production and status information from the Huawei Inverter using Modbus over TCP
 """
+import asyncio
 import logging
 from collections import namedtuple
 from datetime import datetime
 
 import pytz
+from pymodbus.client.asynchronous import schedulers
+from pymodbus.client.asynchronous.tcp import AsyncModbusTCPClient
 from pymodbus.client.sync import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 
@@ -147,6 +150,146 @@ def read_register(client, register, length):
         LOGGER.error(message)
         raise ReadException(message)
     return response.encode()[1:]
+
+
+class AsyncHuaweiSolar:
+    """Async interface to the Huawei solar inverter"""
+
+    def __init__(self, host, port="502", timeout=5, loop=None):
+        # pylint: disable=unpacking-non-sequence
+        self.loop, self.client = AsyncModbusTCPClient(
+            schedulers.ASYNC_IO, port=port, host=host, loop=loop
+        )
+        self.timeout = timeout
+        self._time_offset = None
+
+    # pylint: disable=too-many-branches, too-many-statements
+    async def get(self, name):
+        """get named register from device"""
+        reg = REGISTERS[name]
+        response = await self.read_register(self.client, reg.register, reg.length)
+
+        if reg.type == "str":
+            result = response.decode("utf-8").strip("\0")
+
+        elif reg.type == "u16" and reg.unit == "status_enum":
+            result = DEVICE_STATUS_DEFINITIONS[response.hex()]
+
+        elif reg.type == "u16" and reg.unit == "grid_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = GRID_CODES[tmp]
+
+        elif reg.type == "u32" and reg.unit == "epoch":
+            tmp = int.from_bytes(response, byteorder="big")
+            if self._time_offset is None:
+                self._time_offset = self.get("time_zone").value
+            tmp2 = datetime.utcfromtimestamp(tmp - 60 * self._time_offset)
+            # don't use local time information and use UTC time
+            # which we got from systemtime - time zone offset.
+            # not yet sure about the is_dst setting
+            result = pytz.utc.normalize(pytz.utc.localize(tmp2, is_dst=True))
+
+        elif reg.type == "u16" or reg.type == "u32":
+            tmp = int.from_bytes(response, byteorder="big")
+            if reg.gain == 1:
+                result = tmp
+            else:
+                result = tmp / reg.gain
+
+        elif reg.type == "i16":
+            tmp = int.from_bytes(response, byteorder="big")
+            if (tmp & 0x8000) == 0x8000:
+                # result is actually negative
+                tmp = -((tmp ^ 0xFFFF) + 1)
+            if reg.gain == 1:
+                result = tmp
+            else:
+                result = tmp / reg.gain
+
+        elif reg.type == "i32":
+            tmp = int.from_bytes(response, byteorder="big")
+            if (tmp & 0x80000000) == 0x80000000:
+                # result is actually negative
+                tmp = -((tmp ^ 0xFFFFFFFF) + 1)
+            if reg.gain == 1:
+                result = tmp
+            else:
+                result = tmp / reg.gain
+
+        elif reg.type == "alarm_bitfield16":
+            code = int.from_bytes(response, byteorder="big")
+            result = []
+            alarm_codes = ALARM_CODES[name]
+            for key in alarm_codes:
+                if key & code:
+                    result.append(alarm_codes[key])
+
+        elif reg.type == "state_bitfield16":
+            code = int.from_bytes(response, byteorder="big")
+            result = []
+            for key in STATE_CODES_1:
+                if key & code:
+                    result.append(STATE_CODES_1[key])
+
+        elif reg.type == "state_opt_bitfield16":
+            code = int.from_bytes(response, byteorder="big")
+            result = []
+            for key in STATE_CODES_2:
+                bit = key & code
+                if bit:
+                    result.append(STATE_CODES_2[key][1])
+                else:
+                    result.append(STATE_CODES_2[key][0])
+
+        elif reg.type == "state_opt_bitfield32":
+            code = int.from_bytes(response, byteorder="big")
+            result = []
+            for key in STATE_CODES_3:
+                bit = key & code
+                if bit:
+                    result.append(STATE_CODES_3[key][1])
+                else:
+                    result.append(STATE_CODES_3[key][0])
+
+        else:
+            result = int.from_bytes(response, byteorder="big")
+
+        return Result(result, reg.unit)
+
+    async def read_register(self, client, register, length):
+        """
+        Async read register from device
+        5 tries and then we give up.
+        Consistently works after 3 tries if we haven't made requests for a while;
+        for sequential requests 1 try is enough from the second request.
+        With faster timeout it goes faster, but also fails more than 3 times.
+        It seems to only support connections from one device at the same time.
+        """
+        for i in range(1, 6):
+            if not client.connected:
+                message = "failed to connect to device, is the host correct?"
+                LOGGER.exception(message)
+                raise ConnectionException(message)
+            try:
+                response = await asyncio.wait_for(
+                    client.protocol.read_holding_registers(register, length),
+                    timeout=self.timeout,
+                )
+                return response.encode()[1:]
+            except asyncio.TimeoutError:
+                LOGGER.debug("Failed reading register %s time(s)", i)
+            except ModbusConnectionException:
+                message = (
+                    "could not read register value, "
+                    "is an other device already connected?"
+                )
+                LOGGER.error(message)
+                raise ReadException(message)
+        # errors are different with async pymodbus,
+        # we should not be able to reach this code. Keep it for debugging
+        message = "could not read register value for unknown reason"
+        LOGGER.error(message)
+        raise ReadException(message)
 
 
 class ConnectionException(Exception):
