@@ -392,6 +392,7 @@ REGISTERS = {
     "startup_time": RegisterDefinitions("u32", "epoch", 1, 32091, 2),
     "shutdown_time": RegisterDefinitions("u32", "epoch", 1, 32093, 2),
     "accumulated_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32106, 2),
+    "power_meter_active_power": RegisterDefinitions("i32", "W", 1, 37113, 2),
     "daily_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32114, 2),
     "nb_optimizers": RegisterDefinitions("u16", None, 1, 37200, 1),
     "nb_online_optimizers": RegisterDefinitions("u16", None, 1, 37201, 1),
