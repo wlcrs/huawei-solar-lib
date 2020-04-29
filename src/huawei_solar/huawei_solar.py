@@ -3,6 +3,7 @@ Get production and status information from the Huawei Inverter using Modbus over
 """
 import asyncio
 import logging
+import time
 from collections import namedtuple
 from datetime import datetime
 
@@ -29,12 +30,13 @@ class HuaweiSolar:
     def __init__(self, host, port="502", timeout=5):
         self.client = ModbusTcpClient(host, port=port, timeout=timeout)
         self._time_offset = None
+        self.connected = False
 
     # pylint: disable=too-many-branches, too-many-statements
     def get(self, name):
         """get named register from device"""
         reg = REGISTERS[name]
-        response = read_register(self.client, reg.register, reg.length)
+        response = self.read_register(reg.register, reg.length)
 
         if reg.type == "str":
             result = response.decode("utf-8").strip("\0")
@@ -123,33 +125,43 @@ class HuaweiSolar:
 
         return Result(result, reg.unit)
 
+    def read_register(self, register, length):
+        """
+        Read register from device
+        5 tries and then we give up.
+        Consistently works after 3 tries if we haven't made requests for a while;
+        for sequential requests 1 try is enough from the second request.
+        With faster timeout it goes faster, but also fails more than 3 times.
+        It seems to only support connections from one device at the same time.
+        """
+        i = 0
+        if not self.connected:
+            print("not yet connected")
+            self.client.connect()
+            self.connected = True
+            time.sleep(2)
+        while i < 5:
+            try:
+                response = self.client.read_holding_registers(register, length)
+            except ModbusConnectionException as ex:
+                LOGGER.exception("failed to connect to device, is the host correct?")
+                raise ConnectionException(ex)
+            if not response.isError():
+                break
+            print("not yet connected 2")
+            self.client.close()
+            self.client.connect()
+            time.sleep(2)
 
-def read_register(client, register, length):
-    """
-    Read register from device
-    5 tries and then we give up.
-    Consistently works after 3 tries if we haven't made requests for a while;
-    for sequential requests 1 try is enough from the second request.
-    With faster timeout it goes faster, but also fails more than 3 times.
-    It seems to only support connections from one device at the same time.
-    """
-    i = 0
-    while i < 5:
-        try:
-            response = client.read_holding_registers(register, length)
-        except ModbusConnectionException as ex:
-            LOGGER.exception("failed to connect to device, is the host correct?")
-            raise ConnectionException(ex)
-        if not response.isError():
-            break
-
-        LOGGER.debug("Failed reading register %s time(s)", i)
-        i = i + 1
-    else:
-        message = "could not read register value, is an other device already connected?"
-        LOGGER.error(message)
-        raise ReadException(message)
-    return response.encode()[1:]
+            LOGGER.debug("Failed reading register %s time(s)", i)
+            i = i + 1
+        else:
+            message = (
+                "could not read register value, is an other device already connected?"
+            )
+            LOGGER.error(message)
+            raise ReadException(message)
+        return response.encode()[1:]
 
 
 class AsyncHuaweiSolar:
