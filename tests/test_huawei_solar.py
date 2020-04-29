@@ -2,9 +2,9 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
+import mock_huawei_solar
 import pytz
 import src.huawei_solar.huawei_solar as huawei_solar
-from tests import mock_huawei_solar
 
 
 class TestHuaweiSolar(unittest.TestCase):
