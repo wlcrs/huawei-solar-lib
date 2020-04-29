@@ -392,11 +392,37 @@ REGISTERS = {
     "startup_time": RegisterDefinitions("u32", "epoch", 1, 32091, 2),
     "shutdown_time": RegisterDefinitions("u32", "epoch", 1, 32093, 2),
     "accumulated_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32106, 2),
+    # last contact with server?
+    "unknown_time_1": RegisterDefinitions("u32", "epoch", 1, 32110, 2),
+    # something todo with startup time?
+    "unknown_time_2": RegisterDefinitions("u32", "epoch", 1, 32156, 2),
+    # something todo with shutdown time?
+    "unknown_time_3": RegisterDefinitions("u32", "epoch", 1, 32160, 2),
+    # installation time?
+    "unknown_time_4": RegisterDefinitions("u32", "epoch", 1, 35113, 2),
     "power_meter_active_power": RegisterDefinitions("i32", "W", 1, 37113, 2),
+    "grid_A_voltage": RegisterDefinitions("i32", "V", 10, 37101, 2),
+    "grid_B_voltage": RegisterDefinitions("i32", "V", 10, 37103, 2),
+    "grid_C_voltage": RegisterDefinitions("i32", "V", 10, 37105, 2),
+    "active_grid_A_current": RegisterDefinitions("i32", "I", 100, 37107, 2),
+    "active_grid_B_current": RegisterDefinitions("i32", "I", 100, 37109, 2),
+    "active_grid_C_current": RegisterDefinitions("i32", "I", 100, 37111, 2),
+    "active_grid_power_factor": RegisterDefinitions("i16", None, 1000, 37117, 1),
+    "active_grid_frequency": RegisterDefinitions("i16", "Hz", 100, 37118, 1),
+    "grid_exporterd_energy": RegisterDefinitions("i32", "kWh", 100, 37119, 2),
+    "grid_accumulated_energy": RegisterDefinitions("u32", "kWh", 100, 37121, 2),
+    "active_grid_A_B_voltage": RegisterDefinitions("i32", "V", 10, 37126, 2),
+    "active_grid_B_C_voltage": RegisterDefinitions("i32", "V", 10, 37128, 2),
+    "active_grid_C_A_voltage": RegisterDefinitions("i32", "V", 10, 37130, 2),
+    "active_grid_A_power": RegisterDefinitions("i32", "W", 1, 37132, 2),
+    "active_grid_B_power": RegisterDefinitions("i32", "W", 1, 37134, 2),
+    "active_grid_C_power": RegisterDefinitions("i32", "W", 1, 37136, 2),
     "daily_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32114, 2),
     "nb_optimizers": RegisterDefinitions("u16", None, 1, 37200, 1),
     "nb_online_optimizers": RegisterDefinitions("u16", None, 1, 37201, 1),
     "system_time": RegisterDefinitions("u32", "epoch", 1, 40000, 2),
+    # seems to be the same as unknown_time_4
+    "unknown_time_5": RegisterDefinitions("u32", "epoch", 1, 40500, 2),
     "grid_code": RegisterDefinitions("u16", "grid_enum", 1, 42000, 1),
     "time_zone": RegisterDefinitions("i16", "min", 1, 43006, 1),
 }
