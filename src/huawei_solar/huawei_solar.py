@@ -136,7 +136,6 @@ class HuaweiSolar:
         """
         i = 0
         if not self.connected:
-            print("not yet connected")
             self.client.connect()
             self.connected = True
             time.sleep(2)
@@ -148,7 +147,6 @@ class HuaweiSolar:
                 raise ConnectionException(ex)
             if not response.isError():
                 break
-            print("not yet connected 2")
             self.client.close()
             self.client.connect()
             time.sleep(2)
