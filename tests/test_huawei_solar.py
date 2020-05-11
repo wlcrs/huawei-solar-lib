@@ -9,7 +9,7 @@ import src.huawei_solar.huawei_solar as huawei_solar
 
 class TestHuaweiSolar(unittest.TestCase):
     def setUp(self):
-        self.api_instance = huawei_solar.HuaweiSolar("192.168.1.23")
+        self.api_instance = huawei_solar.HuaweiSolar("192.0.2.0", wait=0, timeout=0)
 
     @patch(
         "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",

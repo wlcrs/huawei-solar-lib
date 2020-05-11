@@ -27,10 +27,11 @@ Alarm = namedtuple("Alarm", "name id level")
 class HuaweiSolar:
     """Interface to the Huawei solar inverter"""
 
-    def __init__(self, host, port="502", timeout=5):
+    def __init__(self, host, port="502", timeout=5, wait=2):
         self.client = ModbusTcpClient(host, port=port, timeout=timeout)
         self._time_offset = None
         self.connected = False
+        self.wait = wait
 
     # pylint: disable=too-many-branches, too-many-statements
     def get(self, name):
@@ -138,7 +139,7 @@ class HuaweiSolar:
         if not self.connected:
             self.client.connect()
             self.connected = True
-            time.sleep(2)
+            time.sleep(self.wait)
         while i < 5:
             try:
                 response = self.client.read_holding_registers(register, length)
@@ -149,7 +150,7 @@ class HuaweiSolar:
                 break
             self.client.close()
             self.client.connect()
-            time.sleep(2)
+            time.sleep(self.wait)
 
             LOGGER.debug("Failed reading register %s time(s)", i)
             i = i + 1
