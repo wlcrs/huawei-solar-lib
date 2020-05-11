@@ -47,7 +47,9 @@ class HuaweiSolar:
 
         elif reg.type == "u16" and reg.unit == "grid_enum":
             tmp = int.from_bytes(response, byteorder="big")
-            result = GRID_CODES[tmp]
+            result = GRID_CODES.get(
+                tmp, GridCode("unknown/not implemented", "unknown/not implemented")
+            )
 
         elif reg.type == "u32" and reg.unit == "epoch":
             tmp = int.from_bytes(response, byteorder="big")
@@ -526,6 +528,56 @@ GRID_CODES = {
     48: GridCode("IEEE 1547-MV480", "USA"),
     49: GridCode("IEC61727-60Hz", "General"),
     50: GridCode("IEC61727-60Hz-MV480", "General"),
+    51: GridCode("CHINA_MV500", "China"),
+    52: GridCode("ANRE", "Romania"),
+    53: GridCode("ANRE-MV480", "Romania"),
+    54: GridCode("ELECTRIC RULE NO.21-MV480", "California, USA"),
+    55: GridCode("HECO-MV480", "Hawaii, USA"),
+    56: GridCode("PRC_024_Eastern-MV480", "Eastern USA"),
+    57: GridCode("PRC_024_Western-MV480", "Western USA"),
+    58: GridCode("PRC_024_Quebec-MV480", "Quebec, Canada"),
+    59: GridCode("PRC_024_ERCOT-MV480", "Texas, USA"),
+    60: GridCode("PO12.3-MV480", "Spain"),
+    61: GridCode("EN50438_IE-MV480", "Ireland"),
+    62: GridCode("EN50438_IE", "Ireland"),
+    63: GridCode("IEEE 1547a-MV480", "USA"),
+    64: GridCode("Japan standard (MV420-50 Hz)", "Japan"),
+    65: GridCode("Japan standard (MV420-60 Hz)", "Japan"),
+    66: GridCode("Japan standard (MV440-50 Hz)", "Japan"),
+    67: GridCode("Japan standard (MV440-60 Hz)", "Japan"),
+    68: GridCode("IEC61727-50Hz-MV500", "General"),
+    70: GridCode("CEI0-16-MV480", "Italy"),
+    71: GridCode("PO12.3", "Spain"),
+    72: GridCode("Japan standard (MV400-50 Hz)", "Japan"),
+    73: GridCode("Japan standard (MV400-60 Hz)", "Japan"),
+    74: GridCode("CEI0-21-MV480", "Italy"),
+    75: GridCode("KOREA-MV480", "South Korea"),
+    76: GridCode("Egypt ETEC", "Egypt"),
+    77: GridCode("Egypt ETEC-MV480", "Egypt"),
+    78: GridCode("CHINA_MV800", "China"),
+    79: GridCode("IEEE 1547-MV600", "USA"),
+    80: GridCode("ELECTRIC RULE NO.21-MV600", "California, USA"),
+    81: GridCode("HECO-MV600", "Hawaii, USA"),
+    82: GridCode("PRC_024_Eastern-MV600", "Eastern USA"),
+    83: GridCode("PRC_024_Western-MV600", "Western USA"),
+    84: GridCode("PRC_024_Quebec-MV600", "Quebec, Canada"),
+    85: GridCode("PRC_024_ERCOT-MV600", "Texas, USA"),
+    86: GridCode("IEEE 1547a-MV600", "USA"),
+    87: GridCode("EN50549-LV", "Ireland"),
+    88: GridCode("EN50549-MV480", "Ireland"),
+    89: GridCode("Jordan-Transmission", "Jordan"),
+    90: GridCode("Jordan-Transmission-MV480", "Jordan"),
+    91: GridCode("NAMIBIA", "Namibia"),
+    92: GridCode("ABNT NBR 16149", "Brazil"),
+    93: GridCode("ABNT NBR 16149-MV480", "Brazil"),
+    94: GridCode("SA_RPPs", "South Africa"),
+    95: GridCode("SA_RPPs-MV480", "South Africa"),
+    96: GridCode("INDIA", "India"),
+    97: GridCode("INDIA-MV500", "India"),
+    98: GridCode("ZAMBIA", "Zambia"),
+    99: GridCode("ZAMBIA-MV480", "Zambia"),
+    100: GridCode("Chile", "Chile"),
+    101: GridCode("Chile-MV480", "Chile"),
 }
 
 STATE_CODES_1 = {
