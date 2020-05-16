@@ -128,6 +128,10 @@ class HuaweiSolar:
 
         return Result(result, reg.unit)
 
+    def close_connection(self):
+        self.client.close()
+        self.connected = False
+
     def read_register(self, register, length):
         """
         Read register from device
