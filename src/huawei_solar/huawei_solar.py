@@ -55,7 +55,16 @@ class HuaweiSolar:
             tmp = int.from_bytes(response, byteorder="big")
             if self._time_offset is None:
                 self._time_offset = self.get("time_zone").value
-            tmp2 = datetime.utcfromtimestamp(tmp - 60 * self._time_offset)
+            try:
+                tmp2 = datetime.utcfromtimestamp(tmp - 60 * self._time_offset)
+            except OverflowError:
+                tmp2 = datetime.utcfromtimestamp(0)
+                LOGGER.debug(
+                    "Received invalid time value: %s (time_offset = %s)",
+                    tmp,
+                    self._time_offset,
+                )
+
             # don't use local time information and use UTC time
             # which we got from systemtime - time zone offset.
             # not yet sure about the is_dst setting
