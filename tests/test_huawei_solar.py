@@ -24,6 +24,26 @@ class TestHuaweiSolar(unittest.TestCase):
         "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
         mock_huawei_solar.mock_read_holding_registers,
     )
+    @patch.dict(
+        mock_huawei_solar.MOCK_REGISTERS,
+        {
+            (30000, 15): b"\x1eSUN2000L-3KTL\x00\x00\x00\x00\x00\x00\x00"
+            b"\x00\x00\x00\x00\x00\x00\x00\xe2\x82\x28"
+        },
+    )
+    def test_get_invalid_model_name(self):
+        result = self.api_instance.get("model_name")
+        # invalid utf-8 sequence from here:
+        # https://stackoverflow.com/questions/1301402/example-invalid-utf8-string
+        self.assertEqual(
+            result.value, "53554e323030304c2d334b544c0000000000000000000000000000e28228"
+        )
+        self.assertEqual(result.unit, None)
+
+    @patch(
+        "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
+        mock_huawei_solar.mock_read_holding_registers,
+    )
     def test_get_serial_number(self):
         result = self.api_instance.get("serial_number")
         self.assertEqual(result.value, "0000000000HVK0000000")
@@ -114,6 +134,16 @@ class TestHuaweiSolar(unittest.TestCase):
         "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
         mock_huawei_solar.mock_read_holding_registers,
     )
+    @patch.dict(mock_huawei_solar.MOCK_REGISTERS, {(32000, 1): b"\x02\xfc\x00"})
+    def test_get_state_1_extra_bits_set(self):
+        result = self.api_instance.get("state_1")
+        self.assertEqual(result.value, [])
+        self.assertEqual(result.unit, None)
+
+    @patch(
+        "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
+        mock_huawei_solar.mock_read_holding_registers,
+    )
     def test_get_state_2(self):
         result = self.api_instance.get("state_2")
         self.assertEqual(
@@ -125,9 +155,31 @@ class TestHuaweiSolar(unittest.TestCase):
         "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
         mock_huawei_solar.mock_read_holding_registers,
     )
+    @patch.dict(mock_huawei_solar.MOCK_REGISTERS, {(32002, 1): b"\x02\xff\xf8"})
+    def test_get_state_2_extra_bits_set(self):
+        result = self.api_instance.get("state_2")
+        self.assertEqual(
+            result.value, ["locked", "PV disconnected", "no DSP data collection"]
+        )
+        self.assertEqual(result.unit, None)
+
+    @patch(
+        "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
+        mock_huawei_solar.mock_read_holding_registers,
+    )
     def test_get_state_3(self):
         result = self.api_instance.get("state_3")
         self.assertEqual(result.value, ["on-grid", "off-grid switch disabled"])
+        self.assertEqual(result.unit, None)
+
+    @patch(
+        "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
+        mock_huawei_solar.mock_read_holding_registers,
+    )
+    @patch.dict(mock_huawei_solar.MOCK_REGISTERS, {(32003, 2): b"\x04\xff\xff\xff\xff"})
+    def test_get_state_3_extra_bits_set(self):
+        result = self.api_instance.get("state_3")
+        self.assertEqual(result.value, ["off-grid", "off-grid switch enabled"])
         self.assertEqual(result.unit, None)
 
     @patch(
@@ -231,6 +283,17 @@ class TestHuaweiSolar(unittest.TestCase):
     def test_get_alarm_3_all(self):
         result = self.api_instance.get("alarm_3")
         expected_result = list(huawei_solar.ALARM_CODES_3.values())
+        self.assertEqual(result.value, expected_result)
+        self.assertEqual(result.unit, None)
+
+    @patch(
+        "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
+        mock_huawei_solar.mock_read_holding_registers,
+    )
+    @patch.dict(mock_huawei_solar.MOCK_REGISTERS, {(32010, 1): b"\x02\xfe\x00"})
+    def test_get_alarm_3_extra_bits_set(self):
+        result = self.api_instance.get("alarm_3")
+        expected_result = []
         self.assertEqual(result.value, expected_result)
         self.assertEqual(result.unit, None)
 
@@ -911,6 +974,16 @@ class TestHuaweiSolar(unittest.TestCase):
     def test_get_device_status(self):
         result = self.api_instance.get("device_status")
         self.assertEqual(result.value, "On-grid")
+        self.assertEqual(result.unit, "status_enum")
+
+    @patch(
+        "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
+        mock_huawei_solar.mock_read_holding_registers,
+    )
+    @patch.dict(mock_huawei_solar.MOCK_REGISTERS, {(32089, 1): b"\x02\xff\xff"})
+    def test_get_device_status_invalid(self):
+        result = self.api_instance.get("device_status")
+        self.assertEqual(result.value, "unknown/invalid")
         self.assertEqual(result.unit, "status_enum")
 
     @patch(

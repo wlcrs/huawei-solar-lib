@@ -40,10 +40,14 @@ class HuaweiSolar:
         response = self.read_register(reg.register, reg.length)
 
         if reg.type == "str":
-            result = response.decode("utf-8").strip("\0")
+            try:
+                result = response.decode("utf-8").strip("\0")
+            except UnicodeDecodeError:
+                LOGGER.debug("Received invalid utf-8 string: %s", response.hex())
+                result = response.hex()
 
         elif reg.type == "u16" and reg.unit == "status_enum":
-            result = DEVICE_STATUS_DEFINITIONS[response.hex()]
+            result = DEVICE_STATUS_DEFINITIONS.get(response.hex(), "unknown/invalid")
 
         elif reg.type == "u16" and reg.unit == "grid_enum":
             tmp = int.from_bytes(response, byteorder="big")
@@ -615,8 +619,11 @@ STATE_CODES_2 = {
 }
 
 STATE_CODES_3 = {
-    0b0000_0000_0000_0001: ("on-grid", "off-grid"),
-    0b0000_0000_0000_0010: ("off-grid switch disabled", "off-grid switch enabled"),
+    0b0000_0000_0000_0000_0000_0000_0000_0001: ("on-grid", "off-grid"),
+    0b0000_0000_0000_0000_0000_0000_0000_0010: (
+        "off-grid switch disabled",
+        "off-grid switch enabled",
+    ),
 }
 
 ALARM_CODES_1 = {
