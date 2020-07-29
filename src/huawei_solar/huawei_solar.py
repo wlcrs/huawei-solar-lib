@@ -40,11 +40,7 @@ class HuaweiSolar:
         response = self.read_register(reg.register, reg.length)
 
         if reg.type == "str":
-            try:
-                result = response.decode("utf-8").strip("\0")
-            except UnicodeDecodeError:
-                LOGGER.debug("Received invalid utf-8 string: %s", response.hex())
-                result = response.hex()
+            result = response.decode("utf-8", "replace").strip("\0")
 
         elif reg.type == "u16" and reg.unit == "status_enum":
             result = DEVICE_STATUS_DEFINITIONS.get(response.hex(), "unknown/invalid")
