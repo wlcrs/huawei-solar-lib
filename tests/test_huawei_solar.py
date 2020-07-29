@@ -36,7 +36,8 @@ class TestHuaweiSolar(unittest.TestCase):
         # invalid utf-8 sequence from here:
         # https://stackoverflow.com/questions/1301402/example-invalid-utf8-string
         self.assertEqual(
-            result.value, "53554e323030304c2d334b544c0000000000000000000000000000e28228"
+            result.value,
+            "SUN2000L-3KTL\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00�(",
         )
         self.assertEqual(result.unit, None)
 
