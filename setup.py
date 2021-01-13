@@ -20,7 +20,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://gitlab.com/EmilV2/huawei-solar",
-    install_requires=["pymodbus>=2.4.0,<3.0"],
+    install_requires=["pymodbus>=2.5.0rc2,<3.0"],
     python_requires=">=3",
     packages=["huawei_solar"],
     package_dir={"": "src"},
