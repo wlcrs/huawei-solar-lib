@@ -39,7 +39,7 @@ deploy_staging:
     TWINE_USERNAME: $STAGING_USERNAME
     TWINE_PASSWORD: $STAGING_PASSWORD
   script:
-    - python setup.py egg_info -b.$CI_JOB_ID bdist bdist_wheel
+    - python setup.py egg_info -b $(date +%s%N) bdist bdist_wheel
     - twine upload --repository-url $PYTEST_REPOSITORY_URL dist/*
   except:
     - tags
