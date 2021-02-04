@@ -67,4 +67,8 @@ python37:
 python38:
   stage: test
   script: tox -e py38
+
+python39:
+  stage: test
+  script: tox -e py38
 ...
