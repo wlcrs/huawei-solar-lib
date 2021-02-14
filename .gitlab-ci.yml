@@ -70,5 +70,5 @@ python38:
 
 python39:
   stage: test
-  script: tox -e py38
+  script: tox -e py39
 ...
