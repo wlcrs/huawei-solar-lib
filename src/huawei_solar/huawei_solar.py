@@ -45,6 +45,15 @@ class HuaweiSolar:
         elif reg.type == "u16" and reg.unit == "status_enum":
             result = DEVICE_STATUS_DEFINITIONS.get(response.hex(), "unknown/invalid")
 
+        elif reg.type == "u16" and reg.unit == "storage_status_enum":
+            result = STORAGE_STATUS_DEFINITIONS.get(response.hex(), "unknown/invalid")
+
+        elif reg.type == "u16" and reg.unit == "storage_working_mode_enum":
+            result = STORAGE_WORKING_MODES.get(response.hex(), "unknown/invalid")
+
+        elif reg.type == "u16" and reg.unit == "storage_time_of_use_price_enum":
+            result = STORAGE_TOU_PRICE.get(response.hex(), "unknown/invalid")
+
         elif reg.type == "u16" and reg.unit == "grid_enum":
             tmp = int.from_bytes(response, byteorder="big")
             result = GRID_CODES.get(
@@ -426,6 +435,14 @@ REGISTERS = {
     "unknown_time_3": RegisterDefinitions("u32", "epoch", 1, 32160, 2),
     # installation time?
     "unknown_time_4": RegisterDefinitions("u32", "epoch", 1, 35113, 2),
+    "storage_status": RegisterDefinitions("i16", "storage_status_enum", 1, 37000, 1),
+    "storage_charge_discharge_power": RegisterDefinitions("i32", "W", 1, 37001, 2),
+    "storage_current_day_charge_capacity": RegisterDefinitions(
+        "u32", "kWh", 100, 37015, 2
+    ),
+    "storage_current_day_discharge_capacity": RegisterDefinitions(
+        "u32", "kWh", 100, 37017, 2
+    ),
     "power_meter_active_power": RegisterDefinitions("i32", "W", 1, 37113, 2),
     "grid_A_voltage": RegisterDefinitions("i32", "V", 10, 37101, 2),
     "grid_B_voltage": RegisterDefinitions("i32", "V", 10, 37103, 2),
@@ -451,6 +468,26 @@ REGISTERS = {
     "unknown_time_5": RegisterDefinitions("u32", "epoch", 1, 40500, 2),
     "grid_code": RegisterDefinitions("u16", "grid_enum", 1, 42000, 1),
     "time_zone": RegisterDefinitions("i16", "min", 1, 43006, 1),
+    "storage_working_mode": RegisterDefinitions(
+        "i16", "storage_working_mode_enum", 1, 47004, 1
+    ),
+    "storage_time_of_use_price": RegisterDefinitions(
+        "i16", "storage_tou_price_enum", 1, 47027, 1
+    ),
+    "storage_lcoe": RegisterDefinitions("u32", None, 1000, 47069, 2),
+    "storage_maximum_charging_power": RegisterDefinitions("u32", "W", 1, 47075, 2),
+    "storage_maximum_discharging_power": RegisterDefinitions("u32", "W", 1, 47077, 2),
+    "storage_power_limit_grid_tied_point": RegisterDefinitions("i32", "W", 1, 47079, 2),
+    "storage_charging_cutoff_capacity": RegisterDefinitions("u16", "%", 10, 47081, 1),
+    "storage_discharging_cutoff_capacity": RegisterDefinitions(
+        "u16", "%", 10, 47082, 1
+    ),
+    "storage_forced_charging_and_discharging_period": RegisterDefinitions(
+        "u16", "min", 1, 47083, 1
+    ),
+    "storage_forced_charging_and_discharging_power": RegisterDefinitions(
+        "i32", "min", 1, 47084, 2
+    ),
 }
 
 
@@ -486,6 +523,22 @@ DEVICE_STATUS_DEFINITIONS = {
     "0a00": "Running: off-grid charging",
     "a000": "Standby: no irradiation",
 }
+
+STORAGE_STATUS_DEFINITIONS = {
+    "0": "offline",
+    "1": "standby",
+    "2": "running",
+    "3": "fault",
+    "4": "sleep mode",
+}
+
+STORAGE_WORKING_MODES = {
+    "0": "unlimited",
+    "1": "grid connection with zero power",
+    "2": "grid connection with limited power",
+}
+
+STORAGE_TOU_PRICE = {"0": "disable", "1": "enable"}
 
 # pylint: disable=fixme
 GRID_CODES = {
