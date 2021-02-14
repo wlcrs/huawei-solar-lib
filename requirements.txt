@@ -1,2 +1,2 @@
-pymodbus>=2.5.0rc2,<3.0
-pytz==2019.3
+pymodbus>=2.4.0,<3.0
+pytz>=2019.3
