@@ -152,11 +152,14 @@ class HuaweiSolar:
 
     def read_register(self, register, length):
         """
-        Read register from device
-        5 tries and then we give up.
-        Consistently works after 3 tries if we haven't made requests for a while;
-        for sequential requests 1 try is enough from the second request.
-        With faster timeout it goes faster, but also fails more than 3 times.
+        Read register from device.
+
+        The device needs a bit of time between the connection and the first request
+        and between requests if there is a long time between them, else it will fail.
+
+        This is solved by sleeping between the first connection and a request,
+        and up to 5 retries between following requests.
+
         It seems to only support connections from one device at the same time.
         """
         i = 0
@@ -295,11 +298,14 @@ class AsyncHuaweiSolar:
 
     async def read_register(self, client, register, length):
         """
-        Async read register from device
-        5 tries and then we give up.
-        Consistently works after 3 tries if we haven't made requests for a while;
-        for sequential requests 1 try is enough from the second request.
-        With faster timeout it goes faster, but also fails more than 3 times.
+        Async read register from device.
+
+        The device needs a bit of time between the connection and the first request
+        and between requests if there is a long time between them, else it will fail.
+
+        This is solved by sleeping between the first connection and a request,
+        and up to 5 retries between following requests.
+
         It seems to only support connections from one device at the same time.
         """
         for i in range(1, 6):
