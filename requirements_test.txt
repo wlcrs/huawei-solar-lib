@@ -1,3 +1,4 @@
+black
 pytest-cov
 flake8
 codecov
