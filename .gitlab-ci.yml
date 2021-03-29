@@ -31,7 +31,7 @@ codecov:
 linting:
   stage: test
   script:
-    - tox -e black, yamllint, flake8
+    - tox -e black,yamllint,flake8
 
 deploy_staging:
   stage: deploy
