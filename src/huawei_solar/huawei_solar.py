@@ -458,7 +458,7 @@ REGISTERS = {
     "active_grid_C_current": RegisterDefinitions("i32", "I", 100, 37111, 2),
     "active_grid_power_factor": RegisterDefinitions("i16", None, 1000, 37117, 1),
     "active_grid_frequency": RegisterDefinitions("i16", "Hz", 100, 37118, 1),
-    "grid_exporterd_energy": RegisterDefinitions("i32", "kWh", 100, 37119, 2),
+    "grid_exported_energy": RegisterDefinitions("i32", "kWh", 100, 37119, 2),
     "grid_accumulated_energy": RegisterDefinitions("u32", "kWh", 100, 37121, 2),
     "active_grid_A_B_voltage": RegisterDefinitions("i32", "V", 10, 37126, 2),
     "active_grid_B_C_voltage": RegisterDefinitions("i32", "V", 10, 37128, 2),
