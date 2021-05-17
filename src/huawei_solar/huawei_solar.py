@@ -27,8 +27,9 @@ Alarm = namedtuple("Alarm", "name id level")
 class HuaweiSolar:
     """Interface to the Huawei solar inverter"""
 
-    def __init__(self, host, port="502", timeout=5, wait=2):
+    def __init__(self, host, port="502", timeout=5, wait=2, slave=0):
         self.client = ModbusTcpClient(host, port=port, timeout=timeout)
+        self._slave = slave
         self._time_offset = None
         self.connected = False
         self.wait = wait
@@ -169,7 +170,9 @@ class HuaweiSolar:
             time.sleep(self.wait)
         while i < 5:
             try:
-                response = self.client.read_holding_registers(register, length)
+                response = self.client.read_holding_registers(
+                    register, length, unit=self._slave
+                )
             except ModbusConnectionException as ex:
                 LOGGER.exception("failed to connect to device, is the host correct?")
                 raise ConnectionException(ex)
@@ -193,7 +196,7 @@ class HuaweiSolar:
 class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter"""
 
-    def __init__(self, host, port="502", timeout=5, loop=None):
+    def __init__(self, host, port="502", timeout=5, loop=None, slave=0):
         # pylint: disable=unpacking-non-sequence
         LOGGER.debug("creating loop and client")
         self.loop, self.client = AsyncModbusTCPClient(
@@ -201,6 +204,7 @@ class AsyncHuaweiSolar:
         )
         LOGGER.debug("created loop and client")
         self.timeout = timeout
+        self._slave = slave
         self._time_offset = None
 
     # pylint: disable=too-many-branches, too-many-statements
@@ -315,7 +319,9 @@ class AsyncHuaweiSolar:
                 raise ConnectionException(message)
             try:
                 response = await asyncio.wait_for(
-                    client.protocol.read_holding_registers(register, length),
+                    client.protocol.read_holding_registers(
+                        register, length, unit=self._slave
+                    ),
                     timeout=self.timeout,
                 )
                 return response.encode()[1:]
