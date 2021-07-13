@@ -5,7 +5,7 @@ import asyncio
 import logging
 import time
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytz
 from pymodbus.client.asynchronous import schedulers
@@ -21,6 +21,20 @@ RegisterDefinitions = namedtuple(
 GridCode = namedtuple("GridCode", "standard country")
 Result = namedtuple("Result", "value unit")
 Alarm = namedtuple("Alarm", "name id level")
+TimeOfUsePricePeriods = namedtuple(
+    "TimeOfUsePricePeriods",
+    "nb_periods "
+    "start_period_1 stop_period_1 price_period_1 "
+    "start_period_2 stop_period_2 price_period_2 "
+    "start_period_3 stop_period_3 price_period_3 "
+    "start_period_4 stop_period_4 price_period_4 "
+    "start_period_5 stop_period_5 price_period_5 "
+    "start_period_6 stop_period_6 price_period_6 "
+    "start_period_7 stop_period_7 price_period_7 "
+    "start_period_8 stop_period_8 price_period_8 "
+    "start_period_9 stop_period_9 price_period_9 "
+    "start_period_10 stop_period_10 price_period_10",
+)
 
 
 # pylint: disable=too-few-public-methods
@@ -46,19 +60,96 @@ class HuaweiSolar:
         elif reg.type == "u16" and reg.unit == "status_enum":
             result = DEVICE_STATUS_DEFINITIONS.get(response.hex(), "unknown/invalid")
 
-        elif reg.type == "u16" and reg.unit == "storage_status_enum":
-            result = STORAGE_STATUS_DEFINITIONS.get(response.hex(), "unknown/invalid")
+        elif reg.type == "u16" and reg.unit == "storage_running_status_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = STORAGE_STATUS_DEFINITIONS.get(tmp, "unknown/invalid")
 
-        elif reg.type == "u16" and reg.unit == "storage_working_mode_enum":
-            result = STORAGE_WORKING_MODES.get(response.hex(), "unknown/invalid")
+        elif reg.type == "u16" and reg.unit == "storage_working_mode_a_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = STORAGE_WORKING_MODES_A.get(tmp, "unknown/invalid")
+
+        elif reg.type == "u16" and reg.unit == "storage_working_mode_b_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = STORAGE_WORKING_MODES_B.get(tmp, "unknown/invalid")
 
         elif reg.type == "u16" and reg.unit == "storage_time_of_use_price_enum":
-            result = STORAGE_TOU_PRICE.get(response.hex(), "unknown/invalid")
+            tmp = int.from_bytes(response, byteorder="big")
+            result = STORAGE_TOU_PRICE.get(tmp, "unknown/invalid")
+
+        elif reg.type == "u16" and reg.unit == "storage_product_model_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = STORAGE_PRODUCT_MODEL.get(tmp, "unknown/invalid")
+
+        elif reg.type == "u16" and reg.unit == "storage_charge_from_grid_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = STORAGE_CHARGE_FROM_GRID.get(tmp, "unknown/invalid")
+
+        elif (
+            reg.type == "u16" and reg.unit == "storage_excess_pv_energy_use_in_tou_enum"
+        ):
+            tmp = int.from_bytes(response, byteorder="big")
+            result = STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU.get(tmp, "unknown/invalid")
+
+        elif (
+            reg.type == "u16"
+            and reg.unit == "backup_voltage_independend_operation_enum"
+        ):
+            tmp = int.from_bytes(response, byteorder="big")
+            result = BACKUP_VOLTAGE_INDEPENDEND_OPERATION.get(tmp, "unknown/invalid")
+
+        elif reg.type == "u16" and reg.unit == "meter_status_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = METER_STATUS.get(tmp, "unknown/invalid")
+
+        elif reg.type == "u16" and reg.unit == "meter_type_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = METER_TYPE.get(tmp, "unknown/invalid")
+
+        elif reg.type == "u16" and reg.unit == "meter_type_check_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = METER_TYPE_CHECK.get(tmp, "unknown/invalid")
 
         elif reg.type == "u16" and reg.unit == "grid_enum":
             tmp = int.from_bytes(response, byteorder="big")
             result = GRID_CODES.get(
                 tmp, GridCode("unknown/not implemented", "unknown/not implemented")
+            )
+
+        elif (
+            reg.type == "multidata" and reg.unit == "storage_time_of_use_price_periods"
+        ):
+            TimeOfUsePricePeriods(
+                timedelta(minutes=int.from_bytes(response[0:2], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[2:4], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[4:6], byteorder="big")),
+                int.from_bytes(response[6:10], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[10:12], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[12:14], byteorder="big")),
+                int.from_bytes(response[14:18], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[18:20], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[20:22], byteorder="big")),
+                int.from_bytes(response[22:26], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[26:28], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[28:30], byteorder="big")),
+                int.from_bytes(response[30:34], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[34:36], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[36:38], byteorder="big")),
+                int.from_bytes(response[38:42], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[42:44], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[44:46], byteorder="big")),
+                int.from_bytes(response[46:50], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[50:52], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[52:54], byteorder="big")),
+                int.from_bytes(response[54:58], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[58:60], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[60:62], byteorder="big")),
+                int.from_bytes(response[62:66], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[66:68], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[68:70], byteorder="big")),
+                int.from_bytes(response[70:74], byteorder="big"),
+                timedelta(minutes=int.from_bytes(response[74:76], byteorder="big")),
+                timedelta(minutes=int.from_bytes(response[76:78], byteorder="big")),
+                int.from_bytes(response[78:82], byteorder="big"),
             )
 
         elif reg.type == "u32" and reg.unit == "epoch":
@@ -441,50 +532,326 @@ REGISTERS = {
     "accumulated_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32106, 2),
     # last contact with server?
     "unknown_time_1": RegisterDefinitions("u32", "epoch", 1, 32110, 2),
+    "daily_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32114, 2),
     # something todo with startup time?
     "unknown_time_2": RegisterDefinitions("u32", "epoch", 1, 32156, 2),
     # something todo with shutdown time?
     "unknown_time_3": RegisterDefinitions("u32", "epoch", 1, 32160, 2),
     # installation time?
     "unknown_time_4": RegisterDefinitions("u32", "epoch", 1, 35113, 2),
-    "storage_status": RegisterDefinitions("i16", "storage_status_enum", 1, 37000, 1),
-    "storage_charge_discharge_power": RegisterDefinitions("i32", "W", 1, 37001, 2),
-    "storage_current_day_charge_capacity": RegisterDefinitions(
+    "storage_unit_1_running_status": RegisterDefinitions(
+        "u16", "storage_running_status_enum", 1, 37000, 1
+    ),
+    "storage_unit_1_charge_discharge_power": RegisterDefinitions(
+        "i32", "W", 1, 37001, 2
+    ),
+    "storage_unit_1_bus_voltage": RegisterDefinitions("u16", "V", 10, 37003, 1),
+    "storage_unit_1_state_of_capacity": RegisterDefinitions("u16", "%", 10, 37004, 1),
+    "storage_unit_1_working_mode_b": RegisterDefinitions(
+        "storage_working_mode_b", "%", 1, 37006, 1
+    ),
+    "storage_unit_1_rated_charge_power": RegisterDefinitions("u32", "W", 1, 37007, 2),
+    "storage_unit_1_rated_discharge_power": RegisterDefinitions(
+        "u32", "W", 1, 37009, 2
+    ),
+    "storage_unit_1_fault_id": RegisterDefinitions("u16", None, 1, 37014, 1),
+    "storage_unit_1_current_day_charge_capacity": RegisterDefinitions(
         "u32", "kWh", 100, 37015, 2
     ),
-    "storage_current_day_discharge_capacity": RegisterDefinitions(
+    "storage_unit_1_current_day_discharge_capacity": RegisterDefinitions(
         "u32", "kWh", 100, 37017, 2
     ),
-    "power_meter_active_power": RegisterDefinitions("i32", "W", 1, 37113, 2),
+    "storage_unit_1_bus_current": RegisterDefinitions("i16", "A", 10, 37021, 1),
+    "storage_unit_1_battery_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 37022, 1
+    ),
+    "storage_unit_1_remaining_charge_dis_charge_time": RegisterDefinitions(
+        "u16", "min", 1, 37025, 1
+    ),
+    "storage_unit_1_dcdc_version": RegisterDefinitions("str", None, 1, 37026, 10),
+    "storage_unit_1_bms_version": RegisterDefinitions("str", None, 1, 37036, 10),
+    "storage_maximum_charge_power": RegisterDefinitions("u32", "W", 1, 37046, 2),
+    "storage_maximum_discharge_power": RegisterDefinitions("u32", "W", 1, 37048, 2),
+    "storage_unit_1_serial_number": RegisterDefinitions("str", None, 1, 37052, 10),
+    "storage_unit_1_total_charge": RegisterDefinitions("u32", "kWh", 100, 37066, 2),
+    "storage_unit_1_total_discharge": RegisterDefinitions("u32", "kWh", 100, 37068, 2),
+    "meter_status": RegisterDefinitions("u16", "meter_status_enum", 1, 37100, 1),
     "grid_A_voltage": RegisterDefinitions("i32", "V", 10, 37101, 2),
     "grid_B_voltage": RegisterDefinitions("i32", "V", 10, 37103, 2),
     "grid_C_voltage": RegisterDefinitions("i32", "V", 10, 37105, 2),
     "active_grid_A_current": RegisterDefinitions("i32", "I", 100, 37107, 2),
     "active_grid_B_current": RegisterDefinitions("i32", "I", 100, 37109, 2),
     "active_grid_C_current": RegisterDefinitions("i32", "I", 100, 37111, 2),
+    "power_meter_active_power": RegisterDefinitions("i32", "W", 1, 37113, 2),
     "active_grid_power_factor": RegisterDefinitions("i16", None, 1000, 37117, 1),
     "active_grid_frequency": RegisterDefinitions("i16", "Hz", 100, 37118, 1),
     "grid_exported_energy": RegisterDefinitions("i32", "kWh", 100, 37119, 2),
     "grid_accumulated_energy": RegisterDefinitions("u32", "kWh", 100, 37121, 2),
+    "meter_type": RegisterDefinitions("u16", "meter_type_enum", 1, 37125, 2),
     "active_grid_A_B_voltage": RegisterDefinitions("i32", "V", 10, 37126, 2),
     "active_grid_B_C_voltage": RegisterDefinitions("i32", "V", 10, 37128, 2),
     "active_grid_C_A_voltage": RegisterDefinitions("i32", "V", 10, 37130, 2),
     "active_grid_A_power": RegisterDefinitions("i32", "W", 1, 37132, 2),
     "active_grid_B_power": RegisterDefinitions("i32", "W", 1, 37134, 2),
     "active_grid_C_power": RegisterDefinitions("i32", "W", 1, 37136, 2),
-    "daily_yield_energy": RegisterDefinitions("u32", "kWh", 100, 32114, 2),
     "nb_optimizers": RegisterDefinitions("u16", None, 1, 37200, 1),
+    "meter_type_check": RegisterDefinitions(
+        "u16", "meter_type_check_enum", 1, 37125, 2
+    ),
     "nb_online_optimizers": RegisterDefinitions("u16", None, 1, 37201, 1),
+    "storage_unit_2_serial_number": RegisterDefinitions("str", None, 1, 37700, 10),
+    "storage_unit_2_state_of_capacity": RegisterDefinitions("u16", "%", 10, 37738, 1),
+    "storage_unit_2_running_status": RegisterDefinitions(
+        "u16", "storage_running_status_enum", 1, 37741, 1
+    ),
+    "storage_unit_2_charge_discharge_power": RegisterDefinitions(
+        "i32", "W", 1, 37743, 2
+    ),
+    "storage_unit_2_current_day_charge_capacity": RegisterDefinitions(
+        "u32", "kWh", 100, 37746, 2
+    ),
+    "storage_unit_2_current_day_discharge_capacity": RegisterDefinitions(
+        "u32", "kWh", 100, 37748, 2
+    ),
+    "storage_unit_2_bus_voltage": RegisterDefinitions("u16", "V", 10, 37750, 1),
+    "storage_unit_2_bus_current": RegisterDefinitions("i16", "A", 10, 37751, 1),
+    "storage_unit_2_battery_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 37752, 1
+    ),
+    "storage_unit_2_total_charge": RegisterDefinitions("u32", "kWh", 100, 37753, 2),
+    "storage_unit_2_total_discharge": RegisterDefinitions("u32", "kWh", 100, 37755, 2),
+    "storage_rated_capacity": RegisterDefinitions("u32", "Wh", 1, 37758, 2),
+    "storage_state_of_capacity": RegisterDefinitions("u16", "%", 10, 37760, 1),
+    "storage_running_status": RegisterDefinitions(
+        "u16", "storage_running_status_enum", 1, 37762, 1
+    ),
+    "storage_bus_voltage": RegisterDefinitions("u16", "V", 10, 37763, 1),
+    "storage_bus_current": RegisterDefinitions("i16", "A", 10, 37764, 1),
+    "storage_charge_discharge_power": RegisterDefinitions("i32", "W", 1, 37765, 2),
+    "storage_total_charge": RegisterDefinitions("u32", "kWh", 100, 37780, 2),
+    "storage_total_discharge": RegisterDefinitions("u32", "kWh", 100, 37782, 2),
+    "storage_current_day_charge_capacity": RegisterDefinitions(
+        "u32", "kWh", 100, 37784, 2
+    ),
+    "storage_current_day_discharge_capacity": RegisterDefinitions(
+        "u32", "kWh", 100, 37786, 2
+    ),
+    "storage_unit_2_software_version": RegisterDefinitions("str", None, 1, 37799, 15),
+    "storage_unit_1_software_version": RegisterDefinitions("str", None, 1, 37814, 15),
+    "storage_unit_1_battery_pack_1_serial_number": RegisterDefinitions(
+        "str", None, 1, 38200, 10
+    ),
+    "storage_unit_1_battery_pack_1_firmware_version": RegisterDefinitions(
+        "str", None, 1, 38210, 15
+    ),
+    "storage_unit_1_battery_pack_1_working_status": RegisterDefinitions(
+        "u16", None, 1, 38228, 1
+    ),
+    "storage_unit_1_battery_pack_1_state_of_capacity": RegisterDefinitions(
+        "u16", "%", 10, 38229, 1
+    ),
+    "storage_unit_1_battery_pack_1_charge_discharge_power": RegisterDefinitions(
+        "i32", "W", 1, 38233, 2
+    ),
+    "storage_unit_1_battery_pack_1_voltage": RegisterDefinitions(
+        "u16", "V", 10, 38235, 1
+    ),
+    "storage_unit_1_battery_pack_1_current": RegisterDefinitions(
+        "i16", "A", 10, 38236, 1
+    ),
+    "storage_unit_1_battery_pack_1_total_charge": RegisterDefinitions(
+        "u32", "kWh", 100, 38238, 2
+    ),
+    "storage_unit_1_battery_pack_1_total_discharge": RegisterDefinitions(
+        "u32", "kWh", 100, 38240, 2
+    ),
+    "storage_unit_1_battery_pack_2_serial_number": RegisterDefinitions(
+        "str", None, 1, 38242, 10
+    ),
+    "storage_unit_1_battery_pack_2_firmware_version": RegisterDefinitions(
+        "str", None, 1, 38252, 15
+    ),
+    "storage_unit_1_battery_pack_2_working_status": RegisterDefinitions(
+        "u16", None, 1, 38270, 1
+    ),
+    "storage_unit_1_battery_pack_2_state_of_capacity": RegisterDefinitions(
+        "u16", "%", 10, 38271, 1
+    ),
+    "storage_unit_1_battery_pack_2_charge_discharge_power": RegisterDefinitions(
+        "i32", "W", 1, 38275, 2
+    ),
+    "storage_unit_1_battery_pack_2_voltage": RegisterDefinitions(
+        "u16", "V", 10, 38277, 1
+    ),
+    "storage_unit_1_battery_pack_2_current": RegisterDefinitions(
+        "i16", "A", 10, 38278, 1
+    ),
+    "storage_unit_1_battery_pack_2_total_charge": RegisterDefinitions(
+        "u32", "kWh", 100, 38280, 2
+    ),
+    "storage_unit_1_battery_pack_2_total_discharge": RegisterDefinitions(
+        "u32", "kWh", 100, 38282, 2
+    ),
+    "storage_unit_1_battery_pack_3_serial_number": RegisterDefinitions(
+        "str", None, 1, 38284, 10
+    ),
+    "storage_unit_1_battery_pack_3_firmware_version": RegisterDefinitions(
+        "str", None, 1, 38294, 15
+    ),
+    "storage_unit_1_battery_pack_3_working_status": RegisterDefinitions(
+        "u16", None, 1, 38312, 1
+    ),
+    "storage_unit_1_battery_pack_3_state_of_capacity": RegisterDefinitions(
+        "u16", "%", 10, 38313, 1
+    ),
+    "storage_unit_1_battery_pack_3_charge_discharge_power": RegisterDefinitions(
+        "i32", "W", 1, 38317, 2
+    ),
+    "storage_unit_1_battery_pack_3_voltage": RegisterDefinitions(
+        "u16", "V", 10, 38319, 1
+    ),
+    "storage_unit_1_battery_pack_3_current": RegisterDefinitions(
+        "i16", "A", 10, 38320, 1
+    ),
+    "storage_unit_1_battery_pack_3_total_charge": RegisterDefinitions(
+        "u32", "kWh", 100, 38322, 2
+    ),
+    "storage_unit_1_battery_pack_3_total_discharge": RegisterDefinitions(
+        "u32", "kWh", 100, 38324, 2
+    ),
+    "storage_unit_2_battery_pack_1_serial_number": RegisterDefinitions(
+        "str", None, 1, 38326, 10
+    ),
+    "storage_unit_2_battery_pack_1_firmware_version": RegisterDefinitions(
+        "str", None, 1, 38336, 15
+    ),
+    "storage_unit_2_battery_pack_1_working_status": RegisterDefinitions(
+        "u16", None, 1, 38354, 1
+    ),
+    "storage_unit_2_battery_pack_1_state_of_capacity": RegisterDefinitions(
+        "u16", "%", 10, 38355, 1
+    ),
+    "storage_unit_2_battery_pack_1_charge_discharge_power": RegisterDefinitions(
+        "i32", "W", 1, 38359, 2
+    ),
+    "storage_unit_2_battery_pack_1_voltage": RegisterDefinitions(
+        "u16", "V", 10, 38361, 1
+    ),
+    "storage_unit_2_battery_pack_1_current": RegisterDefinitions(
+        "i16", "A", 10, 38362, 1
+    ),
+    "storage_unit_2_battery_pack_1_total_charge": RegisterDefinitions(
+        "u32", "kWh", 100, 38364, 2
+    ),
+    "storage_unit_2_battery_pack_1_total_discharge": RegisterDefinitions(
+        "u32", "kWh", 100, 38366, 2
+    ),
+    "storage_unit_2_battery_pack_2_serial_number": RegisterDefinitions(
+        "str", None, 1, 38368, 10
+    ),
+    "storage_unit_2_battery_pack_2_firmware_version": RegisterDefinitions(
+        "str", None, 1, 38378, 15
+    ),
+    "storage_unit_2_battery_pack_2_working_status": RegisterDefinitions(
+        "u16", None, 1, 38396, 1
+    ),
+    "storage_unit_2_battery_pack_2_state_of_capacity": RegisterDefinitions(
+        "u16", "%", 10, 38397, 1
+    ),
+    "storage_unit_2_battery_pack_2_charge_discharge_power": RegisterDefinitions(
+        "i32", "W", 1, 38401, 2
+    ),
+    "storage_unit_2_battery_pack_2_voltage": RegisterDefinitions(
+        "u16", "V", 10, 38403, 1
+    ),
+    "storage_unit_2_battery_pack_2_current": RegisterDefinitions(
+        "i16", "A", 10, 38404, 1
+    ),
+    "storage_unit_2_battery_pack_2_total_charge": RegisterDefinitions(
+        "u32", "kWh", 100, 38406, 2
+    ),
+    "storage_unit_2_battery_pack_2_total_discharge": RegisterDefinitions(
+        "u32", "kWh", 100, 38408, 2
+    ),
+    "storage_unit_2_battery_pack_3_serial_number": RegisterDefinitions(
+        "str", None, 1, 38410, 10
+    ),
+    "storage_unit_2_battery_pack_3_firmware_version": RegisterDefinitions(
+        "str", None, 1, 38420, 15
+    ),
+    "storage_unit_2_battery_pack_3_working_status": RegisterDefinitions(
+        "u16", None, 1, 38438, 1
+    ),
+    "storage_unit_2_battery_pack_3_state_of_capacity": RegisterDefinitions(
+        "u16", "%", 10, 38439, 1
+    ),
+    "storage_unit_2_battery_pack_3_charge_discharge_power": RegisterDefinitions(
+        "i32", "W", 1, 38443, 2
+    ),
+    "storage_unit_2_battery_pack_3_voltage": RegisterDefinitions(
+        "u16", "V", 10, 38445, 1
+    ),
+    "storage_unit_2_battery_pack_3_current": RegisterDefinitions(
+        "i16", "A", 10, 38446, 1
+    ),
+    "storage_unit_2_battery_pack_3_total_charge": RegisterDefinitions(
+        "u32", "kWh", 100, 38448, 2
+    ),
+    "storage_unit_2_battery_pack_3_total_discharge": RegisterDefinitions(
+        "u32", "kWh", 100, 38450, 2
+    ),
+    "storage_unit_1_battery_pack_1_maximum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38452, 1
+    ),
+    "storage_unit_1_battery_pack_1_minimum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38453, 1
+    ),
+    "storage_unit_1_battery_pack_2_maximum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38454, 1
+    ),
+    "storage_unit_1_battery_pack_2_minimum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38455, 1
+    ),
+    "storage_unit_1_battery_pack_3_maximum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38456, 1
+    ),
+    "storage_unit_1_battery_pack_3_minimum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38457, 1
+    ),
+    "storage_unit_2_battery_pack_1_maximum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38458, 1
+    ),
+    "storage_unit_2_battery_pack_1_minimum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38459, 1
+    ),
+    "storage_unit_2_battery_pack_2_maximum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38460, 1
+    ),
+    "storage_unit_2_battery_pack_2_minimum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38461, 1
+    ),
+    "storage_unit_2_battery_pack_3_maximum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38462, 1
+    ),
+    "storage_unit_2_battery_pack_3_minimum_temperature": RegisterDefinitions(
+        "i16", "°C", 10, 38463, 1
+    ),
     "system_time": RegisterDefinitions("u32", "epoch", 1, 40000, 2),
     # seems to be the same as unknown_time_4
     "unknown_time_5": RegisterDefinitions("u32", "epoch", 1, 40500, 2),
     "grid_code": RegisterDefinitions("u16", "grid_enum", 1, 42000, 1),
     "time_zone": RegisterDefinitions("i16", "min", 1, 43006, 1),
-    "storage_working_mode": RegisterDefinitions(
-        "i16", "storage_working_mode_enum", 1, 47004, 1
+    "storage_unit_1_product_model": RegisterDefinitions(
+        "u16", "storage_product_model_enum", 1, 47000, 1
+    ),
+    "storage_working_mode_a": RegisterDefinitions(
+        "i16", "storage_working_mode_a_enum", 1, 47004, 1
     ),
     "storage_time_of_use_price": RegisterDefinitions(
         "i16", "storage_tou_price_enum", 1, 47027, 1
+    ),
+    "storage_time_of_use_price_periods": RegisterDefinitions(
+        "multidata", "time_of_use_price_periods", 1, 47028, 41
     ),
     "storage_lcoe": RegisterDefinitions("u32", None, 1000, 47069, 2),
     "storage_maximum_charging_power": RegisterDefinitions("u32", "W", 1, 47075, 2),
@@ -500,6 +867,54 @@ REGISTERS = {
     "storage_forced_charging_and_discharging_power": RegisterDefinitions(
         "i32", "min", 1, 47084, 2
     ),
+    "storage_working_mode_settings": RegisterDefinitions(
+        "u16", "storage_working_mode_b_enum", 1, 47086, 1
+    ),
+    "storage_charge_from_grid_function": RegisterDefinitions(
+        "u16", "storage_charge_from_grid_enum", 1, 47087, 1
+    ),
+    "storage_grid_charge_cutoff_state_of_charge": RegisterDefinitions(
+        "u16", "%", 1, 47088, 1
+    ),
+    "storage_unit_2_product_model": RegisterDefinitions(
+        "u16", "storage_product_model_enum", 1, 47089, 1
+    ),
+    "storage_backup_power_state_of_charge": RegisterDefinitions(
+        "u16", "%", 10, 47102, 1
+    ),
+    "storage_unit_1_no": RegisterDefinitions("u16", None, 1, 47107, 1),
+    "storage_unit_2_no": RegisterDefinitions("u16", None, 1, 47108, 1),
+    # TODO
+    # "storage_fixed_charging_and_discharging_periods": RegisterDefinitions(
+    #     "multidata", "fixed_charging_and_discharging_periods", 1, 47200, 41
+    # ),
+    "storage_power_of_charge_from_grid": RegisterDefinitions("u32", "W", 1, 47242, 2),
+    "storage_maximum_power_of_charge_from_grid": RegisterDefinitions(
+        "u32", "W", 1, 47244, 2
+    ),
+    "storage_forcible_charge_discharge_setting_mode": RegisterDefinitions(
+        "u16", None, 1, 47246, 2
+    ),
+    "storage_forcible_charge_power": RegisterDefinitions("u32", None, 1, 47247, 2),
+    "storage_forcible_discharge_power": RegisterDefinitions("u32", None, 1, 47249, 2),
+    # TODO
+    # "storage_time_of_use_charging_and_discharging_periods": RegisterDefinitions("u32", None, 1, 47255, 43),
+    "storage_excess_pv_energy_use_in_tou": RegisterDefinitions(
+        "u16", "storage_excess_pv_energy_use_in_tou_enum", 1, 47299, 1
+    ),
+    "dongle_plant_maximum_charge_from_grid_power": RegisterDefinitions(
+        "u32", "W", 1, 47590, 2
+    ),
+    "backup_switch_to_off_grid": RegisterDefinitions("u16", None, 1, 47604, 2),
+    "backup_voltage_independend_operation": RegisterDefinitions(
+        "u16", "backup_voltage_independend_operation_enum", 1, 47604, 2
+    ),
+    "storage_unit_1_pack_1_no": RegisterDefinitions("u16", None, 1, 47750, 1),
+    "storage_unit_1_pack_2_no": RegisterDefinitions("u16", None, 1, 47751, 1),
+    "storage_unit_1_pack_3_no": RegisterDefinitions("u16", None, 1, 47752, 1),
+    "storage_unit_2_pack_1_no": RegisterDefinitions("u16", None, 1, 47753, 1),
+    "storage_unit_2_pack_2_no": RegisterDefinitions("u16", None, 1, 47754, 1),
+    "storage_unit_2_pack_3_no": RegisterDefinitions("u16", None, 1, 47755, 1),
 }
 
 
@@ -537,20 +952,48 @@ DEVICE_STATUS_DEFINITIONS = {
 }
 
 STORAGE_STATUS_DEFINITIONS = {
-    "0": "offline",
-    "1": "standby",
-    "2": "running",
-    "3": "fault",
-    "4": "sleep mode",
+    0: "offline",
+    1: "standby",
+    2: "running",
+    3: "fault",
+    4: "sleep mode",
 }
 
-STORAGE_WORKING_MODES = {
-    "0": "unlimited",
-    "1": "grid connection with zero power",
-    "2": "grid connection with limited power",
+STORAGE_WORKING_MODES_A = {
+    0: "unlimited",
+    1: "grid connection with zero power",
+    2: "grid connection with limited power",
 }
 
-STORAGE_TOU_PRICE = {"0": "disable", "1": "enable"}
+STORAGE_WORKING_MODES_B = {
+    0: "none",
+    1: "Forcible charge/discharge",
+    2: "Time of Use (LG)",
+    3: "Fixed charge/discharge",
+    4: "Maximise self consumption",
+    5: "Fully fed to grid",
+    6: "Time of Use (LUNA2000)",
+}
+
+STORAGE_TOU_PRICE = {0: "disable", 1: "enable"}
+
+STORAGE_CHARGE_FROM_GRID = {0: "disable", 1: "enable"}
+
+STORAGE_PRODUCT_MODEL = {0: "None", 1: "LG-RESU", 2: "HUAWEI-LUNA2000"}
+
+STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU = {0: "Fed to grid", 1: "Charge"}
+
+METER_STATUS = {0: "offline", 1: "normal"}
+
+METER_TYPE = {0: "single phase", 1: "three phase"}
+
+METER_TYPE_CHECK = {
+    0: "recognizing",
+    1: "matches with meter",
+    2: "matches not with meter",
+}
+
+BACKUP_VOLTAGE_INDEPENDEND_OPERATION = {0: "101V", 1: "202V"}
 
 # pylint: disable=fixme
 GRID_CODES = {
