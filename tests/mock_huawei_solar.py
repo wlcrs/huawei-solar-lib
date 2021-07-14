@@ -15,7 +15,7 @@ class MockResponse:
         return MOCK_REGISTERS[(self._register, self._length)]
 
 
-def mock_read_holding_registers(self, register, length):
+def mock_read_holding_registers(self, register, length, unit):
     return MockResponse(register, length)
 
 

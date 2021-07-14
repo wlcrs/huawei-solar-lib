@@ -4,6 +4,7 @@ Get production and status information from the Huawei Inverter using Modbus over
 import asyncio
 import logging
 import time
+from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from datetime import datetime, timedelta
 
@@ -37,22 +38,23 @@ TimeOfUsePricePeriods = namedtuple(
 )
 
 
-# pylint: disable=too-few-public-methods
-class HuaweiSolar:
-    """Interface to the Huawei solar inverter"""
+class _HuaweiSolarBase(metaclass=ABCMeta):
+    """Abstract super class for HuaweiSolar and AsyncHuaweiSolar class"""
 
-    def __init__(self, host, port="502", timeout=5, wait=2, slave=0):
-        self.client = ModbusTcpClient(host, port=port, timeout=timeout)
+    @abstractmethod
+    def __init__(self, host, port="502", timeout=5, loop=None, slave=0):
+        self.timeout = timeout
         self._slave = slave
-        self._time_offset = None
-        self.connected = False
-        self.wait = wait
+
+    @property
+    @abstractmethod
+    def time_offset(self):
+        """return the time offset from the configured timezone"""
+        pass
 
     # pylint: disable=too-many-branches, too-many-statements
-    def get(self, name):
-        """get named register from device"""
-        reg = REGISTERS[name]
-        response = self.read_register(reg.register, reg.length)
+    def decode_response(self, name, reg, response):
+        """decode the modbus response from the inverter"""
 
         if reg.type == "str":
             result = response.decode("utf-8", "replace").strip("\0")
@@ -154,16 +156,14 @@ class HuaweiSolar:
 
         elif reg.type == "u32" and reg.unit == "epoch":
             tmp = int.from_bytes(response, byteorder="big")
-            if self._time_offset is None:
-                self._time_offset = self.get("time_zone").value
             try:
-                tmp2 = datetime.utcfromtimestamp(tmp - 60 * self._time_offset)
+                tmp2 = datetime.utcfromtimestamp(tmp - 60 * self.time_offset)
             except OverflowError:
                 tmp2 = datetime.utcfromtimestamp(0)
                 LOGGER.debug(
                     "Received invalid time value: %s (time_offset = %s)",
                     tmp,
-                    self._time_offset,
+                    self.time_offset,
                 )
 
             # don't use local time information and use UTC time
@@ -202,43 +202,70 @@ class HuaweiSolar:
             code = int.from_bytes(response, byteorder="big")
             result = []
             alarm_codes = ALARM_CODES[name]
-            for key in alarm_codes:
+            for key, value in alarm_codes.items():
                 if key & code:
-                    result.append(alarm_codes[key])
+                    result.append(value)
 
         elif reg.type == "state_bitfield16":
             code = int.from_bytes(response, byteorder="big")
             result = []
-            for key in STATE_CODES_1:
+            for key, value in STATE_CODES_1.items():
                 if key & code:
-                    result.append(STATE_CODES_1[key])
+                    result.append(value)
 
         elif reg.type == "state_opt_bitfield16":
             code = int.from_bytes(response, byteorder="big")
             result = []
-            for key in STATE_CODES_2:
+            for key, value in STATE_CODES_2.items():
                 bit = key & code
                 if bit:
-                    result.append(STATE_CODES_2[key][1])
+                    result.append(value[1])
                 else:
-                    result.append(STATE_CODES_2[key][0])
+                    result.append(value[0])
 
         elif reg.type == "state_opt_bitfield32":
             code = int.from_bytes(response, byteorder="big")
             result = []
-            for key in STATE_CODES_3:
+            for key, value in STATE_CODES_3.items():
                 bit = key & code
                 if bit:
-                    result.append(STATE_CODES_3[key][1])
+                    result.append(value[1])
                 else:
-                    result.append(STATE_CODES_3[key][0])
+                    result.append(value[0])
 
         else:
             result = int.from_bytes(response, byteorder="big")
 
         return Result(result, reg.unit)
 
+
+# pylint: disable=too-few-public-methods
+class HuaweiSolar(_HuaweiSolarBase):
+    """Interface to the Huawei solar inverter"""
+
+    def __init__(self, host, port="502", timeout=5, wait=2, slave=0):
+        super().__init__(timeout, slave)
+        self.client = ModbusTcpClient(host, port=port, timeout=timeout)
+        self.connected = False
+        self._time_offset = None
+        self.wait = wait
+
+    @property
+    def time_offset(self):
+        """return the time offset from the configured timezone"""
+        if self._time_offset is None:
+            self._time_offset = self.get("time_zone").value
+        return self._time_offset
+
+    def get(self, name):
+        """get named register from device"""
+        reg = REGISTERS[name]
+        response = self.read_register(reg.register, reg.length)
+
+        return self.decode_response(name, reg, response)
+
     def close_connection(self):
+        """close the connection with the inverter"""
         self.client.close()
         self.connected = False
 
@@ -284,19 +311,25 @@ class HuaweiSolar:
         return response.encode()[1:]
 
 
-class AsyncHuaweiSolar:
+class AsyncHuaweiSolar(_HuaweiSolarBase):
     """Async interface to the Huawei solar inverter"""
 
     def __init__(self, host, port="502", timeout=5, loop=None, slave=0):
+        super().__init__(timeout, slave)
         # pylint: disable=unpacking-non-sequence
-        LOGGER.debug("creating loop and client")
         self.loop, self.client = AsyncModbusTCPClient(
             schedulers.ASYNC_IO, port=port, host=host, loop=loop
         )
-        LOGGER.debug("created loop and client")
-        self.timeout = timeout
-        self._slave = slave
-        self._time_offset = None
+
+    @property
+    def time_offset(self):
+        """return the time offset from the configured timezone"""
+        # false positive, is set in super().__init__()
+        # pylint: disable=access-member-before-definition
+        if self._time_offset is None:
+            # pylint: disable=attribute-defined-outside-init
+            self._time_offset = asyncio.run(self.get("time_zone").value)
+        return self._time_offset
 
     # pylint: disable=too-many-branches, too-many-statements
     async def get(self, name):
@@ -304,92 +337,7 @@ class AsyncHuaweiSolar:
         reg = REGISTERS[name]
         response = await self.read_register(self.client, reg.register, reg.length)
 
-        if reg.type == "str":
-            result = response.decode("utf-8").strip("\0")
-
-        elif reg.type == "u16" and reg.unit == "status_enum":
-            result = DEVICE_STATUS_DEFINITIONS[response.hex()]
-
-        elif reg.type == "u16" and reg.unit == "grid_enum":
-            tmp = int.from_bytes(response, byteorder="big")
-            result = GRID_CODES[tmp]
-
-        elif reg.type == "u32" and reg.unit == "epoch":
-            tmp = int.from_bytes(response, byteorder="big")
-            if self._time_offset is None:
-                self._time_offset = self.get("time_zone").value
-            tmp2 = datetime.utcfromtimestamp(tmp - 60 * self._time_offset)
-            # don't use local time information and use UTC time
-            # which we got from systemtime - time zone offset.
-            # not yet sure about the is_dst setting
-            result = pytz.utc.normalize(pytz.utc.localize(tmp2, is_dst=True))
-
-        elif reg.type == "u16" or reg.type == "u32":
-            tmp = int.from_bytes(response, byteorder="big")
-            if reg.gain == 1:
-                result = tmp
-            else:
-                result = tmp / reg.gain
-
-        elif reg.type == "i16":
-            tmp = int.from_bytes(response, byteorder="big")
-            if (tmp & 0x8000) == 0x8000:
-                # result is actually negative
-                tmp = -((tmp ^ 0xFFFF) + 1)
-            if reg.gain == 1:
-                result = tmp
-            else:
-                result = tmp / reg.gain
-
-        elif reg.type == "i32":
-            tmp = int.from_bytes(response, byteorder="big")
-            if (tmp & 0x80000000) == 0x80000000:
-                # result is actually negative
-                tmp = -((tmp ^ 0xFFFFFFFF) + 1)
-            if reg.gain == 1:
-                result = tmp
-            else:
-                result = tmp / reg.gain
-
-        elif reg.type == "alarm_bitfield16":
-            code = int.from_bytes(response, byteorder="big")
-            result = []
-            alarm_codes = ALARM_CODES[name]
-            for key in alarm_codes:
-                if key & code:
-                    result.append(alarm_codes[key])
-
-        elif reg.type == "state_bitfield16":
-            code = int.from_bytes(response, byteorder="big")
-            result = []
-            for key in STATE_CODES_1:
-                if key & code:
-                    result.append(STATE_CODES_1[key])
-
-        elif reg.type == "state_opt_bitfield16":
-            code = int.from_bytes(response, byteorder="big")
-            result = []
-            for key in STATE_CODES_2:
-                bit = key & code
-                if bit:
-                    result.append(STATE_CODES_2[key][1])
-                else:
-                    result.append(STATE_CODES_2[key][0])
-
-        elif reg.type == "state_opt_bitfield32":
-            code = int.from_bytes(response, byteorder="big")
-            result = []
-            for key in STATE_CODES_3:
-                bit = key & code
-                if bit:
-                    result.append(STATE_CODES_3[key][1])
-                else:
-                    result.append(STATE_CODES_3[key][0])
-
-        else:
-            result = int.from_bytes(response, byteorder="big")
-
-        return Result(result, reg.unit)
+        return self.decode_response(name, reg, response)
 
     async def read_register(self, client, register, length):
         """
