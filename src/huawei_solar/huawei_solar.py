@@ -9,8 +9,10 @@ from collections import namedtuple
 from datetime import datetime, timedelta
 
 import pytz
-from pymodbus.client.asynchronous import schedulers
-from pymodbus.client.asynchronous.tcp import AsyncModbusTCPClient
+
+# from pymodbus.client.asynchronous import schedulers
+# from pymodbus.client.asynchronous.tcp import AsyncModbusTCPClient
+from pymodbus.client.asynchronous.async_io import init_tcp_client
 from pymodbus.client.sync import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 
@@ -316,10 +318,22 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
 
     def __init__(self, host, port="502", timeout=5, loop=None, slave=0):
         super().__init__(timeout, slave)
+        # workaround for current pymodbus missing feature
         # pylint: disable=unpacking-non-sequence
-        self.loop, self.client = AsyncModbusTCPClient(
-            schedulers.ASYNC_IO, port=port, host=host, loop=loop
-        )
+        # self.loop, self.client = AsyncModbusTCPClient(
+        #     schedulers.ASYNC_IO, port=port, host=host, loop=loop
+        # )
+        self._host = host
+        self._port = port
+        self._client = None
+
+    @property
+    def client(self):
+        # workaround for current pymodbus missing feature
+        if self._client is None:
+            client_setup = await init_tcp_client(None, None, self._host, self._port)
+            self._client = client_setup.protocol
+        return self._client
 
     @property
     def time_offset(self):
