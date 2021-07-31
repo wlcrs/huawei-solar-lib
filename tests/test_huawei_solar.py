@@ -4,12 +4,21 @@ from unittest.mock import patch
 
 import mock_huawei_solar
 import pytz
+
 import src.huawei_solar.huawei_solar as huawei_solar
 
 
 class TestHuaweiSolar(unittest.TestCase):
     def setUp(self):
         self.api_instance = huawei_solar.HuaweiSolar("192.0.2.0", wait=0, timeout=0)
+
+    def test_init(self):
+        self.api_instance = huawei_solar.HuaweiSolar(
+            "192.0.2.0", wait=7, timeout=8, slave=5
+        )
+        self.assertEqual(self.api_instance.timeout, 8)
+        self.assertEqual(self.api_instance.wait, 7)
+        self.assertEqual(self.api_instance._slave, 5)
 
     @patch(
         "pymodbus.client.sync.ModbusTcpClient.read_holding_registers",
