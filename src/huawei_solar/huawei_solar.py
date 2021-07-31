@@ -328,7 +328,7 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
         self._client = None
 
     @property
-    def client(self):
+    async def client(self):
         # workaround for current pymodbus missing feature
         if self._client is None:
             client_setup = await init_tcp_client(None, None, self._host, self._port)
