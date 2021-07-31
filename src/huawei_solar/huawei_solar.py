@@ -44,7 +44,7 @@ class _HuaweiSolarBase(metaclass=ABCMeta):
     """Abstract super class for HuaweiSolar and AsyncHuaweiSolar class"""
 
     @abstractmethod
-    def __init__(self, host, port="502", timeout=5, loop=None, slave=0):
+    def __init__(self, timeout=5, slave=0):
         self.timeout = timeout
         self._slave = slave
 
@@ -246,7 +246,7 @@ class HuaweiSolar(_HuaweiSolarBase):
     """Interface to the Huawei solar inverter"""
 
     def __init__(self, host, port="502", timeout=5, wait=2, slave=0):
-        super().__init__(timeout, slave)
+        super().__init__(timeout=timeout, slave=slave)
         self.client = ModbusTcpClient(host, port=port, timeout=timeout)
         self.connected = False
         self._time_offset = None
