@@ -44,9 +44,10 @@ class _HuaweiSolarBase(metaclass=ABCMeta):
     """Abstract super class for HuaweiSolar and AsyncHuaweiSolar class"""
 
     @abstractmethod
-    def __init__(self, timeout=5, slave=0):
-        self.timeout = timeout
+    def __init__(self, timeout=5, wait=2, slave=0):
+        self._timeout = timeout
         self._slave = slave
+        self._wait = wait
 
     @property
     @abstractmethod
@@ -54,8 +55,12 @@ class _HuaweiSolarBase(metaclass=ABCMeta):
         """return the time offset from the configured timezone"""
         pass
 
-    # pylint: disable=too-many-branches, too-many-statements
+    @abstractmethod
     def decode_response(self, name, reg, response):
+        pass
+
+    # pylint: disable=too-many-branches, too-many-statements
+    def common_decode_response(self, name, reg, response):
         """decode the modbus response from the inverter"""
 
         if reg.type == "str":
@@ -156,23 +161,6 @@ class _HuaweiSolarBase(metaclass=ABCMeta):
                 int.from_bytes(response[78:82], byteorder="big"),
             )
 
-        elif reg.type == "u32" and reg.unit == "epoch":
-            tmp = int.from_bytes(response, byteorder="big")
-            try:
-                tmp2 = datetime.utcfromtimestamp(tmp - 60 * self.time_offset)
-            except OverflowError:
-                tmp2 = datetime.utcfromtimestamp(0)
-                LOGGER.debug(
-                    "Received invalid time value: %s (time_offset = %s)",
-                    tmp,
-                    self.time_offset,
-                )
-
-            # don't use local time information and use UTC time
-            # which we got from systemtime - time zone offset.
-            # not yet sure about the is_dst setting
-            result = pytz.utc.normalize(pytz.utc.localize(tmp2, is_dst=True))
-
         elif reg.type == "u16" or reg.type == "u32":
             tmp = int.from_bytes(response, byteorder="big")
             if reg.gain == 1:
@@ -238,7 +226,7 @@ class _HuaweiSolarBase(metaclass=ABCMeta):
         else:
             result = int.from_bytes(response, byteorder="big")
 
-        return Result(result, reg.unit)
+        return result
 
 
 # pylint: disable=too-few-public-methods
@@ -246,11 +234,10 @@ class HuaweiSolar(_HuaweiSolarBase):
     """Interface to the Huawei solar inverter"""
 
     def __init__(self, host, port="502", timeout=5, wait=2, slave=0):
-        super().__init__(timeout=timeout, slave=slave)
+        super().__init__(timeout=timeout, wait=wait, slave=slave)
         self.client = ModbusTcpClient(host, port=port, timeout=timeout)
         self.connected = False
         self._time_offset = None
-        self.wait = wait
 
     @property
     def time_offset(self):
@@ -258,6 +245,29 @@ class HuaweiSolar(_HuaweiSolarBase):
         if self._time_offset is None:
             self._time_offset = self.get("time_zone").value
         return self._time_offset
+
+    def decode_response(self, name, reg, response):
+        if reg.type == "u32" and reg.unit == "epoch":
+            tmp = int.from_bytes(response, byteorder="big")
+            try:
+                tmp2 = datetime.utcfromtimestamp(tmp - 60 * self.time_offset)
+            except OverflowError:
+                tmp2 = datetime.utcfromtimestamp(0)
+                LOGGER.debug(
+                    "Received invalid time value: %s (time_offset = %s)",
+                    tmp,
+                    self.time_offset,
+                )
+
+            # don't use local time information and use UTC time
+            # which we got from systemtime - time zone offset.
+            # not yet sure about the is_dst setting
+            result = pytz.utc.normalize(pytz.utc.localize(tmp2, is_dst=True))
+
+        else:
+            result = self.common_decode_response(name, reg, response)
+
+        return Result(result, reg.unit)
 
     def get(self, name):
         """get named register from device"""
@@ -316,8 +326,8 @@ class HuaweiSolar(_HuaweiSolarBase):
 class AsyncHuaweiSolar(_HuaweiSolarBase):
     """Async interface to the Huawei solar inverter"""
 
-    def __init__(self, host, port="502", timeout=5, loop=None, slave=0):
-        super().__init__(timeout, slave)
+    def __init__(self, host, port="502", timeout=5, wait=2, loop=None, slave=0):
+        super().__init__(timeout=timeout, wait=wait, slave=slave)
         # workaround for current pymodbus missing feature
         # pylint: disable=unpacking-non-sequence
         # self.loop, self.client = AsyncModbusTCPClient(
@@ -326,32 +336,64 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
         self._host = host
         self._port = port
         self._client = None
+        self._time_offset = None
+        self._waited = False
+        self.loop = loop
 
     @property
     async def client(self):
         # workaround for current pymodbus missing feature
         if self._client is None:
-            client_setup = await init_tcp_client(None, None, self._host, self._port)
-            self._client = client_setup.protocol
+            # client_setup =  init_tcp_client(None, None, self._host, self._port)
+            self._client = await init_tcp_client(
+                None, self.loop, self._host, self._port, reset_socket=False
+            )
+            # self._client = await client
+            # self._client = (await client_setup).protocol
         return self._client
 
     @property
-    def time_offset(self):
+    async def time_offset(self):
         """return the time offset from the configured timezone"""
         # false positive, is set in super().__init__()
         # pylint: disable=access-member-before-definition
         if self._time_offset is None:
             # pylint: disable=attribute-defined-outside-init
-            self._time_offset = asyncio.run(self.get("time_zone").value)
+            self._time_offset = await self.get("time_zone")
         return self._time_offset
+
+    async def decode_response(self, name, reg, response):
+        if reg.type == "u32" and reg.unit == "epoch":
+            tmp = int.from_bytes(response, byteorder="big")
+            try:
+                tmp2 = datetime.utcfromtimestamp(
+                    tmp - 60 * (await self.time_offset).value
+                )
+            except OverflowError:
+                tmp2 = datetime.utcfromtimestamp(0)
+                LOGGER.debug(
+                    "Received invalid time value: %s (time_offset = %s)",
+                    tmp,
+                    self.time_offset,
+                )
+
+            # don't use local time information and use UTC time
+            # which we got from systemtime - time zone offset.
+            # not yet sure about the is_dst setting
+            result = pytz.utc.normalize(pytz.utc.localize(tmp2, is_dst=True))
+
+        else:
+            result = self.common_decode_response(name, reg, response)
+
+        return Result(result, reg.unit)
 
     # pylint: disable=too-many-branches, too-many-statements
     async def get(self, name):
         """get named register from device"""
         reg = REGISTERS[name]
-        response = await self.read_register(self.client, reg.register, reg.length)
+        response = await self.read_register(await self.client, reg.register, reg.length)
 
-        return self.decode_response(name, reg, response)
+        return await self.decode_response(name, reg, response)
 
     async def read_register(self, client, register, length):
         """
@@ -366,20 +408,27 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
         It seems to only support connections from one device at the same time.
         """
         for i in range(1, 6):
-            if not client.connected:
+            if not self._waited:
+                await asyncio.sleep(self._wait)
+                self._waited = True
+            if not client.protocol:
                 message = "failed to connect to device, is the host correct?"
                 LOGGER.exception(message)
                 raise ConnectionException(message)
             try:
-                response = await asyncio.wait_for(
-                    client.protocol.read_holding_registers(
-                        register, length, unit=self._slave
-                    ),
-                    timeout=self.timeout,
+                response = await client.protocol.read_holding_registers(
+                    register,
+                    length,
+                    unit=self._slave,
+                    timeout=self._timeout,
                 )
                 return response.encode()[1:]
+
             except asyncio.TimeoutError:
                 LOGGER.debug("Failed reading register %s time(s)", i)
+                if i == 5:
+                    message = "asyncio timeout"
+                    raise ReadException(message)
             except ModbusConnectionException:
                 message = (
                     "could not read register value, "
