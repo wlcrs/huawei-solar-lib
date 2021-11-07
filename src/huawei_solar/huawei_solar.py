@@ -297,7 +297,7 @@ class HuaweiSolar(_HuaweiSolarBase):
         if not self.connected:
             self.client.connect()
             self.connected = True
-            time.sleep(self.wait)
+            time.sleep(self._wait)
         while i < 5:
             try:
                 response = self.client.read_holding_registers(
@@ -310,7 +310,7 @@ class HuaweiSolar(_HuaweiSolarBase):
                 break
             self.client.close()
             self.client.connect()
-            time.sleep(self.wait)
+            time.sleep(self._wait)
 
             LOGGER.debug("Failed reading register %s time(s)", i)
             i = i + 1
