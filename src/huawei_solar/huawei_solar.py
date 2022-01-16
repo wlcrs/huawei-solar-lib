@@ -81,6 +81,10 @@ class _HuaweiSolarBase(metaclass=ABCMeta):
             tmp = int.from_bytes(response, byteorder="big")
             result = STORAGE_WORKING_MODES_B.get(tmp, "unknown/invalid")
 
+        elif reg.type == "u16" and reg.unit == "storage_working_mode_c_enum":
+            tmp = int.from_bytes(response, byteorder="big")
+            result = STORAGE_WORKING_MODES_C.get(tmp, "unknown/invalid")
+
         elif reg.type == "u16" and reg.unit == "storage_time_of_use_price_enum":
             tmp = int.from_bytes(response, byteorder="big")
             result = STORAGE_TOU_PRICE.get(tmp, "unknown/invalid")
@@ -879,7 +883,7 @@ REGISTERS = {
         "i32", "min", 1, 47084, 2
     ),
     "storage_working_mode_settings": RegisterDefinitions(
-        "u16", "storage_working_mode_b_enum", 1, 47086, 1
+        "u16", "storage_working_mode_c_enum", 1, 47086, 1
     ),
     "storage_charge_from_grid_function": RegisterDefinitions(
         "u16", "storage_charge_from_grid_enum", 1, 47087, 1
@@ -984,6 +988,15 @@ STORAGE_WORKING_MODES_B = {
     4: "Maximise self consumption",
     5: "Fully fed to grid",
     6: "Time of Use (LUNA2000)",
+}
+
+STORAGE_WORKING_MODES_C = {
+    0: "Adaptive",
+    1: "Fixed charge/discharge",
+    2: "Maximise self consumption",
+    3: "Time of Use (LG)",
+    4: "Fully fed to grid",
+    5: "Time Of Use (LUNA2000)",
 }
 
 STORAGE_TOU_PRICE = {0: "disable", 1: "enable"}
