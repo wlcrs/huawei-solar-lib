@@ -8,10 +8,9 @@ from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from datetime import datetime, timedelta
 
+import backoff
 import pytz
 
-# from pymodbus.client.asynchronous import schedulers
-# from pymodbus.client.asynchronous.tcp import AsyncModbusTCPClient
 from pymodbus.client.asynchronous.async_io import init_tcp_client
 from pymodbus.client.sync import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
@@ -297,34 +296,48 @@ class HuaweiSolar(_HuaweiSolarBase):
 
         It seems to only support connections from one device at the same time.
         """
-        i = 0
+
         if not self.connected:
             self.client.connect()
             self.connected = True
             time.sleep(self._wait)
-        while i < 5:
+
+        def on_backoff(details):
+            LOGGER.debug(
+                f"Backing off reading for {details['wait']:0.1f} seconds after {details['tries']} tries"
+            )
+
+        def backoff_giveup(details):
+            raise ReadException(
+                f"Failed to read register {register} with {details['tries']} tries"
+            )
+
+        @backoff.on_exception(
+            backoff.constant,
+            (asyncio.TimeoutError, ReadException),
+            interval=self._wait,
+            max_tries=5,
+            jitter=None,
+            on_backoff=on_backoff,
+            on_giveup=backoff_giveup,
+        )
+        def _do_read():
             try:
                 response = self.client.read_holding_registers(
                     register, length, unit=self._slave
                 )
+                if not response.isError():
+                    return response.encode()[1:]
+                else:
+                    LOGGER.debug("Reconnecting after a bad response")
+                    self.client.close()
+                    self.client.connect()
+                    raise ReadException()
             except ModbusConnectionException as ex:
                 LOGGER.exception("failed to connect to device, is the host correct?")
                 raise ConnectionException(ex)
-            if not response.isError():
-                break
-            self.client.close()
-            self.client.connect()
-            time.sleep(self._wait)
 
-            LOGGER.debug("Failed reading register %s time(s)", i)
-            i = i + 1
-        else:
-            message = (
-                "could not read register value, is an other device already connected?"
-            )
-            LOGGER.error(message)
-            raise ReadException(message)
-        return response.encode()[1:]
+        return _do_read()
 
 
 class AsyncHuaweiSolar(_HuaweiSolarBase):
@@ -344,16 +357,27 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
         self._waited = False
         self.loop = loop
 
-    @property
-    async def client(self):
-        # workaround for current pymodbus missing feature
-        if self._client is None:
-            # client_setup =  init_tcp_client(None, None, self._host, self._port)
-            self._client = await init_tcp_client(
-                None, self.loop, self._host, self._port, reset_socket=False
-            )
-            # self._client = await client
-            # self._client = (await client_setup).protocol
+        # use this lock to prevent concurrent requests, as the
+        # Huawei inverters can't cope with those
+        self._communication_lock = asyncio.Lock()
+
+        # Lock to prevent race condition for creating client
+        self._create_client_lock = asyncio.Lock()
+
+    async def _get_client(self):
+        async with self._create_client_lock:
+            # workaround for current pymodbus missing feature
+            if self._client is None:
+                # client_setup =  init_tcp_client(None, None, self._host, self._port)
+                self._client = await init_tcp_client(
+                    None, self.loop, self._host, self._port, reset_socket=False
+                )
+                # wait a little bit to prevent a timeout on the first request
+                await asyncio.sleep(1)
+
+                # self._client = await client
+                # self._client = (await client_setup).protocol
+
         return self._client
 
     @property
@@ -395,11 +419,11 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
     async def get(self, name):
         """get named register from device"""
         reg = REGISTERS[name]
-        response = await self.read_register(await self.client, reg.register, reg.length)
+        response = await self.read_register(reg.register, reg.length)
 
         return await self.decode_response(name, reg, response)
 
-    async def read_register(self, client, register, length):
+    async def read_register(self, register, length):
         """
         Async read register from device.
 
@@ -411,10 +435,27 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
 
         It seems to only support connections from one device at the same time.
         """
-        for i in range(1, 6):
-            if not self._waited:
-                await asyncio.sleep(self._wait)
-                self._waited = True
+
+        client = await self._get_client()
+
+        def backoff_giveup(details):
+            raise ReadException(
+                f"Failed to read register {register} with {details['tries']} tries"
+            )
+
+        @backoff.on_exception(
+            backoff.constant,
+            (asyncio.TimeoutError),
+            interval=self._wait,
+            max_tries=5,
+            jitter=None,
+            on_backoff=lambda details: LOGGER.debug(
+                f"Backing off reading for {details['wait']:0.1f} seconds after {details['tries']} tries"
+            ),
+            on_giveup=backoff_giveup,
+        )
+        async def _do_read():
+
             if not client.protocol:
                 message = "failed to connect to device, is the host correct?"
                 LOGGER.exception(message)
@@ -428,11 +469,6 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
                 )
                 return response.encode()[1:]
 
-            except asyncio.TimeoutError:
-                LOGGER.debug("Failed reading register %s time(s)", i)
-                if i == 5:
-                    message = "asyncio timeout"
-                    raise ReadException(message)
             except ModbusConnectionException:
                 message = (
                     "could not read register value, "
@@ -440,11 +476,16 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
                 )
                 LOGGER.error(message)
                 raise ReadException(message)
-        # errors are different with async pymodbus,
-        # we should not be able to reach this code. Keep it for debugging
-        message = "could not read register value for unknown reason"
-        LOGGER.error(message)
-        raise ReadException(message)
+            # errors are different with async pymodbus,
+            # we should not be able to reach this code. Keep it for debugging
+            message = "could not read register value for unknown reason"
+            LOGGER.error(message)
+            raise ReadException(message)
+
+        async with self._communication_lock:
+            LOGGER.debug(f"Reading register {register}")
+
+            return await _do_read()
 
 
 class ConnectionException(Exception):
