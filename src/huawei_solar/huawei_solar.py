@@ -360,7 +360,7 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
                     None, self.loop, self._host, self._port, reset_socket=False
                 )
                 # wait a little bit to prevent a timeout on the first request
-                # await asyncio.sleep(1)
+                await asyncio.sleep(1)
 
                 # self._client = await client
                 # self._client = (await client_setup).protocol
