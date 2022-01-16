@@ -299,15 +299,24 @@ class HuaweiSolar(_HuaweiSolarBase):
             time.sleep(self._wait)
 
         def on_backoff(details):
-            LOGGER.debug(f"Backing off reading for {details['wait']:0.1f} seconds after {details['tries']} tries")
+            LOGGER.debug(
+                f"Backing off reading for {details['wait']:0.1f} seconds after {details['tries']} tries"
+            )
 
         def backoff_giveup(details):
-            raise ReadException(f"Failed to read register {register} with {details['tries']} tries")
+            raise ReadException(
+                f"Failed to read register {register} with {details['tries']} tries"
+            )
 
-        @backoff.on_exception(backoff.constant,
-                              (asyncio.TimeoutError, ReadException), interval=self._wait, max_tries=5, jitter=None,
-                              on_backoff=on_backoff,
-                              on_giveup=backoff_giveup)
+        @backoff.on_exception(
+            backoff.constant,
+            (asyncio.TimeoutError, ReadException),
+            interval=self._wait,
+            max_tries=5,
+            jitter=None,
+            on_backoff=on_backoff,
+            on_giveup=backoff_giveup,
+        )
         def _do_read():
             try:
                 response = self.client.read_holding_registers(
@@ -426,12 +435,21 @@ class AsyncHuaweiSolar(_HuaweiSolarBase):
         client = await self._get_client()
 
         def backoff_giveup(details):
-            raise ReadException(f"Failed to read register {register} with {details['tries']} tries")
+            raise ReadException(
+                f"Failed to read register {register} with {details['tries']} tries"
+            )
 
-        @backoff.on_exception(backoff.constant,
-                              (asyncio.TimeoutError), interval=self._wait, max_tries=5, jitter=None,
-                              on_backoff=lambda details: LOGGER.debug(f"Backing off reading for {details['wait']:0.1f} seconds after {details['tries']} tries"),
-                              on_giveup=backoff_giveup)
+        @backoff.on_exception(
+            backoff.constant,
+            (asyncio.TimeoutError),
+            interval=self._wait,
+            max_tries=5,
+            jitter=None,
+            on_backoff=lambda details: LOGGER.debug(
+                f"Backing off reading for {details['wait']:0.1f} seconds after {details['tries']} tries"
+            ),
+            on_giveup=backoff_giveup,
+        )
         async def _do_read():
 
             if not client.protocol:
