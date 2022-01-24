@@ -9,9 +9,8 @@ import huawei_solar.register_values as rv
 from pymodbus.payload import BinaryPayloadDecoder
 
 import typing as t
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from .huawei_solar import AsyncHuaweiSolar
 
 
