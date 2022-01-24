@@ -6,8 +6,9 @@ import logging
 import backoff
 from collections import namedtuple
 
-from .exceptions import HuaweiSolarException
+from .exceptions import ConnectionException, ReadException
 from .registers import REGISTERS, RegisterDefinition
+import huawei_solar.register_names as rn
 
 from pymodbus.client.asynchronous.async_io import (
     init_tcp_client,
@@ -22,88 +23,66 @@ LOGGER = logging.getLogger(__name__)
 
 Result = namedtuple("Result", "value unit")
 
+DEFAULT_TIMEOUT = 5
+DEFAULT_WAIT = 2
+
 
 class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter"""
 
-    def __init__(self, host, port="502", timeout=5, wait=2, loop=None, slave=0):
-        self._host = host
-        self._port = port
+    def __init__(self, client : ReconnectingAsyncioModbusTcpClient, slave: int = 0, timeout: int = DEFAULT_TIMEOUT, wait: int = DEFAULT_WAIT):
+        """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use AsyncHuaweiSolar.create() instead"""
+        self._client = client
         self._timeout = timeout
         self._wait = wait
         self._slave = slave
-
-        self._client = None
-
-        self.time_zone = None
-        self.battery_type = None  # we assume that battery types cannot be mixed
-        self.loop = loop
 
         # use this lock to prevent concurrent requests, as the
         # Huawei inverters can't cope with those
         self._communication_lock = asyncio.Lock()
 
-        # Lock to prevent race condition for creating client
-        self._create_client_lock = asyncio.Lock()
+        # These values are set by the `create()` method
+        self.time_zone = None
+        self.batttery_type = None
 
-    async def _get_client(self) -> ReconnectingAsyncioModbusTcpClient:
+    @classmethod
+    async def create(cls, host, port="502", slave=0, timeout=5, wait=2, loop=None):
+        client = await cls.__get_client(host, port, loop)
 
-        async with self._create_client_lock:
-            if self._client is None:
-                client = await init_tcp_client(
-                    None, self.loop, self._host, self._port, reset_socket=False
-                )
-                # wait a little bit to prevent a timeout on the first request
-                await asyncio.sleep(1)
+        huawei_solar = cls(client, slave, timeout, wait)
 
-                # get some registers which are needed to correctly decode
-                # all values
-                try:
-                    self.time_zone = (await self._get("time_zone", client)).value
+        # get some registers which are needed to correctly decode all values
 
-                    # we assume that when at least one battery is present, it will always be put in storage_unit_1 first
-                    self.battery_type = (
-                        await self._get("storage_unit_1_product_model", client)
-                    ).value
+        huawei_solar.time_zone = (await huawei_solar.get(rn.TIME_ZONE)).value
+        # we assume that when at least one battery is present, it will always be put in storage_unit_1 first
+        huawei_solar.battery_type = (await huawei_solar.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)).value
 
-                    self._client = client
-                except Exception as err:
-                    LOGGER.error(
-                        "Encountered an error while doing initial queries. Resetting.",
-                        exc_info=err,
-                    )
-                    # We encountered an error.
-                    # Stop and remove the client to properly try again later.
-                    try:
-                        client.stop()
-                    except Exception:
-                        pass
+        return huawei_solar
 
-        if not self._client:
-            raise HuaweiSolarException("Could not initialize the client")
+    @classmethod
+    async def __get_client(cls, host, port, loop) -> ReconnectingAsyncioModbusTcpClient:
+        client = await init_tcp_client(None, loop, host, port, reset_socket=False)
+        # wait a little bit to prevent a timeout on the first request
+        await asyncio.sleep(1)
 
-        return self._client
+        return client
 
-    async def decode_response(
-        self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder
-    ):
+
+    async def stop(self):
+        self._client.stop()
+
+    async def decode_response(self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder):
         result = reg.decode(decoder, self)
 
         if not hasattr(reg, "unit") or callable(reg.unit) or isinstance(reg.unit, dict):
             return Result(result, None)
         return Result(result, reg.unit)
 
-    async def get(self, name):
-        return await self._get(name, await self._get_client())
-
-    async def _get(self, name, client):
+    async def get(self, name, slave= None):
         """get named register from device"""
-        return (await self._get_multiple([name], client))[0]
+        return (await self.get_multiple([name], slave))[0]
 
-    async def get_multiple(self, names: list[str]):
-        return await self._get_multiple(names, await self._get_client())
-
-    async def _get_multiple(self, names: list[str], client):
+    async def get_multiple(self, names: list[str], slave= None):
         """Read multiple registers at the same time.
 
         This is only possible if the registers are consecutively available in the
@@ -142,9 +121,7 @@ class AsyncHuaweiSolar:
             registers[-1].register + registers[-1].length - registers[0].register
         )
 
-        response = await self._read_registers(
-            registers[0].register, total_length, client
-        )
+        response = await self._read_registers(registers[0].register, total_length, slave)
 
         decoder = BinaryPayloadDecoder.fromRegisters(
             response.registers, byteorder=Endian.Big, wordorder=Endian.Big
@@ -162,7 +139,7 @@ class AsyncHuaweiSolar:
 
         return result
 
-    async def _read_registers(self, register: RegisterDefinition, length: int, client: ReconnectingAsyncioModbusTcpClient):
+    async def _read_registers(self, register: RegisterDefinition, length: int, slave: int | None):
         """
         Async read register from device.
 
@@ -193,15 +170,15 @@ class AsyncHuaweiSolar:
         )
         async def _do_read():
 
-            if (not client.protocol):  # type: ModbusClientProtocol
-                message = "failed to connect to device, is the host correct?"
+            if (not self._client.connected):  # type: ModbusClientProtocol
+                message = "Modbus client is not connected to the inverter."
                 LOGGER.exception(message)
                 raise ConnectionException(message)
             try:
-                response = await client.protocol.read_holding_registers(
+                response = await self._client.protocol.read_holding_registers(
                     register,
                     length,
-                    unit=self._slave,
+                    unit=slave or self._slave,
                     timeout=self._timeout,
                 )
                 return response
@@ -223,10 +200,3 @@ class AsyncHuaweiSolar:
             LOGGER.debug(f"Reading register {register}")
             return await _do_read()
 
-
-class ConnectionException(Exception):
-    """Exception connecting to device"""
-
-
-class ReadException(Exception):
-    """Exception reading register from device"""

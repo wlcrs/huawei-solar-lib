@@ -5,4 +5,9 @@ class HuaweiSolarException(Exception):
 class DecodeError:
     """Decoding failed."""
 
-    pass
+class ConnectionException(HuaweiSolarException):
+    """Exception connecting to device"""
+
+
+class ReadException(HuaweiSolarException):
+    """Exception reading register from device"""
