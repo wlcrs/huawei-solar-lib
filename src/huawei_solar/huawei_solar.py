@@ -16,6 +16,8 @@ from pymodbus.client.asynchronous.async_io import (
     ReconnectingAsyncioModbusTcpClient,
     ModbusClientProtocol
 )
+
+from pymodbus.pdu import ExceptionResponse
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
@@ -106,7 +108,7 @@ class AsyncHuaweiSolar:
                 > registers[idx].register
             ):
                 raise ValueError(
-                    "Requested registers must be in monotonically increasing order!"
+                    f"Requested registers must be in monotonically increasing order, but {registers[idx-1].register} + {registers[idx-1].length} > {registers[idx].register}!"
                 )
 
             register_distance = (
@@ -125,6 +127,13 @@ class AsyncHuaweiSolar:
         )
 
         response = await self._read_registers(registers[0].register, total_length, slave)
+
+
+        if isinstance(response, ExceptionResponse):
+            raise ReadException(
+                f"Got error while reading from register {registers[0].register} with length {total_length}: {response}"
+            )
+
 
         decoder = BinaryPayloadDecoder.fromRegisters(
             response.registers, byteorder=Endian.Big, wordorder=Endian.Big
@@ -202,5 +211,5 @@ class AsyncHuaweiSolar:
         async with self._communication_lock:
             LOGGER.debug(f"Reading register {register}")
             result = await _do_read()
-            await asyncio.sleep(self._cooldown_time) # throttle requests to prevent errors
+            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
             return result
