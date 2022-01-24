@@ -3,20 +3,6 @@ from enum import IntEnum
 
 GridCode = namedtuple("GridCode", "standard country")
 Alarm = namedtuple("Alarm", "name id level")
-TimeOfUsePricePeriods = namedtuple(
-    "TimeOfUsePricePeriods",
-    "nb_periods "
-    "start_period_1 stop_period_1 price_period_1 "
-    "start_period_2 stop_period_2 price_period_2 "
-    "start_period_3 stop_period_3 price_period_3 "
-    "start_period_4 stop_period_4 price_period_4 "
-    "start_period_5 stop_period_5 price_period_5 "
-    "start_period_6 stop_period_6 price_period_6 "
-    "start_period_7 stop_period_7 price_period_7 "
-    "start_period_8 stop_period_8 price_period_8 "
-    "start_period_9 stop_period_9 price_period_9 "
-    "start_period_10 stop_period_10 price_period_10",
-)
 
 DEVICE_STATUS_DEFINITIONS = {
     0x0000: "Standby: initializing",
@@ -51,13 +37,12 @@ DEVICE_STATUS_DEFINITIONS = {
     0xA000: "Standby: no irradiation",
 }
 
-STORAGE_STATUS_DEFINITIONS = {
-    0: "offline",
-    1: "standby",
-    2: "running",
-    3: "fault",
-    4: "sleep mode",
-}
+class StorageStatus(IntEnum):
+    OFFLINE = 0
+    STANDBY = 1
+    RUNNING = 2
+    FAULT =3 
+    SLEEP_MODE = 4
 
 STORAGE_WORKING_MODES_A = {
     0: "unlimited",
@@ -84,30 +69,32 @@ STORAGE_WORKING_MODES_C = {
     5: "Time Of Use (LUNA2000)",
 }
 
-STORAGE_TOU_PRICE = {0: "disable", 1: "enable"}
-
-STORAGE_CHARGE_FROM_GRID = {0: "disable", 1: "enable"}
-
-
 class StorageProductModel(IntEnum):
     NONE = 0
     LG_RESU = 1
     HUAWEI_LUNA2000 = 2
 
+class StorageExcessPvEnergyUseInTOU(IntEnum):
+    FED_TO_GRID = 0
+    CHARGE = 1
 
-STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU = {0: "Fed to grid", 1: "Charge"}
+class MeterStatus(IntEnum):
+    OFFLINE = 0
+    NORMAL = 1
 
-METER_STATUS = {0: "offline", 1: "normal"}
+class MeterType(IntEnum):
+    SINGLE_PHASE = 0
+    THREE_PHASE = 1
 
-METER_TYPE = {0: "single phase", 1: "three phase"}
+class MeterTypeCheck(IntEnum):
+    RECOGNIZING = 0
+    MATCHES_WITH_METER = 1
+    MATCHES_NOT_WITH_METER = 2
 
-METER_TYPE_CHECK = {
-    0: "recognizing",
-    1: "matches with meter",
-    2: "matches not with meter",
-}
+class BackupVoltageIndependentOperation(IntEnum):
+    BV_101V = 0
+    BV_202V = 1
 
-BACKUP_VOLTAGE_INDEPENDENT_OPERATION = {0: "101V", 1: "202V"}
 
 # pylint: disable=fixme
 GRID_CODES = {
