@@ -4,6 +4,7 @@ Get production and status information from the Huawei Inverter using Modbus over
 import asyncio
 import logging
 import backoff
+import typing as t
 from collections import namedtuple
 
 from .exceptions import ConnectionException, ReadException
@@ -23,17 +24,20 @@ LOGGER = logging.getLogger(__name__)
 
 Result = namedtuple("Result", "value unit")
 
+DEFAULT_SLAVE = 0
 DEFAULT_TIMEOUT = 5
 DEFAULT_WAIT = 2
+DEFAULT_COOLDOWN_TIME = 0.1
 
 
 class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter"""
 
-    def __init__(self, client : ReconnectingAsyncioModbusTcpClient, slave: int = 0, timeout: int = DEFAULT_TIMEOUT, wait: int = DEFAULT_WAIT):
+    def __init__(self, client : ReconnectingAsyncioModbusTcpClient, slave: int = DEFAULT_SLAVE, timeout: int = DEFAULT_TIMEOUT, wait: int = DEFAULT_WAIT, cooldown_time: int = DEFAULT_COOLDOWN_TIME):
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use AsyncHuaweiSolar.create() instead"""
         self._client = client
         self._timeout = timeout
+        self._cooldown_time = cooldown_time
         self._wait = wait
         self._slave = slave
 
@@ -46,10 +50,10 @@ class AsyncHuaweiSolar:
         self.batttery_type = None
 
     @classmethod
-    async def create(cls, host, port="502", slave=0, timeout=5, wait=2, loop=None):
+    async def create(cls, host, port="502", slave: int = DEFAULT_SLAVE, timeout: int = DEFAULT_TIMEOUT, wait: int = DEFAULT_WAIT, cooldown_time: int = DEFAULT_COOLDOWN_TIME, loop=None):
         client = await cls.__get_client(host, port, loop)
 
-        huawei_solar = cls(client, slave, timeout, wait)
+        huawei_solar = cls(client, slave, timeout, wait, cooldown_time)
 
         # get some registers which are needed to correctly decode all values
 
@@ -67,7 +71,6 @@ class AsyncHuaweiSolar:
 
         return client
 
-
     async def stop(self):
         self._client.stop()
 
@@ -78,11 +81,11 @@ class AsyncHuaweiSolar:
             return Result(result, None)
         return Result(result, reg.unit)
 
-    async def get(self, name, slave= None):
+    async def get(self, name, slave=None):
         """get named register from device"""
         return (await self.get_multiple([name], slave))[0]
 
-    async def get_multiple(self, names: list[str], slave= None):
+    async def get_multiple(self, names: list[str], slave=None):
         """Read multiple registers at the same time.
 
         This is only possible if the registers are consecutively available in the
@@ -139,7 +142,7 @@ class AsyncHuaweiSolar:
 
         return result
 
-    async def _read_registers(self, register: RegisterDefinition, length: int, slave: int | None):
+    async def _read_registers(self, register: RegisterDefinition, length: int, slave: t.Optional[int]):
         """
         Async read register from device.
 
@@ -198,5 +201,6 @@ class AsyncHuaweiSolar:
 
         async with self._communication_lock:
             LOGGER.debug(f"Reading register {register}")
-            return await _do_read()
-
+            result = await _do_read()
+            asyncio.sleep(self._cooldown_time) # throttle requests to prevent errors
+            return result
