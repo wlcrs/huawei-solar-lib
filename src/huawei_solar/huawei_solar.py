@@ -202,5 +202,5 @@ class AsyncHuaweiSolar:
         async with self._communication_lock:
             LOGGER.debug(f"Reading register {register}")
             result = await _do_read()
-            asyncio.sleep(self._cooldown_time) # throttle requests to prevent errors
+            await asyncio.sleep(self._cooldown_time) # throttle requests to prevent errors
             return result
