@@ -66,19 +66,28 @@ class AsyncHuaweiSolar:
         loop=None,
     ):  # pylint: disable=too-many-arguments
         """Creates an AsyncHuaweiSolar instance."""
-        client = await cls.__get_client(host, port, loop)
 
-        huawei_solar = cls(client, slave, timeout, cooldown_time)
+        client = None
+        try:
+            client = await cls.__get_client(host, port, loop)
 
-        # get some registers which are needed to correctly decode all values
+            huawei_solar = cls(client, slave, timeout, cooldown_time)
 
-        huawei_solar.time_zone = (await huawei_solar.get(rn.TIME_ZONE)).value
-        # we assume that when at least one battery is present, it will always be put in storage_unit_1 first
-        huawei_solar.battery_type = (
-            await huawei_solar.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)
-        ).value
+            # get some registers which are needed to correctly decode all values
 
-        return huawei_solar
+            huawei_solar.time_zone = (await huawei_solar.get(rn.TIME_ZONE)).value
+            # we assume that when at least one battery is present, it will always be put in storage_unit_1 first
+            huawei_solar.battery_type = (
+                await huawei_solar.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)
+            ).value
+
+            return huawei_solar
+        except Exception as err:
+            # if an error occurs, we need to make sure that the Modbus-client is stopped,
+            # otherwise it can stay active and cause even more problems ...
+            if client is not None:
+                await client.stop()
+            raise err
 
     @classmethod
     async def __get_client(cls, host, port, loop) -> ReconnectingAsyncioModbusTcpClient:
