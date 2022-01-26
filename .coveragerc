@@ -1,0 +1,15 @@
+
+[run]
+branch = true
+source = 
+    src
+    tests
+
+omit = 
+    src/huawei_solar/__init__.py
+    src/huawei_solar/version.py
+    src/huawei_solar/exceptions.py
+
+[paths]
+source =
+    src
