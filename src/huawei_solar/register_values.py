@@ -1,3 +1,5 @@
+"""Definitions of register values returned by the Huawei inverter"""
+
 from collections import namedtuple
 from enum import IntEnum
 
@@ -37,12 +39,16 @@ DEVICE_STATUS_DEFINITIONS = {
     0xA000: "Standby: no irradiation",
 }
 
+
 class StorageStatus(IntEnum):
+    """Status of the attached energy storage."""
+
     OFFLINE = 0
     STANDBY = 1
     RUNNING = 2
-    FAULT =3 
+    FAULT = 3
     SLEEP_MODE = 4
+
 
 STORAGE_WORKING_MODES_A = {
     0: "unlimited",
@@ -69,29 +75,47 @@ STORAGE_WORKING_MODES_C = {
     5: "Time Of Use (LUNA2000)",
 }
 
+
 class StorageProductModel(IntEnum):
+    """Storage Product Model."""
+
     NONE = 0
     LG_RESU = 1
     HUAWEI_LUNA2000 = 2
 
+
 class StorageExcessPvEnergyUseInTOU(IntEnum):
+    """Storage Excess PV Energy use in Time-of-Use."""
+
     FED_TO_GRID = 0
     CHARGE = 1
 
+
 class MeterStatus(IntEnum):
+    """Power meter status."""
+
     OFFLINE = 0
     NORMAL = 1
 
+
 class MeterType(IntEnum):
+    """Power meter type."""
+
     SINGLE_PHASE = 0
     THREE_PHASE = 1
 
+
 class MeterTypeCheck(IntEnum):
+    """Power meter type check."""
+
     RECOGNIZING = 0
     MATCHES_WITH_METER = 1
     MATCHES_NOT_WITH_METER = 2
 
+
 class BackupVoltageIndependentOperation(IntEnum):
+    """Backup voltage independent operation."""
+
     BV_101V = 0
     BV_202V = 1
 

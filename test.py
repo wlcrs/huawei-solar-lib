@@ -123,4 +123,4 @@ async def test_single(name):
     await hs.stop()
 
 loop.run_until_complete(test_single("active_power"))
-loop.run_until_complete(test_single("meter_type"))
+loop.run_until_complete(test_single("pv_04_current"))
