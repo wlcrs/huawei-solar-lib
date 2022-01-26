@@ -19,8 +19,8 @@ cache:
     - venv/
 
 before_script:
-  - python -V  # Print out python version for debugging
-  - pip install twine tox flake8 codecov
+  - python -V # Print out python version for debugging
+  - pip install twine tox flake8 codecov build
 
 codecov:
   stage: test
@@ -33,16 +33,15 @@ linting:
   script:
     - tox -e black,yamllint,flake8
 
-deploy_staging:
+build_staging:
   stage: deploy
-  variables:
-    TWINE_USERNAME: $STAGING_USERNAME
-    TWINE_PASSWORD: $STAGING_PASSWORD
   script:
-    - python setup.py egg_info -b $(date +%s%N) bdist bdist_wheel
-    - twine upload --repository-url $PYTEST_REPOSITORY_URL dist/*
+    - python -m build
   except:
     - tags
+  artifacts:
+    paths:
+      - dist/
 
 deploy_production:
   stage: deploy
@@ -50,10 +49,13 @@ deploy_production:
     TWINE_USERNAME: $PRODUCTION_USERNAME
     TWINE_PASSWORD: $PRODUCTION_PASSWORD
   script:
-    - python setup.py bdist bdist_wheel
+    - python -m build
     - twine upload dist/*
   only:
     - tags
+  artifacts:
+    paths:
+      - dist/
 
 python39:
   stage: test
@@ -62,4 +64,3 @@ python39:
 python310:
   stage: test
   script: tox -e py310
-...
