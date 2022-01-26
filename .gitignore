@@ -59,3 +59,6 @@ target/
 
 # mutmut cache
 .mutmut-cache
+
+.vscode
+.python-version

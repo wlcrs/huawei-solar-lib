@@ -1,21 +1,26 @@
-from datetime import datetime, timezone
+"""Register definitions from the Huawei inverter"""
+
+import typing as t
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import IntEnum
 from functools import partial
 
-from huawei_solar.exceptions import DecodeError
-import huawei_solar.register_names as rn
-import huawei_solar.register_values as rv
 from pymodbus.payload import BinaryPayloadDecoder
 
-import typing as t
+import huawei_solar.register_names as rn
+import huawei_solar.register_values as rv
+from huawei_solar.exceptions import DecodeError
 
 if t.TYPE_CHECKING:
+    # pylint: disable=all
     from .huawei_solar import AsyncHuaweiSolar
 
 
 @dataclass
 class RegisterDefinition:
+    """Base class for register definitions."""
+
     def __init__(self, register, length):
         self.register = register
         self.length = length
@@ -25,14 +30,18 @@ class RegisterDefinition:
 
 
 class StringRegister(RegisterDefinition):
-    def __init__(self, register, length):
-        super().__init__(register, length)
+    """A string register."""
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
-        return decoder.decode_string(self.length * 2).decode("utf-8").strip("\0")
+        try:
+            return decoder.decode_string(self.length * 2).decode("utf-8").strip("\0")
+        except UnicodeDecodeError as err:
+            raise DecodeError from err
 
 
 class NumberRegister(RegisterDefinition):
+    """Base class for number registers."""
+
     def __init__(self, unit, gain, register, length, decode_function_name):
         super().__init__(register, length)
         self.unit = unit
@@ -48,41 +57,55 @@ class NumberRegister(RegisterDefinition):
         if callable(self.unit):
             result = self.unit(result)
         elif isinstance(self.unit, dict):
-            result = self.unit[result]
+            try:
+                result = self.unit[result]
+            except KeyError as err:
+                raise DecodeError from err
 
         return result
 
 
 class U16Register(NumberRegister):
+    """Unsigned 16-bit register"""
+
     def __init__(self, unit, gain, register, length):
         super().__init__(unit, gain, register, length, "decode_16bit_uint")
 
 
 class U32Register(NumberRegister):
+    """Unsigned 32-bit register"""
+
     def __init__(self, unit, gain, register, length):
         super().__init__(unit, gain, register, length, "decode_32bit_uint")
 
 
 class I16Register(NumberRegister):
+    """Signed 16-bit register"""
+
     def __init__(self, unit, gain, register, length):
         super().__init__(unit, gain, register, length, "decode_16bit_int")
 
 
 class I32Register(NumberRegister):
+    """Signed 32-bit register."""
+
     def __init__(self, unit, gain, register, length):
         super().__init__(unit, gain, register, length, "decode_32bit_int")
 
 
-def bitfield_decoder(definition, value):
+def bitfield_decoder(definition, bitfield):
+    """Decodes a bitfield into a list of statuses."""
     result = []
     for key, value in definition.items():
-        if key & value:
+        if key & bitfield:
             result.append(value)
 
     return result
 
 
 class TimestampRegister(U32Register):
+    """Timestamp register."""
+
     def __init__(self, register, length):
         super().__init__(None, 1, register, length)
 
@@ -96,19 +119,19 @@ class TimestampRegister(U32Register):
 
 
 @dataclass
-class LG_RESU_TimeOfUsePeriod:
+class LG_RESU_TimeOfUsePeriod:  # pylint: disable=invalid-name
     start_time: int  # minutes sinds midnight
     end_time: int  # minutes sinds midnight
     electricity_price: float
 
 
 class ChargeFlag(IntEnum):
-    Charge = 0
-    Discharge = 1
+    CHARGE = 0
+    DISCHARGE = 1
 
 
 @dataclass
-class HUAWEI_LUNA2000_TimeOfUsePeriod:
+class HUAWEI_LUNA2000_TimeOfUsePeriod:  # pylint: disable=invalid-name
     start_time: int  # minutes sinds midnight
     end_time: int  # minutes sinds midnight
     charge_flag: ChargeFlag
@@ -118,18 +141,14 @@ class HUAWEI_LUNA2000_TimeOfUsePeriod:
 
 
 class TimeOfUseRegisters(RegisterDefinition):
-    def __init__(self, register, length):
-        super().__init__(register, length)
-
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         if inverter.battery_type == rv.StorageProductModel.LG_RESU:
             return self.decode_lg_resu(decoder)
         elif inverter.battery_type == rv.StorageProductModel.HUAWEI_LUNA2000:
             return self.decode_huawei_luna2000(decoder)
-        else:
-            return DecodeError(
-                f"Invalid model to decode TOU Registers for: {inverter.battery_type}"
-            )
+        return DecodeError(
+            f"Invalid model to decode TOU Registers for: {inverter.battery_type}"
+        )
 
     def decode_lg_resu(self, decoder: BinaryPayloadDecoder):
         number_of_periods = decoder.decode_16bit_uint()
@@ -181,9 +200,6 @@ class ChargeDischargePeriod:
 
 
 class ChargeDischargePeriodRegisters(RegisterDefinition):
-    def __init__(self, register, length):
-        super().__init__(register, length)
-
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         number_of_periods = decoder.decode_16bit_uint()
         assert number_of_periods <= 10
@@ -243,15 +259,19 @@ REGISTERS = {
     rn.STARTUP_TIME: TimestampRegister(32091, 2),
     rn.SHUTDOWN_TIME: TimestampRegister(32093, 2),
     rn.ACCUMULATED_YIELD_ENERGY: U32Register("kWh", 100, 32106, 2),
-    rn.UNKNOWN_TIME_1: TimestampRegister(32110, 2),     # last contact with server?
+    rn.UNKNOWN_TIME_1: TimestampRegister(32110, 2),  # last contact with server?
     rn.DAILY_YIELD_ENERGY: U32Register("kWh", 100, 32114, 2),
-    rn.UNKNOWN_TIME_2: TimestampRegister(32156, 2),     # something todo with startup time?
-    rn.UNKNOWN_TIME_3: TimestampRegister(32160, 2),    # something todo with shutdown time?
-    rn.UNKNOWN_TIME_4: TimestampRegister(35113, 2),     # installation time?
+    rn.UNKNOWN_TIME_2: TimestampRegister(32156, 2),  # something todo with startup time?
+    rn.UNKNOWN_TIME_3: TimestampRegister(
+        32160, 2
+    ),  # something todo with shutdown time?
+    rn.UNKNOWN_TIME_4: TimestampRegister(35113, 2),  # installation time?
     rn.NB_OPTIMIZERS: U16Register(None, 1, 37200, 1),
     rn.NB_ONLINE_OPTIMIZERS: U16Register(None, 1, 37201, 1),
     rn.SYSTEM_TIME: TimestampRegister(40000, 2),
-    rn.UNKNOWN_TIME_5: TimestampRegister(40500, 2),     # seems to be the same as unknown_time_4
+    rn.UNKNOWN_TIME_5: TimestampRegister(
+        40500, 2
+    ),  # seems to be the same as unknown_time_4
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000, 1),
     rn.TIME_ZONE: I16Register("min", 1, 43006, 1),
 }
@@ -315,7 +335,9 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_1_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 37001, 2),
     rn.STORAGE_UNIT_1_BUS_VOLTAGE: U16Register("V", 10, 37003, 1),
     rn.STORAGE_UNIT_1_STATE_OF_CAPACITY: U16Register("%", 10, 37004, 1),
-    rn.STORAGE_UNIT_1_WORKING_MODE_B: U16Register(rv.STORAGE_WORKING_MODES_B, 1, 37006, 1),
+    rn.STORAGE_UNIT_1_WORKING_MODE_B: U16Register(
+        rv.STORAGE_WORKING_MODES_B, 1, 37006, 1
+    ),
     rn.STORAGE_UNIT_1_RATED_CHARGE_POWER: U32Register("W", 1, 37007, 2),
     rn.STORAGE_UNIT_1_RATED_DISCHARGE_POWER: U32Register("W", 1, 37009, 2),
     rn.STORAGE_UNIT_1_FAULT_ID: U16Register(None, 1, 37014, 1),
@@ -358,7 +380,9 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_1_BATTERY_PACK_1_FIRMWARE_VERSION: StringRegister(38210, 15),
     rn.STORAGE_UNIT_1_BATTERY_PACK_1_WORKING_STATUS: U16Register(None, 1, 38228, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_1_STATE_OF_CAPACITY: U16Register("%", 10, 38229, 1),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 38233, 2),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER: I32Register(
+        "W", 1, 38233, 2
+    ),
     rn.STORAGE_UNIT_1_BATTERY_PACK_1_VOLTAGE: U16Register("V", 10, 38235, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_1_CURRENT: I16Register("A", 10, 38236, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_1_TOTAL_CHARGE: U32Register("kWh", 100, 38238, 2),
@@ -367,7 +391,9 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_1_BATTERY_PACK_2_FIRMWARE_VERSION: StringRegister(38252, 15),
     rn.STORAGE_UNIT_1_BATTERY_PACK_2_WORKING_STATUS: U16Register(None, 1, 38270, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_2_STATE_OF_CAPACITY: U16Register("%", 10, 38271, 1),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 38275, 2),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER: I32Register(
+        "W", 1, 38275, 2
+    ),
     rn.STORAGE_UNIT_1_BATTERY_PACK_2_VOLTAGE: U16Register("V", 10, 38277, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_2_CURRENT: I16Register("A", 10, 38278, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_2_TOTAL_CHARGE: U32Register("kWh", 100, 38280, 2),
@@ -376,7 +402,9 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_1_BATTERY_PACK_3_FIRMWARE_VERSION: StringRegister(38294, 15),
     rn.STORAGE_UNIT_1_BATTERY_PACK_3_WORKING_STATUS: U16Register(None, 1, 38312, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_3_STATE_OF_CAPACITY: U16Register("%", 10, 38313, 1),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_3_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 38317, 2),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_3_CHARGE_DISCHARGE_POWER: I32Register(
+        "W", 1, 38317, 2
+    ),
     rn.STORAGE_UNIT_1_BATTERY_PACK_3_VOLTAGE: U16Register("V", 10, 38319, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_3_CURRENT: I16Register("A", 10, 38320, 1),
     rn.STORAGE_UNIT_1_BATTERY_PACK_3_TOTAL_CHARGE: U32Register("kWh", 100, 38322, 2),
@@ -385,7 +413,9 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_2_BATTERY_PACK_1_FIRMWARE_VERSION: StringRegister(38336, 15),
     rn.STORAGE_UNIT_2_BATTERY_PACK_1_WORKING_STATUS: U16Register(None, 1, 38354, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_1_STATE_OF_CAPACITY: U16Register("%", 10, 38355, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 38359, 2),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER: I32Register(
+        "W", 1, 38359, 2
+    ),
     rn.STORAGE_UNIT_2_BATTERY_PACK_1_VOLTAGE: U16Register("V", 10, 38361, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_1_CURRENT: I16Register("A", 10, 38362, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_1_TOTAL_CHARGE: U32Register("kWh", 100, 38364, 2),
@@ -394,7 +424,9 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_2_BATTERY_PACK_2_FIRMWARE_VERSION: StringRegister(38378, 15),
     rn.STORAGE_UNIT_2_BATTERY_PACK_2_WORKING_STATUS: U16Register(None, 1, 38396, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_2_STATE_OF_CAPACITY: U16Register("%", 10, 38397, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 38401, 2),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER: I32Register(
+        "W", 1, 38401, 2
+    ),
     rn.STORAGE_UNIT_2_BATTERY_PACK_2_VOLTAGE: U16Register("V", 10, 38403, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_2_CURRENT: I16Register("A", 10, 38404, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_2_TOTAL_CHARGE: U32Register("kWh", 100, 38406, 2),
@@ -403,23 +435,49 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_2_BATTERY_PACK_3_FIRMWARE_VERSION: StringRegister(38420, 15),
     rn.STORAGE_UNIT_2_BATTERY_PACK_3_WORKING_STATUS: U16Register(None, 1, 38438, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_3_STATE_OF_CAPACITY: U16Register("%", 10, 38439, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_3_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 38443, 2),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_3_CHARGE_DISCHARGE_POWER: I32Register(
+        "W", 1, 38443, 2
+    ),
     rn.STORAGE_UNIT_2_BATTERY_PACK_3_VOLTAGE: U16Register("V", 10, 38445, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_3_CURRENT: I16Register("A", 10, 38446, 1),
     rn.STORAGE_UNIT_2_BATTERY_PACK_3_TOTAL_CHARGE: U32Register("kWh", 100, 38448, 2),
     rn.STORAGE_UNIT_2_BATTERY_PACK_3_TOTAL_DISCHARGE: U32Register("kWh", 100, 38450, 2),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_1_MAXIMUM_TEMPERATURE: I16Register("°C", 10, 38452, 1),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_1_MINIMUM_TEMPERATURE: I16Register("°C", 10, 38453, 1),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_2_MAXIMUM_TEMPERATURE: I16Register("°C", 10, 38454, 1),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_2_MINIMUM_TEMPERATURE: I16Register("°C", 10, 38455, 1),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_3_MAXIMUM_TEMPERATURE: I16Register("°C", 10, 38456, 1),
-    rn.STORAGE_UNIT_1_BATTERY_PACK_3_MINIMUM_TEMPERATURE: I16Register("°C", 10, 38457, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_1_MAXIMUM_TEMPERATURE: I16Register("°C", 10, 38458, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_1_MINIMUM_TEMPERATURE: I16Register("°C", 10, 38459, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_2_MAXIMUM_TEMPERATURE: I16Register("°C", 10, 38460, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_2_MINIMUM_TEMPERATURE: I16Register("°C", 10, 38461, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_3_MAXIMUM_TEMPERATURE: I16Register("°C", 10, 38462, 1),
-    rn.STORAGE_UNIT_2_BATTERY_PACK_3_MINIMUM_TEMPERATURE: I16Register("°C", 10, 38463, 1),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_1_MAXIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38452, 1
+    ),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_1_MINIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38453, 1
+    ),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_2_MAXIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38454, 1
+    ),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_2_MINIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38455, 1
+    ),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_3_MAXIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38456, 1
+    ),
+    rn.STORAGE_UNIT_1_BATTERY_PACK_3_MINIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38457, 1
+    ),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_1_MAXIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38458, 1
+    ),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_1_MINIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38459, 1
+    ),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_2_MAXIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38460, 1
+    ),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_2_MINIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38461, 1
+    ),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_3_MAXIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38462, 1
+    ),
+    rn.STORAGE_UNIT_2_BATTERY_PACK_3_MINIMUM_TEMPERATURE: I16Register(
+        "°C", 10, 38463, 1
+    ),
     rn.STORAGE_UNIT_1_PRODUCT_MODEL: U16Register(rv.StorageProductModel, 1, 47000, 1),
     rn.STORAGE_WORKING_MODE_A: I16Register(rv.STORAGE_WORKING_MODES_A, 1, 47004, 1),
     rn.STORAGE_TIME_OF_USE_PRICE: I16Register(bool, 1, 47027, 1),
@@ -432,24 +490,34 @@ BATTERY_REGISTERS = {
     rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY: U16Register("%", 10, 47082, 1),
     rn.STORAGE_FORCED_CHARGING_AND_DISCHARGING_PERIOD: U16Register("min", 1, 47083, 1),
     rn.STORAGE_FORCED_CHARGING_AND_DISCHARGING_POWER: I32Register("min", 1, 47084, 2),
-    rn.STORAGE_WORKING_MODE_SETTINGS: U16Register(rv.STORAGE_WORKING_MODES_C, 1, 47086, 1),
+    rn.STORAGE_WORKING_MODE_SETTINGS: U16Register(
+        rv.STORAGE_WORKING_MODES_C, 1, 47086, 1
+    ),
     rn.STORAGE_CHARGE_FROM_GRID_FUNCTION: U16Register(bool, 1, 47087, 1),
     rn.STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE: U16Register("%", 1, 47088, 1),
     rn.STORAGE_UNIT_2_PRODUCT_MODEL: U16Register(rv.StorageProductModel, 1, 47089, 1),
     rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE: U16Register("%", 10, 47102, 1),
     rn.STORAGE_UNIT_1_NO: U16Register(None, 1, 47107, 1),
     rn.STORAGE_UNIT_2_NO: U16Register(None, 1, 47108, 1),
-    rn.STORAGE_FIXED_CHARGING_AND_DISCHARGING_PERIODS: ChargeDischargePeriodRegisters(47200, 41),
+    rn.STORAGE_FIXED_CHARGING_AND_DISCHARGING_PERIODS: ChargeDischargePeriodRegisters(
+        47200, 41
+    ),
     rn.STORAGE_POWER_OF_CHARGE_FROM_GRID: U32Register("W", 1, 47242, 2),
     rn.STORAGE_MAXIMUM_POWER_OF_CHARGE_FROM_GRID: U32Register("W", 1, 47244, 2),
     rn.STORAGE_FORCIBLE_CHARGE_DISCHARGE_SETTING_MODE: U16Register(None, 1, 47246, 2),
     rn.STORAGE_FORCIBLE_CHARGE_POWER: U32Register(None, 1, 47247, 2),
     rn.STORAGE_FORCIBLE_DISCHARGE_POWER: U32Register(None, 1, 47249, 2),
-    rn.STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS: TimeOfUseRegisters(47255, 43),
-    rn.STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU: U16Register(rv.StorageExcessPvEnergyUseInTOU, 1, 47299, 1),
+    rn.STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS: TimeOfUseRegisters(
+        47255, 43
+    ),
+    rn.STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU: U16Register(
+        rv.StorageExcessPvEnergyUseInTOU, 1, 47299, 1
+    ),
     rn.DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER: U32Register("W", 1, 47590, 2),
     rn.BACKUP_SWITCH_TO_OFF_GRID: U16Register(None, 1, 47604, 1),
-    rn.BACKUP_VOLTAGE_INDEPENDEND_OPERATION: U16Register(rv.BackupVoltageIndependentOperation, 1, 47604, 1),
+    rn.BACKUP_VOLTAGE_INDEPENDEND_OPERATION: U16Register(
+        rv.BackupVoltageIndependentOperation, 1, 47604, 1
+    ),
     rn.STORAGE_UNIT_1_PACK_1_NO: U16Register(None, 1, 47750, 1),
     rn.STORAGE_UNIT_1_PACK_2_NO: U16Register(None, 1, 47751, 1),
     rn.STORAGE_UNIT_1_PACK_3_NO: U16Register(None, 1, 47752, 1),

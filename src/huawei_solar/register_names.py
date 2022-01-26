@@ -1,3 +1,5 @@
+"""Register names from the Huawei inverter"""
+
 MODEL_NAME = "model_name"
 SERIAL_NUMBER = "serial_number"
 MODEL_ID = "model_id"
@@ -100,11 +102,17 @@ STORAGE_UNIT_1_WORKING_MODE_B = "storage_unit_1_working_mode_b"
 STORAGE_UNIT_1_RATED_CHARGE_POWER = "storage_unit_1_rated_charge_power"
 STORAGE_UNIT_1_RATED_DISCHARGE_POWER = "storage_unit_1_rated_discharge_power"
 STORAGE_UNIT_1_FAULT_ID = "storage_unit_1_fault_id"
-STORAGE_UNIT_1_CURRENT_DAY_CHARGE_CAPACITY = "storage_unit_1_current_day_charge_capacity"
-STORAGE_UNIT_1_CURRENT_DAY_DISCHARGE_CAPACITY = "storage_unit_1_current_day_discharge_capacity"
+STORAGE_UNIT_1_CURRENT_DAY_CHARGE_CAPACITY = (
+    "storage_unit_1_current_day_charge_capacity"
+)
+STORAGE_UNIT_1_CURRENT_DAY_DISCHARGE_CAPACITY = (
+    "storage_unit_1_current_day_discharge_capacity"
+)
 STORAGE_UNIT_1_BUS_CURRENT = "storage_unit_1_bus_current"
 STORAGE_UNIT_1_BATTERY_TEMPERATURE = "storage_unit_1_battery_temperature"
-STORAGE_UNIT_1_REMAINING_CHARGE_DIS_CHARGE_TIME = "storage_unit_1_remaining_charge_dis_charge_time"
+STORAGE_UNIT_1_REMAINING_CHARGE_DIS_CHARGE_TIME = (
+    "storage_unit_1_remaining_charge_dis_charge_time"
+)
 STORAGE_UNIT_1_DCDC_VERSION = "storage_unit_1_dcdc_version"
 STORAGE_UNIT_1_BMS_VERSION = "storage_unit_1_bms_version"
 STORAGE_MAXIMUM_CHARGE_POWER = "storage_maximum_charge_power"
@@ -140,8 +148,12 @@ STORAGE_UNIT_2_SERIAL_NUMBER = "storage_unit_2_serial_number"
 STORAGE_UNIT_2_STATE_OF_CAPACITY = "storage_unit_2_state_of_capacity"
 STORAGE_UNIT_2_RUNNING_STATUS = "storage_unit_2_running_status"
 STORAGE_UNIT_2_CHARGE_DISCHARGE_POWER = "storage_unit_2_charge_discharge_power"
-STORAGE_UNIT_2_CURRENT_DAY_CHARGE_CAPACITY = "storage_unit_2_current_day_charge_capacity"
-STORAGE_UNIT_2_CURRENT_DAY_DISCHARGE_CAPACITY = "storage_unit_2_current_day_discharge_capacity"
+STORAGE_UNIT_2_CURRENT_DAY_CHARGE_CAPACITY = (
+    "storage_unit_2_current_day_charge_capacity"
+)
+STORAGE_UNIT_2_CURRENT_DAY_DISCHARGE_CAPACITY = (
+    "storage_unit_2_current_day_discharge_capacity"
+)
 STORAGE_UNIT_2_BUS_VOLTAGE = "storage_unit_2_bus_voltage"
 STORAGE_UNIT_2_BUS_CURRENT = "storage_unit_2_bus_current"
 STORAGE_UNIT_2_BATTERY_TEMPERATURE = "storage_unit_2_battery_temperature"
@@ -159,72 +171,180 @@ STORAGE_CURRENT_DAY_CHARGE_CAPACITY = "storage_current_day_charge_capacity"
 STORAGE_CURRENT_DAY_DISCHARGE_CAPACITY = "storage_current_day_discharge_capacity"
 STORAGE_UNIT_2_SOFTWARE_VERSION = "storage_unit_2_software_version"
 STORAGE_UNIT_1_SOFTWARE_VERSION = "storage_unit_1_software_version"
-STORAGE_UNIT_1_BATTERY_PACK_1_SERIAL_NUMBER = "storage_unit_1_battery_pack_1_serial_number"
-STORAGE_UNIT_1_BATTERY_PACK_1_FIRMWARE_VERSION = "storage_unit_1_battery_pack_1_firmware_version"
-STORAGE_UNIT_1_BATTERY_PACK_1_WORKING_STATUS = "storage_unit_1_battery_pack_1_working_status"
-STORAGE_UNIT_1_BATTERY_PACK_1_STATE_OF_CAPACITY = "storage_unit_1_battery_pack_1_state_of_capacity"
-STORAGE_UNIT_1_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER = "storage_unit_1_battery_pack_1_charge_discharge_power"
+STORAGE_UNIT_1_BATTERY_PACK_1_SERIAL_NUMBER = (
+    "storage_unit_1_battery_pack_1_serial_number"
+)
+STORAGE_UNIT_1_BATTERY_PACK_1_FIRMWARE_VERSION = (
+    "storage_unit_1_battery_pack_1_firmware_version"
+)
+STORAGE_UNIT_1_BATTERY_PACK_1_WORKING_STATUS = (
+    "storage_unit_1_battery_pack_1_working_status"
+)
+STORAGE_UNIT_1_BATTERY_PACK_1_STATE_OF_CAPACITY = (
+    "storage_unit_1_battery_pack_1_state_of_capacity"
+)
+STORAGE_UNIT_1_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER = (
+    "storage_unit_1_battery_pack_1_charge_discharge_power"
+)
 STORAGE_UNIT_1_BATTERY_PACK_1_VOLTAGE = "storage_unit_1_battery_pack_1_voltage"
 STORAGE_UNIT_1_BATTERY_PACK_1_CURRENT = "storage_unit_1_battery_pack_1_current"
-STORAGE_UNIT_1_BATTERY_PACK_1_TOTAL_CHARGE = "storage_unit_1_battery_pack_1_total_charge"
-STORAGE_UNIT_1_BATTERY_PACK_1_TOTAL_DISCHARGE = "storage_unit_1_battery_pack_1_total_discharge"
-STORAGE_UNIT_1_BATTERY_PACK_2_SERIAL_NUMBER = "storage_unit_1_battery_pack_2_serial_number"
-STORAGE_UNIT_1_BATTERY_PACK_2_FIRMWARE_VERSION = "storage_unit_1_battery_pack_2_firmware_version"
-STORAGE_UNIT_1_BATTERY_PACK_2_WORKING_STATUS = "storage_unit_1_battery_pack_2_working_status"
-STORAGE_UNIT_1_BATTERY_PACK_2_STATE_OF_CAPACITY = "storage_unit_1_battery_pack_2_state_of_capacity"
-STORAGE_UNIT_1_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER = "storage_unit_1_battery_pack_2_charge_discharge_power"
+STORAGE_UNIT_1_BATTERY_PACK_1_TOTAL_CHARGE = (
+    "storage_unit_1_battery_pack_1_total_charge"
+)
+STORAGE_UNIT_1_BATTERY_PACK_1_TOTAL_DISCHARGE = (
+    "storage_unit_1_battery_pack_1_total_discharge"
+)
+STORAGE_UNIT_1_BATTERY_PACK_2_SERIAL_NUMBER = (
+    "storage_unit_1_battery_pack_2_serial_number"
+)
+STORAGE_UNIT_1_BATTERY_PACK_2_FIRMWARE_VERSION = (
+    "storage_unit_1_battery_pack_2_firmware_version"
+)
+STORAGE_UNIT_1_BATTERY_PACK_2_WORKING_STATUS = (
+    "storage_unit_1_battery_pack_2_working_status"
+)
+STORAGE_UNIT_1_BATTERY_PACK_2_STATE_OF_CAPACITY = (
+    "storage_unit_1_battery_pack_2_state_of_capacity"
+)
+STORAGE_UNIT_1_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER = (
+    "storage_unit_1_battery_pack_2_charge_discharge_power"
+)
 STORAGE_UNIT_1_BATTERY_PACK_2_VOLTAGE = "storage_unit_1_battery_pack_2_voltage"
 STORAGE_UNIT_1_BATTERY_PACK_2_CURRENT = "storage_unit_1_battery_pack_2_current"
-STORAGE_UNIT_1_BATTERY_PACK_2_TOTAL_CHARGE = "storage_unit_1_battery_pack_2_total_charge"
-STORAGE_UNIT_1_BATTERY_PACK_2_TOTAL_DISCHARGE = "storage_unit_1_battery_pack_2_total_discharge"
-STORAGE_UNIT_1_BATTERY_PACK_3_SERIAL_NUMBER = "storage_unit_1_battery_pack_3_serial_number"
-STORAGE_UNIT_1_BATTERY_PACK_3_FIRMWARE_VERSION = "storage_unit_1_battery_pack_3_firmware_version"
-STORAGE_UNIT_1_BATTERY_PACK_3_WORKING_STATUS = "storage_unit_1_battery_pack_3_working_status"
-STORAGE_UNIT_1_BATTERY_PACK_3_STATE_OF_CAPACITY = "storage_unit_1_battery_pack_3_state_of_capacity"
-STORAGE_UNIT_1_BATTERY_PACK_3_CHARGE_DISCHARGE_POWER = "storage_unit_1_battery_pack_3_charge_discharge_power"
+STORAGE_UNIT_1_BATTERY_PACK_2_TOTAL_CHARGE = (
+    "storage_unit_1_battery_pack_2_total_charge"
+)
+STORAGE_UNIT_1_BATTERY_PACK_2_TOTAL_DISCHARGE = (
+    "storage_unit_1_battery_pack_2_total_discharge"
+)
+STORAGE_UNIT_1_BATTERY_PACK_3_SERIAL_NUMBER = (
+    "storage_unit_1_battery_pack_3_serial_number"
+)
+STORAGE_UNIT_1_BATTERY_PACK_3_FIRMWARE_VERSION = (
+    "storage_unit_1_battery_pack_3_firmware_version"
+)
+STORAGE_UNIT_1_BATTERY_PACK_3_WORKING_STATUS = (
+    "storage_unit_1_battery_pack_3_working_status"
+)
+STORAGE_UNIT_1_BATTERY_PACK_3_STATE_OF_CAPACITY = (
+    "storage_unit_1_battery_pack_3_state_of_capacity"
+)
+STORAGE_UNIT_1_BATTERY_PACK_3_CHARGE_DISCHARGE_POWER = (
+    "storage_unit_1_battery_pack_3_charge_discharge_power"
+)
 STORAGE_UNIT_1_BATTERY_PACK_3_VOLTAGE = "storage_unit_1_battery_pack_3_voltage"
 STORAGE_UNIT_1_BATTERY_PACK_3_CURRENT = "storage_unit_1_battery_pack_3_current"
-STORAGE_UNIT_1_BATTERY_PACK_3_TOTAL_CHARGE = "storage_unit_1_battery_pack_3_total_charge"
-STORAGE_UNIT_1_BATTERY_PACK_3_TOTAL_DISCHARGE = "storage_unit_1_battery_pack_3_total_discharge"
-STORAGE_UNIT_2_BATTERY_PACK_1_SERIAL_NUMBER = "storage_unit_2_battery_pack_1_serial_number"
-STORAGE_UNIT_2_BATTERY_PACK_1_FIRMWARE_VERSION = "storage_unit_2_battery_pack_1_firmware_version"
-STORAGE_UNIT_2_BATTERY_PACK_1_WORKING_STATUS = "storage_unit_2_battery_pack_1_working_status"
-STORAGE_UNIT_2_BATTERY_PACK_1_STATE_OF_CAPACITY = "storage_unit_2_battery_pack_1_state_of_capacity"
-STORAGE_UNIT_2_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER = "storage_unit_2_battery_pack_1_charge_discharge_power"
+STORAGE_UNIT_1_BATTERY_PACK_3_TOTAL_CHARGE = (
+    "storage_unit_1_battery_pack_3_total_charge"
+)
+STORAGE_UNIT_1_BATTERY_PACK_3_TOTAL_DISCHARGE = (
+    "storage_unit_1_battery_pack_3_total_discharge"
+)
+STORAGE_UNIT_2_BATTERY_PACK_1_SERIAL_NUMBER = (
+    "storage_unit_2_battery_pack_1_serial_number"
+)
+STORAGE_UNIT_2_BATTERY_PACK_1_FIRMWARE_VERSION = (
+    "storage_unit_2_battery_pack_1_firmware_version"
+)
+STORAGE_UNIT_2_BATTERY_PACK_1_WORKING_STATUS = (
+    "storage_unit_2_battery_pack_1_working_status"
+)
+STORAGE_UNIT_2_BATTERY_PACK_1_STATE_OF_CAPACITY = (
+    "storage_unit_2_battery_pack_1_state_of_capacity"
+)
+STORAGE_UNIT_2_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER = (
+    "storage_unit_2_battery_pack_1_charge_discharge_power"
+)
 STORAGE_UNIT_2_BATTERY_PACK_1_VOLTAGE = "storage_unit_2_battery_pack_1_voltage"
 STORAGE_UNIT_2_BATTERY_PACK_1_CURRENT = "storage_unit_2_battery_pack_1_current"
-STORAGE_UNIT_2_BATTERY_PACK_1_TOTAL_CHARGE = "storage_unit_2_battery_pack_1_total_charge"
-STORAGE_UNIT_2_BATTERY_PACK_1_TOTAL_DISCHARGE = "storage_unit_2_battery_pack_1_total_discharge"
-STORAGE_UNIT_2_BATTERY_PACK_2_SERIAL_NUMBER = "storage_unit_2_battery_pack_2_serial_number"
-STORAGE_UNIT_2_BATTERY_PACK_2_FIRMWARE_VERSION = "storage_unit_2_battery_pack_2_firmware_version"
-STORAGE_UNIT_2_BATTERY_PACK_2_WORKING_STATUS = "storage_unit_2_battery_pack_2_working_status"
-STORAGE_UNIT_2_BATTERY_PACK_2_STATE_OF_CAPACITY = "storage_unit_2_battery_pack_2_state_of_capacity"
-STORAGE_UNIT_2_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER = "storage_unit_2_battery_pack_2_charge_discharge_power"
+STORAGE_UNIT_2_BATTERY_PACK_1_TOTAL_CHARGE = (
+    "storage_unit_2_battery_pack_1_total_charge"
+)
+STORAGE_UNIT_2_BATTERY_PACK_1_TOTAL_DISCHARGE = (
+    "storage_unit_2_battery_pack_1_total_discharge"
+)
+STORAGE_UNIT_2_BATTERY_PACK_2_SERIAL_NUMBER = (
+    "storage_unit_2_battery_pack_2_serial_number"
+)
+STORAGE_UNIT_2_BATTERY_PACK_2_FIRMWARE_VERSION = (
+    "storage_unit_2_battery_pack_2_firmware_version"
+)
+STORAGE_UNIT_2_BATTERY_PACK_2_WORKING_STATUS = (
+    "storage_unit_2_battery_pack_2_working_status"
+)
+STORAGE_UNIT_2_BATTERY_PACK_2_STATE_OF_CAPACITY = (
+    "storage_unit_2_battery_pack_2_state_of_capacity"
+)
+STORAGE_UNIT_2_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER = (
+    "storage_unit_2_battery_pack_2_charge_discharge_power"
+)
 STORAGE_UNIT_2_BATTERY_PACK_2_VOLTAGE = "storage_unit_2_battery_pack_2_voltage"
 STORAGE_UNIT_2_BATTERY_PACK_2_CURRENT = "storage_unit_2_battery_pack_2_current"
-STORAGE_UNIT_2_BATTERY_PACK_2_TOTAL_CHARGE = "storage_unit_2_battery_pack_2_total_charge"
-STORAGE_UNIT_2_BATTERY_PACK_2_TOTAL_DISCHARGE = "storage_unit_2_battery_pack_2_total_discharge"
-STORAGE_UNIT_2_BATTERY_PACK_3_SERIAL_NUMBER = "storage_unit_2_battery_pack_3_serial_number"
-STORAGE_UNIT_2_BATTERY_PACK_3_FIRMWARE_VERSION = "storage_unit_2_battery_pack_3_firmware_version"
-STORAGE_UNIT_2_BATTERY_PACK_3_WORKING_STATUS = "storage_unit_2_battery_pack_3_working_status"
-STORAGE_UNIT_2_BATTERY_PACK_3_STATE_OF_CAPACITY = "storage_unit_2_battery_pack_3_state_of_capacity"
-STORAGE_UNIT_2_BATTERY_PACK_3_CHARGE_DISCHARGE_POWER = "storage_unit_2_battery_pack_3_charge_discharge_power"
+STORAGE_UNIT_2_BATTERY_PACK_2_TOTAL_CHARGE = (
+    "storage_unit_2_battery_pack_2_total_charge"
+)
+STORAGE_UNIT_2_BATTERY_PACK_2_TOTAL_DISCHARGE = (
+    "storage_unit_2_battery_pack_2_total_discharge"
+)
+STORAGE_UNIT_2_BATTERY_PACK_3_SERIAL_NUMBER = (
+    "storage_unit_2_battery_pack_3_serial_number"
+)
+STORAGE_UNIT_2_BATTERY_PACK_3_FIRMWARE_VERSION = (
+    "storage_unit_2_battery_pack_3_firmware_version"
+)
+STORAGE_UNIT_2_BATTERY_PACK_3_WORKING_STATUS = (
+    "storage_unit_2_battery_pack_3_working_status"
+)
+STORAGE_UNIT_2_BATTERY_PACK_3_STATE_OF_CAPACITY = (
+    "storage_unit_2_battery_pack_3_state_of_capacity"
+)
+STORAGE_UNIT_2_BATTERY_PACK_3_CHARGE_DISCHARGE_POWER = (
+    "storage_unit_2_battery_pack_3_charge_discharge_power"
+)
 STORAGE_UNIT_2_BATTERY_PACK_3_VOLTAGE = "storage_unit_2_battery_pack_3_voltage"
 STORAGE_UNIT_2_BATTERY_PACK_3_CURRENT = "storage_unit_2_battery_pack_3_current"
-STORAGE_UNIT_2_BATTERY_PACK_3_TOTAL_CHARGE = "storage_unit_2_battery_pack_3_total_charge"
-STORAGE_UNIT_2_BATTERY_PACK_3_TOTAL_DISCHARGE = "storage_unit_2_battery_pack_3_total_discharge"
-STORAGE_UNIT_1_BATTERY_PACK_1_MAXIMUM_TEMPERATURE = "storage_unit_1_battery_pack_1_maximum_temperature"
-STORAGE_UNIT_1_BATTERY_PACK_1_MINIMUM_TEMPERATURE = "storage_unit_1_battery_pack_1_minimum_temperature"
-STORAGE_UNIT_1_BATTERY_PACK_2_MAXIMUM_TEMPERATURE = "storage_unit_1_battery_pack_2_maximum_temperature"
-STORAGE_UNIT_1_BATTERY_PACK_2_MINIMUM_TEMPERATURE = "storage_unit_1_battery_pack_2_minimum_temperature"
-STORAGE_UNIT_1_BATTERY_PACK_3_MAXIMUM_TEMPERATURE = "storage_unit_1_battery_pack_3_maximum_temperature"
-STORAGE_UNIT_1_BATTERY_PACK_3_MINIMUM_TEMPERATURE = "storage_unit_1_battery_pack_3_minimum_temperature"
-STORAGE_UNIT_2_BATTERY_PACK_1_MAXIMUM_TEMPERATURE = "storage_unit_2_battery_pack_1_maximum_temperature"
-STORAGE_UNIT_2_BATTERY_PACK_1_MINIMUM_TEMPERATURE = "storage_unit_2_battery_pack_1_minimum_temperature"
-STORAGE_UNIT_2_BATTERY_PACK_2_MAXIMUM_TEMPERATURE = "storage_unit_2_battery_pack_2_maximum_temperature"
-STORAGE_UNIT_2_BATTERY_PACK_2_MINIMUM_TEMPERATURE = "storage_unit_2_battery_pack_2_minimum_temperature"
-STORAGE_UNIT_2_BATTERY_PACK_3_MAXIMUM_TEMPERATURE = "storage_unit_2_battery_pack_3_maximum_temperature"
-STORAGE_UNIT_2_BATTERY_PACK_3_MINIMUM_TEMPERATURE = "storage_unit_2_battery_pack_3_minimum_temperature"
+STORAGE_UNIT_2_BATTERY_PACK_3_TOTAL_CHARGE = (
+    "storage_unit_2_battery_pack_3_total_charge"
+)
+STORAGE_UNIT_2_BATTERY_PACK_3_TOTAL_DISCHARGE = (
+    "storage_unit_2_battery_pack_3_total_discharge"
+)
+STORAGE_UNIT_1_BATTERY_PACK_1_MAXIMUM_TEMPERATURE = (
+    "storage_unit_1_battery_pack_1_maximum_temperature"
+)
+STORAGE_UNIT_1_BATTERY_PACK_1_MINIMUM_TEMPERATURE = (
+    "storage_unit_1_battery_pack_1_minimum_temperature"
+)
+STORAGE_UNIT_1_BATTERY_PACK_2_MAXIMUM_TEMPERATURE = (
+    "storage_unit_1_battery_pack_2_maximum_temperature"
+)
+STORAGE_UNIT_1_BATTERY_PACK_2_MINIMUM_TEMPERATURE = (
+    "storage_unit_1_battery_pack_2_minimum_temperature"
+)
+STORAGE_UNIT_1_BATTERY_PACK_3_MAXIMUM_TEMPERATURE = (
+    "storage_unit_1_battery_pack_3_maximum_temperature"
+)
+STORAGE_UNIT_1_BATTERY_PACK_3_MINIMUM_TEMPERATURE = (
+    "storage_unit_1_battery_pack_3_minimum_temperature"
+)
+STORAGE_UNIT_2_BATTERY_PACK_1_MAXIMUM_TEMPERATURE = (
+    "storage_unit_2_battery_pack_1_maximum_temperature"
+)
+STORAGE_UNIT_2_BATTERY_PACK_1_MINIMUM_TEMPERATURE = (
+    "storage_unit_2_battery_pack_1_minimum_temperature"
+)
+STORAGE_UNIT_2_BATTERY_PACK_2_MAXIMUM_TEMPERATURE = (
+    "storage_unit_2_battery_pack_2_maximum_temperature"
+)
+STORAGE_UNIT_2_BATTERY_PACK_2_MINIMUM_TEMPERATURE = (
+    "storage_unit_2_battery_pack_2_minimum_temperature"
+)
+STORAGE_UNIT_2_BATTERY_PACK_3_MAXIMUM_TEMPERATURE = (
+    "storage_unit_2_battery_pack_3_maximum_temperature"
+)
+STORAGE_UNIT_2_BATTERY_PACK_3_MINIMUM_TEMPERATURE = (
+    "storage_unit_2_battery_pack_3_minimum_temperature"
+)
 SYSTEM_TIME = "system_time"
 UNKNOWN_TIME_5 = "unknown_time_5"
 GRID_CODE = "grid_code"
@@ -239,24 +359,38 @@ STORAGE_MAXIMUM_DISCHARGING_POWER = "storage_maximum_discharging_power"
 STORAGE_POWER_LIMIT_GRID_TIED_POINT = "storage_power_limit_grid_tied_point"
 STORAGE_CHARGING_CUTOFF_CAPACITY = "storage_charging_cutoff_capacity"
 STORAGE_DISCHARGING_CUTOFF_CAPACITY = "storage_discharging_cutoff_capacity"
-STORAGE_FORCED_CHARGING_AND_DISCHARGING_PERIOD = "storage_forced_charging_and_discharging_period"
-STORAGE_FORCED_CHARGING_AND_DISCHARGING_POWER = "storage_forced_charging_and_discharging_power"
+STORAGE_FORCED_CHARGING_AND_DISCHARGING_PERIOD = (
+    "storage_forced_charging_and_discharging_period"
+)
+STORAGE_FORCED_CHARGING_AND_DISCHARGING_POWER = (
+    "storage_forced_charging_and_discharging_power"
+)
 STORAGE_WORKING_MODE_SETTINGS = "storage_working_mode_settings"
 STORAGE_CHARGE_FROM_GRID_FUNCTION = "storage_charge_from_grid_function"
-STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE = "storage_grid_charge_cutoff_state_of_charge"
+STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE = (
+    "storage_grid_charge_cutoff_state_of_charge"
+)
 STORAGE_UNIT_2_PRODUCT_MODEL = "storage_unit_2_product_model"
 STORAGE_BACKUP_POWER_STATE_OF_CHARGE = "storage_backup_power_state_of_charge"
 STORAGE_UNIT_1_NO = "storage_unit_1_no"
 STORAGE_UNIT_2_NO = "storage_unit_2_no"
-STORAGE_FIXED_CHARGING_AND_DISCHARGING_PERIODS = "storage_fixed_charging_and_discharging_periods"
+STORAGE_FIXED_CHARGING_AND_DISCHARGING_PERIODS = (
+    "storage_fixed_charging_and_discharging_periods"
+)
 STORAGE_POWER_OF_CHARGE_FROM_GRID = "storage_power_of_charge_from_grid"
 STORAGE_MAXIMUM_POWER_OF_CHARGE_FROM_GRID = "storage_maximum_power_of_charge_from_grid"
-STORAGE_FORCIBLE_CHARGE_DISCHARGE_SETTING_MODE = "storage_forcible_charge_discharge_setting_mode"
+STORAGE_FORCIBLE_CHARGE_DISCHARGE_SETTING_MODE = (
+    "storage_forcible_charge_discharge_setting_mode"
+)
 STORAGE_FORCIBLE_CHARGE_POWER = "storage_forcible_charge_power"
 STORAGE_FORCIBLE_DISCHARGE_POWER = "storage_forcible_discharge_power"
-STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS = "storage_time_of_use_charging_and_discharging_periods"
+STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS = (
+    "storage_time_of_use_charging_and_discharging_periods"
+)
 STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU = "storage_excess_pv_energy_use_in_tou"
-DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER = "dongle_plant_maximum_charge_from_grid_power"
+DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER = (
+    "dongle_plant_maximum_charge_from_grid_power"
+)
 BACKUP_SWITCH_TO_OFF_GRID = "backup_switch_to_off_grid"
 BACKUP_VOLTAGE_INDEPENDEND_OPERATION = "backup_voltage_independend_operation"
 STORAGE_UNIT_1_PACK_1_NO = "storage_unit_1_pack_1_no"
