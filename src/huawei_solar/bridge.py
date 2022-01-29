@@ -1,14 +1,24 @@
 """Higher-level access to Huawei Solar inverters."""
 from __future__ import annotations
 
+import asyncio
 import logging
+from threading import Thread
+import time
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
-from huawei_solar.exceptions import ReadException
+from huawei_solar.exceptions import (
+    HuaweiSolarException,
+    InvalidCredentials,
+    PermissionDenied,
+    ReadException,
+)
 from huawei_solar.huawei_solar import AsyncHuaweiSolar, Result
 
 _LOGGER = logging.getLogger(__name__)
+
+HEARTBEAT_INTERVAL = 15
 
 
 class HuaweiSolarBridge:
@@ -16,12 +26,24 @@ class HuaweiSolarBridge:
     making it easier to interact with a Huawei Solar inverter."""
 
     def __init__(
-        self, client: AsyncHuaweiSolar, primary: bool, slave_id: int | None = None
+        self,
+        client: AsyncHuaweiSolar,
+        primary: bool,
+        slave_id: int | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        loop=None,
     ):
 
         self.client = client
         self._primary = primary
-        self.slave_id = slave_id
+        self.slave_id = slave_id or 0
+
+        self.username = username
+        self.password = password
+        self.has_write_access = (
+            username and password
+        )  # setup will have failed if username and password are not correct
 
         self.model_name: str | None = None
         self.serial_number: str | None = None
@@ -34,13 +56,35 @@ class HuaweiSolarBridge:
 
         self._pv_registers = None
 
+        self._loop = loop or asyncio.get_running_loop()
+        self.__enable_heartbeat = False
+        self.__heartbeat_thread: Thread | None = None
+
     @classmethod
-    async def create(cls, host: str, port: int = 502, slave_id: int = 0, loop=None):
+    async def create(
+        cls,
+        host: str,
+        port: int = 502,
+        slave_id: int = 0,
+        username: str | None = None,
+        password: str | None = None,
+        loop=None,
+    ):
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
         client = await AsyncHuaweiSolar.create(host, port, slave_id, loop=loop)
 
-        bridge = cls(client, primary=True)
+        start_heartbeat = False
+        if username and password:
+            await client.login(username, password)
+            start_heartbeat = True
+
+        bridge = cls(
+            client, primary=True, username=username, password=password, loop=loop
+        )
         await HuaweiSolarBridge.__populate_fields(bridge)
+
+        if start_heartbeat:
+            bridge.start_heartbeat()
         return bridge
 
     @classmethod
@@ -145,12 +189,56 @@ class HuaweiSolarBridge:
                 ]
             )
 
+    def __heartbeat(self):
+
+        while self.__enable_heartbeat:
+            try:
+                heartbeat_future = asyncio.run_coroutine_threadsafe(
+                    self.client.heartbeat(self.slave_id), loop=self._loop
+                )
+                self.__enable_heartbeat = heartbeat_future.result()
+
+                time.sleep(HEARTBEAT_INTERVAL)
+            except HuaweiSolarException as err:
+                _LOGGER.warning("Heartbeat stopped because of, %s", err)
+                self.__enable_heartbeat = False
+                raise err
+
+    def start_heartbeat(self):
+        """Start the heartbeat thread to stay logged in."""
+        if self.__heartbeat_thread is not None and self.__heartbeat_thread.is_alive():
+            raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
+
+        self.__enable_heartbeat = True
+
+        self.__heartbeat_thread = Thread(
+            name=f"{self.serial_number}-heartbeat", target=self.__heartbeat
+        )
+        self.__heartbeat_thread.start()
+
+    async def set(self, name: str, value):
+        """Sets a register to a certain value."""
+
+        try:
+            return await self.client.set(name, value, slave=self.slave_id)
+        except PermissionDenied:
+            # check if we can login, and try again
+
+            if self.username and self.password:
+                if not self.client.login():
+                    raise InvalidCredentials(  # pylint: disable=raise-missing-from
+                        f"Could not login with '{self.username}'"
+                    )
+
+                return await self.client.set(name, value, slave=self.slave_id)
+
     async def stop(self):
         """Stop the bridge."""
+        self.__enable_heartbeat = False
+
         if self._primary:
             return await self.client.stop()
 
-        _LOGGER.debug("Ignoring stop command as this is not the primary bridge.")
         return True
 
 

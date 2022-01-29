@@ -25,7 +25,12 @@ from pymodbus.transaction import ModbusSocketFramer
 
 import huawei_solar.register_names as rn
 
-from .exceptions import ConnectionException, ReadException, WriteException
+from .exceptions import (
+    ConnectionException,
+    HuaweiSolarException,
+    ReadException,
+    WriteException,
+)
 from .registers import REGISTERS, RegisterDefinition
 
 LOGGER = logging.getLogger(__name__)
@@ -309,10 +314,12 @@ class AsyncHuaweiSolar:
             LOGGER.exception(message)
             raise ConnectionException(message)
         try:
+            LOGGER.debug("Writing to %s: %s", register, value)
+
             response = await self._client.protocol.write_registers(
                 register,
                 value,
-                unit=slave or self._slave,
+                unit=slave or self.slave,
                 timeout=self._timeout,
             )
             if isinstance(response, ExceptionResponse):
@@ -364,6 +371,27 @@ class AsyncHuaweiSolar:
             print("Login succeeded")
             return True
         return False
+
+    async def heartbeat(self, slave_id):
+        """Performs the heartbeat command. Only useful when maintaining a session."""
+        if not self._client.connected:
+            return False
+        try:
+            # 49999 is the magic register used to keep the connection alive
+            response = await self._client.protocol.write_register(
+                49999, 0x1, slave=slave_id or self.slave
+            )
+            if isinstance(response, ExceptionResponse):
+                LOGGER.warning(
+                    "Received an error after sending the heartbeat command: %s",
+                    response,
+                )
+                return False
+            LOGGER.debug("Heartbeat succeeded")
+            return True
+        except HuaweiSolarException as err:
+            LOGGER.exception("Exception during heartbeat: %s", err)
+            return False
 
 
 class PrivateHuaweiModbusResponse(ModbusResponse):
