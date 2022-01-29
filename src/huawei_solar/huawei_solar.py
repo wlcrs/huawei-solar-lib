@@ -5,6 +5,10 @@ import asyncio
 import logging
 import typing as t
 from collections import namedtuple
+from hashlib import sha256
+import hmac
+import secrets
+from binascii import hexlify
 
 import backoff
 from pymodbus.client.asynchronous.async_io import (
@@ -13,12 +17,15 @@ from pymodbus.client.asynchronous.async_io import (
 )
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
-from pymodbus.payload import BinaryPayloadDecoder
+from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
+from pymodbus.pdu import ModbusRequest, ModbusResponse, ModbusExceptions
 from pymodbus.pdu import ExceptionResponse
+from pymodbus.factory import ClientDecoder
+from pymodbus.transaction import ModbusSocketFramer
 
 import huawei_solar.register_names as rn
 
-from .exceptions import ConnectionException, ReadException
+from .exceptions import ConnectionException, ReadException, WriteException
 from .registers import REGISTERS, RegisterDefinition
 
 LOGGER = logging.getLogger(__name__)
@@ -29,6 +36,12 @@ DEFAULT_SLAVE = 0
 DEFAULT_TIMEOUT = 5
 DEFAULT_WAIT = 2
 DEFAULT_COOLDOWN_TIME = 0.01
+
+
+def _compute_digest(password, seed):
+    hashed_password = sha256(password).digest()
+
+    return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
 
 
 class AsyncHuaweiSolar:
@@ -91,7 +104,17 @@ class AsyncHuaweiSolar:
 
     @classmethod
     async def __get_client(cls, host, port, loop) -> ReconnectingAsyncioModbusTcpClient:
-        client = await init_tcp_client(None, loop, host, port, reset_socket=False)
+
+        decoder = ClientDecoder()
+        decoder.register(PrivateHuaweiModbusResponse)
+        client = await init_tcp_client(
+            None,
+            loop,
+            host,
+            port,
+            reset_socket=False,
+            framer=ModbusSocketFramer(decoder),
+        )
         # wait a little bit to prevent a timeout on the first request
         await asyncio.sleep(1)
 
@@ -248,3 +271,136 @@ class AsyncHuaweiSolar:
                 self._cooldown_time
             )  # throttle requests to prevent errors
             return result
+
+    async def set(self, name, value, slave=None):
+        """set named register from device"""
+        try:
+            reg = REGISTERS[name]
+        except KeyError as err:
+            raise ValueError("Invalid Register Name") from err
+
+        if not reg.writeable:
+            raise WriteException("Register is not writable")
+
+        builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
+        reg.encode(value, builder)
+        value = builder.to_registers()
+
+        if len(value) != reg.length:
+            raise WriteException("Wrong number of registers to write")
+
+        response = await self.write_registers(
+            reg.register, builder.to_registers(), slave
+        )
+
+        if isinstance(response, ExceptionResponse):
+            raise WriteException(
+                f"Got error while writing from register {reg.register} : {response}"
+            )
+
+        return response.address == reg.register and response.count == reg.length
+
+    async def write_registers(self, register, value, slave=None):
+        """
+        Async write register to device.
+        """
+        if not self._client.connected:
+            message = "Modbus client is not connected to the inverter."
+            LOGGER.exception(message)
+            raise ConnectionException(message)
+        try:
+            response = await self._client.protocol.write_registers(
+                register,
+                value,
+                unit=slave or self._slave,
+                timeout=self._timeout,
+            )
+            if isinstance(response, ExceptionResponse):
+                if response.exception_code == 0x80:
+                    raise WriteException("Permission denied")
+                raise WriteException(ModbusExceptions.decode(response.exception_code))
+            return response
+        except ModbusConnectionException as err:
+            LOGGER.exception("Failed to connect to device, is the host correct?")
+            raise ConnectionException(err) from err
+
+    async def login(self, username: str, password: str):
+        """Login into the inverter."""
+
+        # Get challenge
+        challenge_request = PrivateHuaweiModbusRequest(36, bytes([1, 0]))
+
+        challenge_response = await self._client.protocol.execute(challenge_request)
+
+        assert challenge_response.content[0] == 0x11
+        inverter_challenge = challenge_response.content[1:17]
+
+        client_challenge = secrets.token_bytes(16)
+
+        encoded_username = username.encode("utf-8")
+        hashed_password = _compute_digest(password.encode("utf-8"), inverter_challenge)
+
+        login_bytes = bytes(
+            [
+                len(client_challenge)
+                + 1
+                + len(encoded_username)
+                + 1
+                + len(hashed_password),
+                *client_challenge,
+                len(encoded_username),
+                *encoded_username,
+                len(hashed_password),
+                *hashed_password,
+            ]
+        )
+        await asyncio.sleep(0.05)
+        login_request = PrivateHuaweiModbusRequest(37, login_bytes)
+        login_response = await self._client.protocol.execute(login_request)
+
+        print(hexlify(login_response.content))
+
+        if login_response.content[2] == 0:
+            print("Login succeeded")
+            return True
+        return False
+
+
+class PrivateHuaweiModbusResponse(ModbusResponse):
+    """Response with the private Huawei Solar function code"""
+
+    function_code = 65
+
+    def __init__(self, **kwargs):
+        ModbusResponse.__init__(self, **kwargs)
+
+        self.sub_command = None
+        self.content = bytes()
+
+    def decode(self, data):
+        self.sub_command = int(data[0])
+        self.content = data[1:]
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.sub_command})"
+
+
+class PrivateHuaweiModbusRequest(ModbusRequest):
+    """Request with the private Huawei Solar function code"""
+
+    function_code = 65
+
+    def __init__(self, sub_command, content: bytes):
+        ModbusRequest.__init__(self)
+        self.sub_command = sub_command
+        self.content = content
+
+    def encode(self):
+        return bytes([self.sub_command, *self.content])
+
+    def decode(self, data):
+        self.sub_command = int(data[0])
+        self.content = data[1:]
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.sub_command})"
