@@ -17,3 +17,7 @@ class ConnectionException(
 
 class ReadException(HuaweiSolarException):  # pylint: disable=too-few-public-methods
     """Exception reading register from device"""
+
+
+class WriteException(HuaweiSolarException):  # pylint: disable=too-few-public-methods
+    """Exception writing register to device"""

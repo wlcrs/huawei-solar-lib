@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from enum import IntEnum
 from functools import partial
 
-from pymodbus.payload import BinaryPayloadDecoder
+from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
@@ -21,9 +21,13 @@ if t.TYPE_CHECKING:
 class RegisterDefinition:
     """Base class for register definitions."""
 
-    def __init__(self, register, length):
+    def __init__(self, register, length, writeable=False):
         self.register = register
         self.length = length
+        self.writeable = writeable
+
+    def encode(self, data, builder: BinaryPayloadBuilder):
+        raise NotImplementedError()
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         raise NotImplementedError()
@@ -42,8 +46,10 @@ class StringRegister(RegisterDefinition):
 class NumberRegister(RegisterDefinition):
     """Base class for number registers."""
 
-    def __init__(self, unit, gain, register, length, decode_function_name):
-        super().__init__(register, length)
+    def __init__(
+        self, unit, gain, register, length, decode_function_name, writeable=False
+    ):
+        super().__init__(register, length, writeable)
         self.unit = unit
         self.gain = gain
 
@@ -68,29 +74,43 @@ class NumberRegister(RegisterDefinition):
 class U16Register(NumberRegister):
     """Unsigned 16-bit register"""
 
-    def __init__(self, unit, gain, register, length):
-        super().__init__(unit, gain, register, length, "decode_16bit_uint")
+    def __init__(self, unit, gain, register, length, writeable=False):
+        super().__init__(
+            unit, gain, register, length, "decode_16bit_uint", writeable=writeable
+        )
+
+    def encode(self, data, builder: BinaryPayloadBuilder):
+        builder.add_16bit_uint(data)
 
 
 class U32Register(NumberRegister):
     """Unsigned 32-bit register"""
 
-    def __init__(self, unit, gain, register, length):
-        super().__init__(unit, gain, register, length, "decode_32bit_uint")
+    def __init__(self, unit, gain, register, length, writeable=False):
+        super().__init__(
+            unit, gain, register, length, "decode_32bit_uint", writeable=writeable
+        )
+
+    def encode(self, data, builder: BinaryPayloadBuilder):
+        builder.add_32bit_uint(data)
 
 
 class I16Register(NumberRegister):
     """Signed 16-bit register"""
 
-    def __init__(self, unit, gain, register, length):
-        super().__init__(unit, gain, register, length, "decode_16bit_int")
+    def __init__(self, unit, gain, register, length, writeable=False):
+        super().__init__(
+            unit, gain, register, length, "decode_16bit_int", writeable=writeable
+        )
 
 
 class I32Register(NumberRegister):
     """Signed 32-bit register."""
 
-    def __init__(self, unit, gain, register, length):
-        super().__init__(unit, gain, register, length, "decode_32bit_int")
+    def __init__(self, unit, gain, register, length, writeable=False):
+        super().__init__(
+            unit, gain, register, length, "decode_32bit_int", writeable=writeable
+        )
 
 
 def bitfield_decoder(definition, bitfield):
@@ -106,8 +126,8 @@ def bitfield_decoder(definition, bitfield):
 class TimestampRegister(U32Register):
     """Timestamp register."""
 
-    def __init__(self, register, length):
-        super().__init__(None, 1, register, length)
+    def __init__(self, register, length, writeable=False):
+        super().__init__(None, 1, register, length, writeable=writeable)
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         value = super().decode(decoder, inverter)
@@ -217,7 +237,7 @@ class ChargeDischargePeriodRegisters(RegisterDefinition):
         return periods[:number_of_periods]
 
 
-REGISTERS = {
+REGISTERS: dict[str, RegisterDefinition] = {
     rn.MODEL_NAME: StringRegister(30000, 15),
     rn.SERIAL_NUMBER: StringRegister(30015, 10),
     rn.MODEL_ID: U16Register(None, 1, 30070, 1),
@@ -484,7 +504,7 @@ BATTERY_REGISTERS = {
     rn.STORAGE_TIME_OF_USE_PRICE_PERIODS: TimeOfUseRegisters(47028, 41),
     rn.STORAGE_LCOE: U32Register(None, 1000, 47069, 2),
     rn.STORAGE_MAXIMUM_CHARGING_POWER: U32Register("W", 1, 47075, 2),
-    rn.STORAGE_MAXIMUM_DISCHARGING_POWER: U32Register("W", 1, 47077, 2),
+    rn.STORAGE_MAXIMUM_DISCHARGING_POWER: U32Register("W", 1, 47077, 2, writeable=True),
     rn.STORAGE_POWER_LIMIT_GRID_TIED_POINT: I32Register("W", 1, 47079, 2),
     rn.STORAGE_CHARGING_CUTOFF_CAPACITY: U16Register("%", 10, 47081, 1),
     rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY: U16Register("%", 10, 47082, 1),
