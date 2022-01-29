@@ -10,7 +10,7 @@ from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
-from huawei_solar.exceptions import DecodeError
+from huawei_solar.exceptions import DecodeError, WriteException
 
 if t.TYPE_CHECKING:
     # pylint: disable=all
@@ -47,13 +47,21 @@ class NumberRegister(RegisterDefinition):
     """Base class for number registers."""
 
     def __init__(
-        self, unit, gain, register, length, decode_function_name, writeable=False
+        self,
+        unit,
+        gain,
+        register,
+        length,
+        decode_function_name,
+        encode_function_name,
+        writeable=False,
     ):
         super().__init__(register, length, writeable)
         self.unit = unit
         self.gain = gain
 
         self._decode_function_name = decode_function_name
+        self._encode_function_name = encode_function_name
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         result = getattr(decoder, self._decode_function_name)()
@@ -70,17 +78,36 @@ class NumberRegister(RegisterDefinition):
 
         return result
 
+    def encode(self, data, builder: BinaryPayloadBuilder):
+
+        if isinstance(self.unit, IntEnum):
+            data = int(data)
+        elif self.unit == bool:
+            data = int(data)
+        elif callable(self.unit):
+            raise WriteException("Unsupported type.")
+
+        if self.gain != 1:
+            data *= self.gain
+
+        data = int(data)  # it should always be an int!
+
+        getattr(builder, self._encode_function_name)(data)
+
 
 class U16Register(NumberRegister):
     """Unsigned 16-bit register"""
 
     def __init__(self, unit, gain, register, length, writeable=False):
         super().__init__(
-            unit, gain, register, length, "decode_16bit_uint", writeable=writeable
+            unit,
+            gain,
+            register,
+            length,
+            "decode_16bit_uint",
+            "add_16bit_uint",
+            writeable=writeable,
         )
-
-    def encode(self, data, builder: BinaryPayloadBuilder):
-        builder.add_16bit_uint(data)
 
 
 class U32Register(NumberRegister):
@@ -88,11 +115,14 @@ class U32Register(NumberRegister):
 
     def __init__(self, unit, gain, register, length, writeable=False):
         super().__init__(
-            unit, gain, register, length, "decode_32bit_uint", writeable=writeable
+            unit,
+            gain,
+            register,
+            length,
+            "decode_32bit_uint",
+            "add_32bit_uint",
+            writeable=writeable,
         )
-
-    def encode(self, data, builder: BinaryPayloadBuilder):
-        builder.add_32bit_uint(data)
 
 
 class I16Register(NumberRegister):
@@ -100,7 +130,13 @@ class I16Register(NumberRegister):
 
     def __init__(self, unit, gain, register, length, writeable=False):
         super().__init__(
-            unit, gain, register, length, "decode_16bit_int", writeable=writeable
+            unit,
+            gain,
+            register,
+            length,
+            "decode_16bit_int",
+            "add_16bit_int",
+            writeable=writeable,
         )
 
 
@@ -109,7 +145,13 @@ class I32Register(NumberRegister):
 
     def __init__(self, unit, gain, register, length, writeable=False):
         super().__init__(
-            unit, gain, register, length, "decode_32bit_int", writeable=writeable
+            unit,
+            gain,
+            register,
+            length,
+            "decode_32bit_int",
+            "add_32bit_int",
+            writeable=writeable,
         )
 
 
@@ -160,6 +202,10 @@ class HUAWEI_LUNA2000_TimeOfUsePeriod:  # pylint: disable=invalid-name
     ]  # Valid on days Sunday to Saturday
 
 
+LG_RESU_TOU_PERIODS = 10
+HUAWEI_LUNA2000_TOU_PERIODS = 14
+
+
 class TimeOfUseRegisters(RegisterDefinition):
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         if inverter.battery_type == rv.StorageProductModel.LG_RESU:
@@ -170,12 +216,14 @@ class TimeOfUseRegisters(RegisterDefinition):
             f"Invalid model to decode TOU Registers for: {inverter.battery_type}"
         )
 
-    def decode_lg_resu(self, decoder: BinaryPayloadDecoder):
+    def decode_lg_resu(
+        self, decoder: BinaryPayloadDecoder
+    ) -> list[LG_RESU_TimeOfUsePeriod]:
         number_of_periods = decoder.decode_16bit_uint()
-        assert number_of_periods <= 10
+        assert number_of_periods <= LG_RESU_TOU_PERIODS
 
         periods = []
-        for _ in range(10):
+        for _ in range(LG_RESU_TOU_PERIODS):
             periods.append(
                 LG_RESU_TimeOfUsePeriod(
                     decoder.decode_16bit_uint(),
@@ -186,9 +234,28 @@ class TimeOfUseRegisters(RegisterDefinition):
 
         return periods[:number_of_periods]
 
-    def decode_huawei_luna2000(self, decoder: BinaryPayloadDecoder):
+    def encode_lg_resu(
+        self, data: list[LG_RESU_TimeOfUsePeriod], builder: BinaryPayloadBuilder
+    ):
+        assert len(data) <= LG_RESU_TOU_PERIODS
+        builder.add_16bit_uint(len(data))
+
+        for period in data:
+            builder.add_16bit_uint(period.start_time),
+            builder.add_16bit_uint(period.end_time),
+            builder.add_32bit_uint(period.electricity_price * 1000)
+
+        # pad with empty periods
+        for _ in range(len(data), LG_RESU_TOU_PERIODS):
+            builder.add_16bit_uint(0)
+            builder.add_16bit_uint(0)
+            builder.add_32bit_uint(0)
+
+    def decode_huawei_luna2000(
+        self, decoder: BinaryPayloadDecoder
+    ) -> list[HUAWEI_LUNA2000_TimeOfUsePeriod]:
         number_of_periods = decoder.decode_16bit_uint()
-        assert number_of_periods <= 14
+        assert number_of_periods <= HUAWEI_LUNA2000_TOU_PERIODS
 
         def _days_effective_parser(value):
             result = []
@@ -200,7 +267,7 @@ class TimeOfUseRegisters(RegisterDefinition):
             return tuple(result)
 
         periods = []
-        for _ in range(14):
+        for _ in range(HUAWEI_LUNA2000_TOU_PERIODS):
             periods.append(
                 HUAWEI_LUNA2000_TimeOfUsePeriod(
                     decoder.decode_16bit_uint(),
@@ -212,6 +279,34 @@ class TimeOfUseRegisters(RegisterDefinition):
 
         return periods[:number_of_periods]
 
+    def encode_huawei_luna2000(
+        self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod], builder: BinaryPayloadBuilder
+    ):
+        assert len(data) <= HUAWEI_LUNA2000_TOU_PERIODS
+        builder.add_16bit_uint(len(data))
+
+        def _days_effective_builder(days_tuple):
+            result = 0
+            mask = 0x1
+            for i in range(7):
+                if days_tuple[i]:
+                    result += mask
+                mask = mask << 1
+
+            return result
+
+        for period in data:
+            builder.add_16bit_uint(period.start_time),
+            builder.add_16bit_uint(period.end_time),
+            builder.add_8bit_uint(int(period.charge_flag))
+            builder.add_8bit_uint(_days_effective_builder(period.days_effective))
+
+        # pad with empty periods
+        for _ in range(len(data), HUAWEI_LUNA2000_TOU_PERIODS):
+            builder.add_16bit_uint(0)
+            builder.add_16bit_uint(0)
+            builder.add_16bit_uint(0)
+
 
 class ChargeDischargePeriod:
     start_time: int  # minutes sinds midnight
@@ -219,10 +314,15 @@ class ChargeDischargePeriod:
     power: int  # power in watts
 
 
+CHARGE_DISCHARGE_PERIODS = 10
+
+
 class ChargeDischargePeriodRegisters(RegisterDefinition):
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+    def decode(
+        self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"
+    ) -> list[ChargeDischargePeriod]:
         number_of_periods = decoder.decode_16bit_uint()
-        assert number_of_periods <= 10
+        assert number_of_periods <= CHARGE_DISCHARGE_PERIODS
 
         periods = []
         for _ in range(10):
@@ -235,6 +335,21 @@ class ChargeDischargePeriodRegisters(RegisterDefinition):
             )
 
         return periods[:number_of_periods]
+
+    def encode(self, data: list[ChargeDischargePeriod], builder: BinaryPayloadBuilder):
+        assert len(data) <= CHARGE_DISCHARGE_PERIODS
+        builder.add_16bit_uint(len(data))
+
+        for period in data:
+            builder.add_16bit_uint(period.start_time),
+            builder.add_16bit_uint(period.end_time),
+            builder.add_32bit_uint(period.power)
+
+        # pad with empty periods
+        for _ in range(len(data), CHARGE_DISCHARGE_PERIODS):
+            builder.add_16bit_uint(0)
+            builder.add_16bit_uint(0)
+            builder.add_32bit_uint(0)
 
 
 REGISTERS: dict[str, RegisterDefinition] = {
@@ -355,9 +470,7 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_1_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 37001, 2),
     rn.STORAGE_UNIT_1_BUS_VOLTAGE: U16Register("V", 10, 37003, 1),
     rn.STORAGE_UNIT_1_STATE_OF_CAPACITY: U16Register("%", 10, 37004, 1),
-    rn.STORAGE_UNIT_1_WORKING_MODE_B: U16Register(
-        rv.STORAGE_WORKING_MODES_B, 1, 37006, 1
-    ),
+    rn.STORAGE_UNIT_1_WORKING_MODE_B: U16Register(rv.StorageWorkingModesB, 1, 37006, 1),
     rn.STORAGE_UNIT_1_RATED_CHARGE_POWER: U32Register("W", 1, 37007, 2),
     rn.STORAGE_UNIT_1_RATED_DISCHARGE_POWER: U32Register("W", 1, 37009, 2),
     rn.STORAGE_UNIT_1_FAULT_ID: U16Register(None, 1, 37014, 1),
@@ -499,44 +612,64 @@ BATTERY_REGISTERS = {
         "°C", 10, 38463, 1
     ),
     rn.STORAGE_UNIT_1_PRODUCT_MODEL: U16Register(rv.StorageProductModel, 1, 47000, 1),
-    rn.STORAGE_WORKING_MODE_A: I16Register(rv.STORAGE_WORKING_MODES_A, 1, 47004, 1),
+    rn.STORAGE_WORKING_MODE_A: I16Register(rv.StorageWorkingModesA, 1, 47004, 1),
     rn.STORAGE_TIME_OF_USE_PRICE: I16Register(bool, 1, 47027, 1),
-    rn.STORAGE_TIME_OF_USE_PRICE_PERIODS: TimeOfUseRegisters(47028, 41),
+    rn.STORAGE_TIME_OF_USE_PRICE_PERIODS: TimeOfUseRegisters(47028, 41, writeable=True),
     rn.STORAGE_LCOE: U32Register(None, 1000, 47069, 2),
-    rn.STORAGE_MAXIMUM_CHARGING_POWER: U32Register("W", 1, 47075, 2),
+    rn.STORAGE_MAXIMUM_CHARGING_POWER: U32Register("W", 1, 47075, 2, writeable=True),
     rn.STORAGE_MAXIMUM_DISCHARGING_POWER: U32Register("W", 1, 47077, 2, writeable=True),
     rn.STORAGE_POWER_LIMIT_GRID_TIED_POINT: I32Register("W", 1, 47079, 2),
-    rn.STORAGE_CHARGING_CUTOFF_CAPACITY: U16Register("%", 10, 47081, 1),
-    rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY: U16Register("%", 10, 47082, 1),
-    rn.STORAGE_FORCED_CHARGING_AND_DISCHARGING_PERIOD: U16Register("min", 1, 47083, 1),
+    rn.STORAGE_CHARGING_CUTOFF_CAPACITY: U16Register("%", 10, 47081, 1, writeable=True),
+    rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY: U16Register(
+        "%", 10, 47082, 1, writeable=True
+    ),
+    rn.STORAGE_FORCED_CHARGING_AND_DISCHARGING_PERIOD: U16Register(
+        "min", 1, 47083, 1, writeable=True
+    ),
     rn.STORAGE_FORCED_CHARGING_AND_DISCHARGING_POWER: I32Register("min", 1, 47084, 2),
     rn.STORAGE_WORKING_MODE_SETTINGS: U16Register(
-        rv.STORAGE_WORKING_MODES_C, 1, 47086, 1
+        rv.StorageWorkingModesC, 1, 47086, 1, writeable=True
     ),
-    rn.STORAGE_CHARGE_FROM_GRID_FUNCTION: U16Register(bool, 1, 47087, 1),
+    rn.STORAGE_CHARGE_FROM_GRID_FUNCTION: U16Register(
+        bool, 1, 47087, 1, writeable=True
+    ),
     rn.STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE: U16Register("%", 1, 47088, 1),
     rn.STORAGE_UNIT_2_PRODUCT_MODEL: U16Register(rv.StorageProductModel, 1, 47089, 1),
-    rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE: U16Register("%", 10, 47102, 1),
+    rn.STORAGE_FORCIBLE_CHARGE_DISCHARGE_WRITE: U16Register(
+        rv.StorageForcibleChargeDischarge, 10, 47100, 1, writeable=True
+    ),
+    rn.STORAGE_FORCIBLE_CHARGE_DISCHARGE_SOC: U16Register(
+        "%", 10, 47101, 1, writeable=True
+    ),
+    rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE: U16Register(
+        "%", 10, 47102, 1, writeable=True
+    ),
     rn.STORAGE_UNIT_1_NO: U16Register(None, 1, 47107, 1),
     rn.STORAGE_UNIT_2_NO: U16Register(None, 1, 47108, 1),
     rn.STORAGE_FIXED_CHARGING_AND_DISCHARGING_PERIODS: ChargeDischargePeriodRegisters(
-        47200, 41
+        47200, 41, writeable=True
     ),
-    rn.STORAGE_POWER_OF_CHARGE_FROM_GRID: U32Register("W", 1, 47242, 2),
-    rn.STORAGE_MAXIMUM_POWER_OF_CHARGE_FROM_GRID: U32Register("W", 1, 47244, 2),
-    rn.STORAGE_FORCIBLE_CHARGE_DISCHARGE_SETTING_MODE: U16Register(None, 1, 47246, 2),
-    rn.STORAGE_FORCIBLE_CHARGE_POWER: U32Register(None, 1, 47247, 2),
-    rn.STORAGE_FORCIBLE_DISCHARGE_POWER: U32Register(None, 1, 47249, 2),
+    rn.STORAGE_POWER_OF_CHARGE_FROM_GRID: U32Register("W", 1, 47242, 2, writeable=True),
+    rn.STORAGE_MAXIMUM_POWER_OF_CHARGE_FROM_GRID: U32Register(
+        "W", 1, 47244, 2, writeable=True
+    ),
+    rn.STORAGE_FORCIBLE_CHARGE_DISCHARGE_SETTING_MODE: U16Register(
+        None, 1, 47246, 2, writeable=True
+    ),
+    rn.STORAGE_FORCIBLE_CHARGE_POWER: U32Register(None, 1, 47247, 2, writeable=True),
+    rn.STORAGE_FORCIBLE_DISCHARGE_POWER: U32Register(None, 1, 47249, 2, writeable=True),
     rn.STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS: TimeOfUseRegisters(
-        47255, 43
+        47255, 43, writeable=True
     ),
     rn.STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU: U16Register(
-        rv.StorageExcessPvEnergyUseInTOU, 1, 47299, 1
+        rv.StorageExcessPvEnergyUseInTOU, 1, 47299, 1, writeable=True
     ),
-    rn.DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER: U32Register("W", 1, 47590, 2),
-    rn.BACKUP_SWITCH_TO_OFF_GRID: U16Register(None, 1, 47604, 1),
+    rn.DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER: U32Register(
+        "W", 1, 47590, 2, writeable=True
+    ),
+    rn.BACKUP_SWITCH_TO_OFF_GRID: U16Register(None, 1, 47604, 1, writeable=True),
     rn.BACKUP_VOLTAGE_INDEPENDEND_OPERATION: U16Register(
-        rv.BackupVoltageIndependentOperation, 1, 47604, 1
+        rv.BackupVoltageIndependentOperation, 1, 47604, 1, writeable=True
     ),
     rn.STORAGE_UNIT_1_PACK_1_NO: U16Register(None, 1, 47750, 1),
     rn.STORAGE_UNIT_1_PACK_2_NO: U16Register(None, 1, 47751, 1),

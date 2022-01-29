@@ -50,30 +50,29 @@ class StorageStatus(IntEnum):
     SLEEP_MODE = 4
 
 
-STORAGE_WORKING_MODES_A = {
-    0: "unlimited",
-    1: "grid connection with zero power",
-    2: "grid connection with limited power",
-}
+class StorageWorkingModesA(IntEnum):
+    UNLIMITED = 0
+    GRID_CONNECTION_WITH_ZERO_POWER = 1
+    GRID_CONNECTION_WITH_LIMITED_POWER = 2
 
-STORAGE_WORKING_MODES_B = {
-    0: "none",
-    1: "Forcible charge/discharge",
-    2: "Time of Use (LG)",
-    3: "Fixed charge/discharge",
-    4: "Maximise self consumption",
-    5: "Fully fed to grid",
-    6: "Time of Use (LUNA2000)",
-}
 
-STORAGE_WORKING_MODES_C = {
-    0: "Adaptive",
-    1: "Fixed charge/discharge",
-    2: "Maximise self consumption",
-    3: "Time of Use (LG)",
-    4: "Fully fed to grid",
-    5: "Time Of Use (LUNA2000)",
-}
+class StorageWorkingModesB(IntEnum):
+    NONE = 0
+    FORCIBLE_CHARGE_DISCHARGE = 1
+    TIME_OF_USE_LG = 2
+    FIXED_CHARGE_DISCHARGE = 3
+    MAXIMISE_SELF_CONSUMPTION = 4
+    FULLY_FED_TO_GRID = 5
+    TIME_OF_USE_LUNA2000 = 6
+
+
+class StorageWorkingModesC(IntEnum):
+    ADAPTIVE = 0
+    FIXED_CHARGE_DISCHARGE = 1
+    MAXIMISE_SELF_CONSUMPTION = 2
+    TIME_OF_USE_LG = 3
+    FULLY_FED_TO_GRID = 4
+    TIME_OF_USE_LUNA2000 = 5
 
 
 class StorageProductModel(IntEnum):
@@ -82,6 +81,14 @@ class StorageProductModel(IntEnum):
     NONE = 0
     LG_RESU = 1
     HUAWEI_LUNA2000 = 2
+
+
+class StorageForcibleChargeDischarge(IntEnum):
+    """Storage Product Model."""
+
+    STOP = 0
+    CHARGE = 1
+    DISCHARGE = 2
 
 
 class StorageExcessPvEnergyUseInTOU(IntEnum):

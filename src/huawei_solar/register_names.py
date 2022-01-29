@@ -371,6 +371,8 @@ STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE = (
     "storage_grid_charge_cutoff_state_of_charge"
 )
 STORAGE_UNIT_2_PRODUCT_MODEL = "storage_unit_2_product_model"
+STORAGE_FORCIBLE_CHARGE_DISCHARGE_WRITE = "forcible_charge_discharge_write"
+STORAGE_FORCIBLE_CHARGE_DISCHARGE_SOC = "storage_forcible_charge_discharge_soc"
 STORAGE_BACKUP_POWER_STATE_OF_CHARGE = "storage_backup_power_state_of_charge"
 STORAGE_UNIT_1_NO = "storage_unit_1_no"
 STORAGE_UNIT_2_NO = "storage_unit_2_no"
