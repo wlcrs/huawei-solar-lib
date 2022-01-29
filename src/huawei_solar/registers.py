@@ -259,25 +259,25 @@ REGISTERS = {
     rn.STARTUP_TIME: TimestampRegister(32091, 2),
     rn.SHUTDOWN_TIME: TimestampRegister(32093, 2),
     rn.ACCUMULATED_YIELD_ENERGY: U32Register("kWh", 100, 32106, 2),
-    rn.UNKNOWN_TIME_1: TimestampRegister(32110, 2),  # last contact with server?
+    # last contact with server?
+    rn.UNKNOWN_TIME_1: TimestampRegister(32110, 2),
     rn.DAILY_YIELD_ENERGY: U32Register("kWh", 100, 32114, 2),
-    rn.UNKNOWN_TIME_2: TimestampRegister(32156, 2),  # something todo with startup time?
-    rn.UNKNOWN_TIME_3: TimestampRegister(
-        32160, 2
-    ),  # something todo with shutdown time?
+    # something todo with startup time?
+    rn.UNKNOWN_TIME_2: TimestampRegister(32156, 2),
+    # something todo with shutdown time?
+    rn.UNKNOWN_TIME_3: TimestampRegister(32160, 2),
     rn.UNKNOWN_TIME_4: TimestampRegister(35113, 2),  # installation time?
     rn.NB_OPTIMIZERS: U16Register(None, 1, 37200, 1),
     rn.NB_ONLINE_OPTIMIZERS: U16Register(None, 1, 37201, 1),
     rn.SYSTEM_TIME: TimestampRegister(40000, 2),
-    rn.UNKNOWN_TIME_5: TimestampRegister(
-        40500, 2
-    ),  # seems to be the same as unknown_time_4
+    # seems to be the same as unknown_time_4
+    rn.UNKNOWN_TIME_5: TimestampRegister(40500, 2),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000, 1),
     rn.TIME_ZONE: I16Register("min", 1, 43006, 1),
 }
 
 
-OPTIMIZER_REGISTERS = {
+PV_REGISTERS = {
     rn.PV_01_VOLTAGE: I16Register("V", 10, 32016, 1),
     rn.PV_01_CURRENT: I16Register("A", 100, 32017, 1),
     rn.PV_02_VOLTAGE: I16Register("V", 10, 32018, 1),
@@ -328,7 +328,7 @@ OPTIMIZER_REGISTERS = {
     rn.PV_24_CURRENT: I16Register("A", 100, 32063, 1),
 }
 
-REGISTERS.update(OPTIMIZER_REGISTERS)
+REGISTERS.update(PV_REGISTERS)
 
 BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_1_RUNNING_STATUS: U16Register(rv.StorageStatus, 1, 37000, 1),

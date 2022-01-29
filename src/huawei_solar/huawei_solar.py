@@ -28,7 +28,7 @@ Result = namedtuple("Result", "value unit")
 DEFAULT_SLAVE = 0
 DEFAULT_TIMEOUT = 5
 DEFAULT_WAIT = 2
-DEFAULT_COOLDOWN_TIME = 0.1
+DEFAULT_COOLDOWN_TIME = 0.01
 
 
 class AsyncHuaweiSolar:
@@ -45,7 +45,7 @@ class AsyncHuaweiSolar:
         self._client = client
         self._timeout = timeout
         self._cooldown_time = cooldown_time
-        self._slave = slave
+        self.slave = slave
 
         # use this lock to prevent concurrent requests, as the
         # Huawei inverters can't cope with those
@@ -223,7 +223,7 @@ class AsyncHuaweiSolar:
                 response = await self._client.protocol.read_holding_registers(
                     register,
                     length,
-                    unit=slave or self._slave,
+                    unit=slave or self.slave,
                     timeout=self._timeout,
                 )
                 return response
