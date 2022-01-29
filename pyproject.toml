@@ -25,6 +25,10 @@ ignore = [
     "version.py"
 ]
 
+[tool.pylint.messages_control]
+max-line-length = 120
+disable = "too-many-instance-attributes"
+
 [pycodestyle]
 max_line_length = 120
 

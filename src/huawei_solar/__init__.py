@@ -1,12 +1,12 @@
 """
 interact async with the huawei inverter using modbus to get production data
 """
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import PackageNotFoundError, version
 
+from .bridge import HuaweiSolarBridge  # noqa
 from .exceptions import *  # noqa
 from .huawei_solar import *  # noqa
 from .registers import *  # noqa
-
 
 try:
     VERSION = version(__name__)
