@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import IntEnum
 from functools import partial
+from inspect import isclass
 
 from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 
@@ -80,12 +81,18 @@ class NumberRegister(RegisterDefinition):
 
     def encode(self, data, builder: BinaryPayloadBuilder):
 
-        if isinstance(self.unit, IntEnum):
+        if self.unit == bool:
             data = int(data)
-        elif self.unit == bool:
-            data = int(data)
-        elif callable(self.unit):
-            raise WriteException("Unsupported type.")
+        elif isclass(self.unit):
+            if not isinstance(data, self.unit):
+                raise WriteException(
+                    f"Expected data of type {self.unit}, but got {type(data)}"
+                )
+
+            if issubclass(self.unit, IntEnum):
+                data = int(data)
+            else:
+                raise WriteException("Unsupported type.")
 
         if self.gain != 1:
             data *= self.gain
@@ -633,10 +640,12 @@ BATTERY_REGISTERS = {
     rn.STORAGE_CHARGE_FROM_GRID_FUNCTION: U16Register(
         bool, 1, 47087, 1, writeable=True
     ),
-    rn.STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE: U16Register("%", 1, 47088, 1),
+    rn.STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE: U16Register(
+        "%", 10, 47088, 1, writeable=True
+    ),
     rn.STORAGE_UNIT_2_PRODUCT_MODEL: U16Register(rv.StorageProductModel, 1, 47089, 1),
     rn.STORAGE_FORCIBLE_CHARGE_DISCHARGE_WRITE: U16Register(
-        rv.StorageForcibleChargeDischarge, 10, 47100, 1, writeable=True
+        rv.StorageForcibleChargeDischarge, 1, 47100, 1, writeable=True
     ),
     rn.STORAGE_FORCIBLE_CHARGE_DISCHARGE_SOC: U16Register(
         "%", 10, 47101, 1, writeable=True
@@ -654,7 +663,7 @@ BATTERY_REGISTERS = {
         "W", 1, 47244, 2, writeable=True
     ),
     rn.STORAGE_FORCIBLE_CHARGE_DISCHARGE_SETTING_MODE: U16Register(
-        None, 1, 47246, 2, writeable=True
+        None, 1, 47246, 1, writeable=True
     ),
     rn.STORAGE_FORCIBLE_CHARGE_POWER: U32Register(None, 1, 47247, 2, writeable=True),
     rn.STORAGE_FORCIBLE_DISCHARGE_POWER: U32Register(None, 1, 47249, 2, writeable=True),
