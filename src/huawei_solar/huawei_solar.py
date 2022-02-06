@@ -369,7 +369,23 @@ class AsyncHuaweiSolar:
         login_request = PrivateHuaweiModbusRequest(37, login_bytes)
         login_response = await self._client.protocol.execute(login_request)
 
-        if login_response.content[2] == 0:
+        if login_response.content[1] == 0:
+
+            # check if inverter returned the right hash of the password as well
+            inverter_mac_response_lengths = login_response.content[2]
+
+            inverter_mac_response = login_response.content[
+                3 : 3 + inverter_mac_response_lengths
+            ]
+
+            if (
+                not _compute_digest(password.encode("utf-8"), client_challenge)
+                == inverter_mac_response
+            ):
+                LOGGER.error(
+                    "Inverter response contains an invalid challenge answer. This could indicate a MitM-attack!"
+                )
+
             return True
         return False
 
