@@ -36,8 +36,6 @@ class HuaweiSolarBridge:
         self._primary = primary
         self.slave_id = slave_id or 0
 
-        self.model_name: str | None = None
-        self.serial_number: str | None = None
         self.pv_string_count: int = 0
 
         self.has_optimizers = False
