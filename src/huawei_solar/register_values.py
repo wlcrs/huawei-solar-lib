@@ -51,12 +51,16 @@ class StorageStatus(IntEnum):
 
 
 class StorageWorkingModesA(IntEnum):
+    """Working mode of the Connected Energy Storage."""
+
     UNLIMITED = 0
     GRID_CONNECTION_WITH_ZERO_POWER = 1
     GRID_CONNECTION_WITH_LIMITED_POWER = 2
 
 
 class StorageWorkingModesB(IntEnum):
+    """Working mode of the Connected Energy Storage."""
+
     NONE = 0
     FORCIBLE_CHARGE_DISCHARGE = 1
     TIME_OF_USE_LG = 2
@@ -67,6 +71,8 @@ class StorageWorkingModesB(IntEnum):
 
 
 class StorageWorkingModesC(IntEnum):
+    """Working mode of the Connected Energy Storage."""
+
     ADAPTIVE = 0
     FIXED_CHARGE_DISCHARGE = 1
     MAXIMISE_SELF_CONSUMPTION = 2

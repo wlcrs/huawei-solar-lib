@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from threading import Thread
-import time
+from typing import TypedDict
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
@@ -30,20 +29,12 @@ class HuaweiSolarBridge:
         client: AsyncHuaweiSolar,
         primary: bool,
         slave_id: int | None = None,
-        username: str | None = None,
-        password: str | None = None,
         loop=None,
     ):
 
         self.client = client
         self._primary = primary
         self.slave_id = slave_id or 0
-
-        self.username = username
-        self.password = password
-        self.has_write_access = (
-            username and password
-        )  # setup will have failed if username and password are not correct
 
         self.model_name: str | None = None
         self.serial_number: str | None = None
@@ -58,7 +49,7 @@ class HuaweiSolarBridge:
 
         self._loop = loop or asyncio.get_running_loop()
         self.__enable_heartbeat = False
-        self.__heartbeat_thread: Thread | None = None
+        self.__heartbeat_task: asyncio.Task | None = None
 
     @classmethod
     async def create(
@@ -66,25 +57,14 @@ class HuaweiSolarBridge:
         host: str,
         port: int = 502,
         slave_id: int = 0,
-        username: str | None = None,
-        password: str | None = None,
         loop=None,
     ):
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
         client = await AsyncHuaweiSolar.create(host, port, slave_id, loop=loop)
 
-        start_heartbeat = False
-        if username and password:
-            await client.login(username, password)
-            start_heartbeat = True
-
-        bridge = cls(
-            client, primary=True, username=username, password=password, loop=loop
-        )
+        bridge = cls(client, primary=True, loop=loop)
         await HuaweiSolarBridge.__populate_fields(bridge)
 
-        if start_heartbeat:
-            bridge.start_heartbeat()
         return bridge
 
     @classmethod
@@ -98,12 +78,7 @@ class HuaweiSolarBridge:
 
     @staticmethod
     async def __populate_fields(bridge: "HuaweiSolarBridge"):
-
-        model_name_result, serial_number_result = await bridge.client.get_multiple(
-            [rn.MODEL_NAME, rn.SERIAL_NUMBER], bridge.slave_id
-        )
-        bridge.model_name = model_name_result.value
-        bridge.serial_number = serial_number_result.value
+        """Computes all the fields that should be returned on each update-call."""
 
         bridge.pv_string_count = (
             await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)
@@ -178,6 +153,7 @@ class HuaweiSolarBridge:
         return result
 
     def _compute_pv_registers(self):
+        """Get the registers for the PV strings which were detected from the inverter"""
         assert 1 <= self.pv_string_count <= 24
 
         self._pv_registers = []
@@ -189,57 +165,78 @@ class HuaweiSolarBridge:
                 ]
             )
 
-    def __heartbeat(self):
-
-        while self.__enable_heartbeat:
-            try:
-                heartbeat_future = asyncio.run_coroutine_threadsafe(
-                    self.client.heartbeat(self.slave_id), loop=self._loop
-                )
-                self.__enable_heartbeat = heartbeat_future.result()
-
-                time.sleep(HEARTBEAT_INTERVAL)
-            except HuaweiSolarException as err:
-                _LOGGER.warning("Heartbeat stopped because of, %s", err)
-                self.__enable_heartbeat = False
-                raise err
-
-    def start_heartbeat(self):
-        """Start the heartbeat thread to stay logged in."""
-        if self.__heartbeat_thread is not None and self.__heartbeat_thread.is_alive():
-            raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
-
-        self.__enable_heartbeat = True
-
-        self.__heartbeat_thread = Thread(
-            name=f"{self.serial_number}-heartbeat", target=self.__heartbeat
-        )
-        self.__heartbeat_thread.start()
-
-    async def set(self, name: str, value):
-        """Sets a register to a certain value."""
-
-        try:
-            return await self.client.set(name, value, slave=self.slave_id)
-        except PermissionDenied:
-            # check if we can login, and try again
-
-            if self.username and self.password:
-                if not self.client.login():
-                    raise InvalidCredentials(  # pylint: disable=raise-missing-from
-                        f"Could not login with '{self.username}'"
-                    )
-
-                return await self.client.set(name, value, slave=self.slave_id)
-
     async def stop(self):
         """Stop the bridge."""
         self.__enable_heartbeat = False
+
+        if self.__heartbeat_task is not None:
+            self.__heartbeat_task.cancel()
 
         if self._primary:
             return await self.client.stop()
 
         return True
+
+    async def get_info(self) -> InverterInfo:
+        """Returns basic inverter info."""
+        model_name_result, serial_number_result = await self.client.get_multiple(
+            [rn.MODEL_NAME, rn.SERIAL_NUMBER], self.slave_id
+        )
+
+        return {
+            "model_name": model_name_result.value,
+            "serial_number": serial_number_result.value,
+        }
+
+    ############################
+    # Everything write-related #
+    ############################
+
+    async def has_write_permission(self):
+        """Tests write permission by getting the time zone and trying to write that same value back to the inverter"""
+
+        try:
+            time_zone = await self.client.get(rn.TIME_ZONE, self.slave_id)
+
+            await self.client.set(rn.TIME_ZONE, time_zone.value, self.slave_id)
+            return True
+        except PermissionDenied:
+            return False
+
+    async def login(self, username: str, password: str):
+        """Performs the login-sequence with the provided username/password."""
+        if not await self.client.login(username, password):
+            raise InvalidCredentials()
+        self.start_heartbeat()
+
+    def start_heartbeat(self):
+        """Start the heartbeat thread to stay logged in."""
+        if self.__heartbeat_task is not None and not self.__heartbeat_task.done():
+            raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
+
+        async def heartbeat():
+            while self.__enable_heartbeat:
+                try:
+                    self.__enable_heartbeat = await self.client.heartbeat(self.slave_id)
+                    await asyncio.sleep(HEARTBEAT_INTERVAL)
+                except HuaweiSolarException as err:
+                    _LOGGER.warning("Heartbeat stopped because of, %s", err)
+                    self.__enable_heartbeat = False
+
+        self.__enable_heartbeat = True
+        self.__heartbeat_task = asyncio.create_task(heartbeat())
+
+    async def set(self, name: str, value):
+        """Sets a register to a certain value."""
+
+        return await self.client.set(name, value, slave=self.slave_id)
+
+
+class InverterInfo(TypedDict):
+    """Basic info about the inverter."""
+
+    model_name: str
+    serial_number: str
 
 
 # Registers which should always be read
