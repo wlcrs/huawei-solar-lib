@@ -415,7 +415,7 @@ REGISTERS: dict[str, RegisterDefinition] = {
     # seems to be the same as unknown_time_4
     rn.UNKNOWN_TIME_5: TimestampRegister(40500, 2),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000, 1),
-    rn.TIME_ZONE: I16Register("min", 1, 43006, 1),
+    rn.TIME_ZONE: I16Register("min", 1, 43006, 1, writeable=True),
 }
 
 

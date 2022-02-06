@@ -8,7 +8,6 @@ from collections import namedtuple
 from hashlib import sha256
 import hmac
 import secrets
-from binascii import hexlify
 
 import backoff
 from pymodbus.client.asynchronous.async_io import (
@@ -28,6 +27,7 @@ import huawei_solar.register_names as rn
 from .exceptions import (
     ConnectionException,
     HuaweiSolarException,
+    PermissionDenied,
     ReadException,
     WriteException,
 )
@@ -41,6 +41,8 @@ DEFAULT_SLAVE = 0
 DEFAULT_TIMEOUT = 5
 DEFAULT_WAIT = 2
 DEFAULT_COOLDOWN_TIME = 0.01
+
+HEARTBEAT_REGISTER = 49999
 
 
 def _compute_digest(password, seed):
@@ -104,7 +106,7 @@ class AsyncHuaweiSolar:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
             if client is not None:
-                await client.stop()
+                client.stop()
             raise err
 
     @classmethod
@@ -294,9 +296,11 @@ class AsyncHuaweiSolar:
         if len(value) != reg.length:
             raise WriteException("Wrong number of registers to write")
 
-        response = await self.write_registers(
-            reg.register, builder.to_registers(), slave
-        )
+        async with self._communication_lock:
+            response = await self.write_registers(
+                reg.register, builder.to_registers(), slave
+            )
+            await asyncio.sleep(self._cooldown_time)
 
         if isinstance(response, ExceptionResponse):
             raise WriteException(
@@ -324,7 +328,7 @@ class AsyncHuaweiSolar:
             )
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == 0x80:
-                    raise WriteException("Permission denied")
+                    raise PermissionDenied("Permission denied")
                 raise WriteException(ModbusExceptions.decode(response.exception_code))
             return response
         except ModbusConnectionException as err:
@@ -365,10 +369,7 @@ class AsyncHuaweiSolar:
         login_request = PrivateHuaweiModbusRequest(37, login_bytes)
         login_response = await self._client.protocol.execute(login_request)
 
-        print(hexlify(login_response.content))
-
         if login_response.content[2] == 0:
-            print("Login succeeded")
             return True
         return False
 
@@ -379,7 +380,7 @@ class AsyncHuaweiSolar:
         try:
             # 49999 is the magic register used to keep the connection alive
             response = await self._client.protocol.write_register(
-                49999, 0x1, slave=slave_id or self.slave
+                HEARTBEAT_REGISTER, 0x1, slave=slave_id or self.slave
             )
             if isinstance(response, ExceptionResponse):
                 LOGGER.warning(
