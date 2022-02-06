@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TypedDict
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
@@ -35,6 +34,9 @@ class HuaweiSolarBridge:
         self.client = client
         self._primary = primary
         self.slave_id = slave_id or 0
+
+        self.model_name: str | None = None
+        self.serial_number: str | None = None
 
         self.pv_string_count: int = 0
 
@@ -77,6 +79,13 @@ class HuaweiSolarBridge:
     @staticmethod
     async def __populate_fields(bridge: "HuaweiSolarBridge"):
         """Computes all the fields that should be returned on each update-call."""
+
+        model_name_result, serial_number_result = await bridge.client.get_multiple(
+            [rn.MODEL_NAME, rn.SERIAL_NUMBER], bridge.slave_id
+        )
+
+        bridge.model_name = model_name_result.value
+        bridge.serial_number = serial_number_result.value
 
         bridge.pv_string_count = (
             await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)
@@ -175,17 +184,6 @@ class HuaweiSolarBridge:
 
         return True
 
-    async def get_info(self) -> InverterInfo:
-        """Returns basic inverter info."""
-        model_name_result, serial_number_result = await self.client.get_multiple(
-            [rn.MODEL_NAME, rn.SERIAL_NUMBER], self.slave_id
-        )
-
-        return {
-            "model_name": model_name_result.value,
-            "serial_number": serial_number_result.value,
-        }
-
     ############################
     # Everything write-related #
     ############################
@@ -228,13 +226,6 @@ class HuaweiSolarBridge:
         """Sets a register to a certain value."""
 
         return await self.client.set(name, value, slave=self.slave_id)
-
-
-class InverterInfo(TypedDict):
-    """Basic info about the inverter."""
-
-    model_name: str
-    serial_number: str
 
 
 # Registers which should always be read
