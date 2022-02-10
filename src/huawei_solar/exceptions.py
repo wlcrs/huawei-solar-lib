@@ -16,6 +16,9 @@ class ConnectionException(HuaweiSolarException):
 class ReadException(HuaweiSolarException):
     """Exception reading register from device"""
 
+class SlaveBusyException(HuaweiSolarException):
+    """Non-fatal exception while trying to read from device."""
+
 
 class WriteException(HuaweiSolarException):
     """Exception writing register to device"""

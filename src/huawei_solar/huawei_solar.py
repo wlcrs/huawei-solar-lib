@@ -29,6 +29,7 @@ from .exceptions import (
     HuaweiSolarException,
     PermissionDenied,
     ReadException,
+    SlaveBusyException,
     WriteException,
 )
 from .registers import REGISTERS, RegisterDefinition
@@ -189,11 +190,6 @@ class AsyncHuaweiSolar:
             registers[0].register, total_length, slave
         )
 
-        if isinstance(response, ExceptionResponse):
-            raise ReadException(
-                f"Got error while reading from register {registers[0].register} with length {total_length}: {response}"
-            )
-
         decoder = BinaryPayloadDecoder.fromRegisters(
             response.registers, byteorder=Endian.Big, wordorder=Endian.Big
         )
@@ -232,7 +228,7 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.constant,
-            (asyncio.TimeoutError),
+            (asyncio.TimeoutError, SlaveBusyException),
             interval=DEFAULT_WAIT,
             max_tries=5,
             jitter=None,
@@ -256,13 +252,21 @@ class AsyncHuaweiSolar:
                     unit=slave or self.slave,
                     timeout=self._timeout,
                 )
+
+                # trigger a backoff if we get a SlaveBusy-exception
+                if isinstance(response, ExceptionResponse):
+                    if response.exception_code == ModbusExceptions.SlaveBusy:
+                        raise SlaveBusyException()
+
+                    # Not a slavebusy-exception
+                    raise ReadException(
+                        f"Got error while reading from register {register} with length {length}: {response}"
+                    )
+
                 return response
 
             except ModbusConnectionException as err:
-                message = (
-                    "could not read register value, "
-                    "is an other device already connected?"
-                )
+                message = "Could not read register value, has another device interrupted the connection?"
                 LOGGER.error(message)
                 raise ReadException(message) from err
             # errors are different with async pymodbus,
