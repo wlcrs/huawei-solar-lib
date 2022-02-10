@@ -26,12 +26,15 @@ class HuaweiSolarBridge:
     def __init__(
         self,
         client: AsyncHuaweiSolar,
+        update_lock: asyncio.Lock,
         primary: bool,
         slave_id: int | None = None,
         loop=None,
     ):
 
         self.client = client
+        self.update_lock = update_lock
+
         self._primary = primary
         self.slave_id = slave_id or 0
 
@@ -61,18 +64,25 @@ class HuaweiSolarBridge:
     ):
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
         client = await AsyncHuaweiSolar.create(host, port, slave_id, loop=loop)
-
-        bridge = cls(client, primary=True, loop=loop)
+        update_lock = asyncio.Lock()
+        bridge = cls(client, update_lock, primary=True, loop=loop)
         await HuaweiSolarBridge.__populate_fields(bridge)
 
         return bridge
 
     @classmethod
-    async def create_extra_slave(cls, client: AsyncHuaweiSolar, slave_id: int):
+    async def create_extra_slave(
+        cls, primary_bridge: "HuaweiSolarBridge", slave_id: int
+    ):
         """Creates a HuaweiSolarBridge instance for extra slaves accessible via the given AsyncHuaweiSolar instance."""
-        assert client.slave != slave_id
+        assert primary_bridge.slave_id != slave_id
 
-        bridge = cls(client, primary=False, slave_id=slave_id)
+        bridge = cls(
+            primary_bridge.client,
+            primary_bridge.update_lock,
+            primary=False,
+            slave_id=slave_id,
+        )
         await HuaweiSolarBridge.__populate_fields(bridge)
         return bridge
 
@@ -144,18 +154,20 @@ class HuaweiSolarBridge:
                 zip(names, await self.client.get_multiple(names, self.slave_id))
             )
 
-        result = await _get_multiple_to_dict(INVERTER_REGISTERS)
+        # Only update one slave at a time
+        async with self.update_lock:
+            result = await _get_multiple_to_dict(INVERTER_REGISTERS)
 
-        result.update(await _get_multiple_to_dict(self._pv_registers))
+            result.update(await _get_multiple_to_dict(self._pv_registers))
 
-        if self.has_optimizers:
-            result.update(await _get_multiple_to_dict(OPTIMIZER_REGISTERS))
+            if self.has_optimizers:
+                result.update(await _get_multiple_to_dict(OPTIMIZER_REGISTERS))
 
-        if self.power_meter_type is not None:
-            result.update(await _get_multiple_to_dict(POWER_METER_REGISTERS))
+            if self.power_meter_type is not None:
+                result.update(await _get_multiple_to_dict(POWER_METER_REGISTERS))
 
-        if self.battery_1_type is not None or self.battery_2_type is not None:
-            result.update(await _get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
+            if self.battery_1_type is not None or self.battery_2_type is not None:
+                result.update(await _get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
 
         return result
 
