@@ -51,8 +51,11 @@ class HuaweiSolarBridge:
         self._pv_registers = None
 
         self._loop = loop or asyncio.get_running_loop()
-        self.__enable_heartbeat = False
+        self.__heartbeat_enabled = False
         self.__heartbeat_task: asyncio.Task | None = None
+
+        self.__username: str | None = None
+        self.__password: str | None = None
 
     @classmethod
     async def create(
@@ -186,7 +189,7 @@ class HuaweiSolarBridge:
 
     async def stop(self):
         """Stop the bridge."""
-        self.__enable_heartbeat = False
+        self.__heartbeat_enabled = False
 
         if self.__heartbeat_task is not None:
             self.__heartbeat_task.cancel()
@@ -215,6 +218,10 @@ class HuaweiSolarBridge:
         """Performs the login-sequence with the provided username/password."""
         if not await self.client.login(username, password):
             raise InvalidCredentials()
+
+        # save the correct login credentials
+        self._username = username
+        self._password = password
         self.start_heartbeat()
 
     def start_heartbeat(self):
@@ -223,19 +230,31 @@ class HuaweiSolarBridge:
             raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
 
         async def heartbeat():
-            while self.__enable_heartbeat:
+            while self.__heartbeat_enabled:
                 try:
-                    self.__enable_heartbeat = await self.client.heartbeat(self.slave_id)
+                    self.__heartbeat_enabled = await self.client.heartbeat(
+                        self.slave_id
+                    )
                     await asyncio.sleep(HEARTBEAT_INTERVAL)
                 except HuaweiSolarException as err:
                     _LOGGER.warning("Heartbeat stopped because of, %s", err)
-                    self.__enable_heartbeat = False
+                    self.__heartbeat_enabled = False
 
-        self.__enable_heartbeat = True
+        self.__heartbeat_enabled = True
         self.__heartbeat_task = asyncio.create_task(heartbeat())
 
     async def set(self, name: str, value):
         """Sets a register to a certain value."""
+
+        if (
+            self.__username and not self.__heartbeat_enabled
+        ):  # we must login again before trying to set the value
+            logged_in = self.login(self.__username, self.__password)
+
+            if not logged_in:
+                _LOGGER.warning(
+                    "Could not login, setting, %s will probably fail.", name
+                )
 
         return await self.client.set(name, value, slave=self.slave_id)
 
