@@ -169,7 +169,13 @@ class HuaweiSolarBridge:
             if self.power_meter_type is not None:
                 result.update(await _get_multiple_to_dict(POWER_METER_REGISTERS))
 
-            if self.battery_1_type is not None or self.battery_2_type is not None:
+            if (
+                self.battery_1_type
+                and self.battery_1_type != rv.StorageProductModel.NONE
+            ) or (
+                self.battery_2_type
+                and self.battery_2_type != rv.StorageProductModel.NONE
+            ):
                 result.update(await _get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
 
         return result
