@@ -49,6 +49,9 @@ class StorageStatus(IntEnum):
     FAULT = 3
     SLEEP_MODE = 4
 
+    def __str__(self) -> str:
+        return self._name_.replace("_", " ").capitalize()
+
 
 class StorageWorkingModesA(IntEnum):
     """Working mode of the Connected Energy Storage."""
