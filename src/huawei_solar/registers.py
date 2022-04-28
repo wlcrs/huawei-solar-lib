@@ -181,6 +181,9 @@ class TimestampRegister(U32Register):
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         value = super().decode(decoder, inverter)
 
+        if value == 2 ** 32 - 1:
+            return None
+
         try:
             return datetime.fromtimestamp(value - 60 * inverter.time_zone, timezone.utc)
         except OverflowError as err:
