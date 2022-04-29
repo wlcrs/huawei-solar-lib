@@ -56,6 +56,7 @@ class NumberRegister(RegisterDefinition):
         decode_function_name,
         encode_function_name,
         writeable=False,
+        invalid_value=None,
     ):
         super().__init__(register, length, writeable)
         self.unit = unit
@@ -63,6 +64,7 @@ class NumberRegister(RegisterDefinition):
 
         self._decode_function_name = decode_function_name
         self._encode_function_name = encode_function_name
+        self._invalid_value = invalid_value
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         result = getattr(decoder, self._decode_function_name)()
@@ -76,6 +78,9 @@ class NumberRegister(RegisterDefinition):
                 result = self.unit[result]
             except KeyError as err:
                 raise DecodeError from err
+
+        if result == self._invalid_value:
+            return None
 
         return result
 
@@ -114,6 +119,7 @@ class U16Register(NumberRegister):
             "decode_16bit_uint",
             "add_16bit_uint",
             writeable=writeable,
+            invalid_value=2 ** 16 - 1,
         )
 
 
@@ -129,6 +135,7 @@ class U32Register(NumberRegister):
             "decode_32bit_uint",
             "add_32bit_uint",
             writeable=writeable,
+            invalid_value=2 ** 32 - 1,
         )
 
 
@@ -144,6 +151,7 @@ class I16Register(NumberRegister):
             "decode_16bit_int",
             "add_16bit_int",
             writeable=writeable,
+            invalid_value=2 ** 15 - 1,
         )
 
 
@@ -159,6 +167,7 @@ class I32Register(NumberRegister):
             "decode_32bit_int",
             "add_32bit_int",
             writeable=writeable,
+            invalid_value=2 ** 31 - 1,
         )
 
 
@@ -181,7 +190,7 @@ class TimestampRegister(U32Register):
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         value = super().decode(decoder, inverter)
 
-        if value == 2 ** 32 - 1:
+        if value is None:
             return None
 
         try:
