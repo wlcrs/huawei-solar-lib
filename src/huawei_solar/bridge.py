@@ -226,8 +226,8 @@ class HuaweiSolarBridge:
             raise InvalidCredentials()
 
         # save the correct login credentials
-        self._username = username
-        self._password = password
+        self.__username = username
+        self.__password = password
         self.start_heartbeat()
 
     def start_heartbeat(self):
@@ -262,7 +262,20 @@ class HuaweiSolarBridge:
                     "Could not login, setting, %s will probably fail.", name
                 )
 
-        return await self.client.set(name, value, slave=self.slave_id)
+        try:
+            return await self.client.set(name, value, slave=self.slave_id)
+        except PermissionDenied as err:
+            if self.__username:
+                logged_in = self.login(self.__username, self.__password)
+
+                if not logged_in:
+                    _LOGGER.error("Could not login to set %s .", name)
+                    raise err
+
+                return await self.client.set(name, value, slave=self.slave_id)
+
+            # we have no login-credentials available, pass on permission error
+            raise err
 
 
 # Registers which should always be read
