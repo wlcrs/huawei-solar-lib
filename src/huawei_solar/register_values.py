@@ -50,7 +50,7 @@ class StorageStatus(IntEnum):
     SLEEP_MODE = 4
 
     def __str__(self) -> str:
-        return self._name_.replace("_", " ").capitalize()
+        return self.name.replace("_", " ").capitalize()
 
 
 class StorageWorkingModesA(IntEnum):
