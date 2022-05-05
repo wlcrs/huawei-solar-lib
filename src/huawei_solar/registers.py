@@ -119,7 +119,7 @@ class U16Register(NumberRegister):
             "decode_16bit_uint",
             "add_16bit_uint",
             writeable=writeable,
-            invalid_value=2 ** 16 - 1,
+            invalid_value=2**16 - 1,
         )
 
 
@@ -135,7 +135,7 @@ class U32Register(NumberRegister):
             "decode_32bit_uint",
             "add_32bit_uint",
             writeable=writeable,
-            invalid_value=2 ** 32 - 1,
+            invalid_value=2**32 - 1,
         )
 
 
@@ -151,7 +151,7 @@ class I16Register(NumberRegister):
             "decode_16bit_int",
             "add_16bit_int",
             writeable=writeable,
-            invalid_value=2 ** 15 - 1,
+            invalid_value=2**15 - 1,
         )
 
 
@@ -167,7 +167,7 @@ class I32Register(NumberRegister):
             "decode_32bit_int",
             "add_32bit_int",
             writeable=writeable,
-            invalid_value=2 ** 31 - 1,
+            invalid_value=2**31 - 1,
         )
 
 
