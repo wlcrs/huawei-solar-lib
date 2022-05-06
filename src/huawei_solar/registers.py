@@ -171,6 +171,33 @@ class I32Register(NumberRegister):
         )
 
 
+class I32AbsoluteValueRegister(NumberRegister):
+    """Signed 32-bit register, converted into the equivalent absolute number.
+
+    Use case: for registers of which the value should always be interpreted
+     as a positive number, but are (in some cases) being reported as a
+     negative number.
+
+    cfr. https://github.com/wlcrs/huawei_solar/issues/54
+
+    """
+
+    def __init__(self, unit, gain, register, length, writeable=False):
+        super().__init__(
+            unit,
+            gain,
+            register,
+            length,
+            "decode_32bit_int",
+            "add_32bit_int",
+            writeable=writeable,
+            invalid_value=2**31 - 1,
+        )
+
+    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+        return abs(super().decode(decoder, inverter))
+
+
 def bitfield_decoder(definition, bitfield):
     """Decodes a bitfield into a list of statuses."""
     result = []
@@ -714,7 +741,7 @@ METER_REGISTERS = {
     rn.POWER_METER_REACTIVE_POWER: I32Register("Var", 1, 37115, 2),
     rn.ACTIVE_GRID_POWER_FACTOR: I16Register(None, 1000, 37117, 1),
     rn.ACTIVE_GRID_FREQUENCY: I16Register("Hz", 100, 37118, 1),
-    rn.GRID_EXPORTED_ENERGY: I32Register("kWh", 100, 37119, 2),
+    rn.GRID_EXPORTED_ENERGY: I32AbsoluteValueRegister("kWh", 100, 37119, 2),
     rn.GRID_ACCUMULATED_ENERGY: I32Register("kWh", 100, 37121, 2),
     rn.GRID_ACCUMULATED_REACTIVE_POWER: I32Register("kVarh", 100, 37123, 2),
     rn.METER_TYPE: U16Register(rv.MeterType, 1, 37125, 1),
