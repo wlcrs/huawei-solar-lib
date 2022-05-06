@@ -255,7 +255,7 @@ class HuaweiSolarBridge:
         if (
             self.__username and not self.__heartbeat_enabled
         ):  # we must login again before trying to set the value
-            logged_in = self.login(self.__username, self.__password)
+            logged_in = await self.login(self.__username, self.__password)
 
             if not logged_in:
                 _LOGGER.warning(
@@ -266,7 +266,7 @@ class HuaweiSolarBridge:
             return await self.client.set(name, value, slave=self.slave_id)
         except PermissionDenied as err:
             if self.__username:
-                logged_in = self.login(self.__username, self.__password)
+                logged_in = await self.login(self.__username, self.__password)
 
                 if not logged_in:
                     _LOGGER.error("Could not login to set %s .", name)
