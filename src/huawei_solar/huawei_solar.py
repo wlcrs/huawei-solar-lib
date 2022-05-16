@@ -102,10 +102,18 @@ class AsyncHuaweiSolar:
             # get some registers which are needed to correctly decode all values
 
             huawei_solar.time_zone = (await huawei_solar.get(rn.TIME_ZONE)).value
-            # we assume that when at least one battery is present, it will always be put in storage_unit_1 first
-            huawei_solar.battery_type = (
-                await huawei_solar.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)
-            ).value
+            try:
+                # we assume that when at least one battery is present, it will 
+                # always be put in storage_unit_1 first
+                huawei_solar.battery_type = (
+                    await huawei_solar.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)
+                ).value
+            except ReadException as rerr:
+                if "IllegalAddress" in str(rerr):
+                    # inverter doesn't seem to support a battery
+                    huawei_solar.battery_type = None
+                else:
+                    raise rerr
 
             return huawei_solar
         except Exception as err:
