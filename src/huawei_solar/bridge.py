@@ -1,8 +1,16 @@
 """Higher-level access to Huawei Solar inverters."""
 from __future__ import annotations
 
+import typing as t
 import asyncio
+from datetime import datetime
 import logging
+from huawei_solar.files import (
+    OptimizerRealTimeData,
+    OptimizerRealTimeDataFile,
+    OptimizerSystemInformation,
+    OptimizerSystemInformationDataFile,
+)
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
@@ -28,7 +36,7 @@ class HuaweiSolarBridge:
         client: AsyncHuaweiSolar,
         update_lock: asyncio.Lock,
         primary: bool,
-        slave_id: int | None = None,
+        slave_id: t.Optional[int] = None,
         loop=None,
     ):
 
@@ -38,24 +46,24 @@ class HuaweiSolarBridge:
         self._primary = primary
         self.slave_id = slave_id or 0
 
-        self.model_name: str | None = None
-        self.serial_number: str | None = None
+        self.model_name: t.Optional[str] = None
+        self.serial_number: t.Optional[str] = None
 
         self.pv_string_count: int = 0
 
         self.has_optimizers = False
         self.battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
         self.battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
-        self.power_meter_type: rv.MeterType | None = None
+        self.power_meter_type: t.Optional[rv.MeterType] = None
 
         self._pv_registers = None
 
         self._loop = loop or asyncio.get_running_loop()
         self.__heartbeat_enabled = False
-        self.__heartbeat_task: asyncio.Task | None = None
+        self.__heartbeat_task: t.Optional[asyncio.Task] = None
 
-        self.__username: str | None = None
-        self.__password: str | None = None
+        self.__username: t.Optional[str] = None
+        self.__password: t.Optional[str] = None
 
     @classmethod
     async def create(
@@ -179,6 +187,57 @@ class HuaweiSolarBridge:
                 result.update(await _get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
 
         return result
+
+    async def read_optimizer_history_data(
+        self,
+        start_time: t.Optional[datetime] = None,
+        end_time: t.Optional[datetime] = None,
+    ) -> OptimizerRealTimeDataFile:
+
+        customized_data = None
+        if start_time or end_time:
+            if not start_time or not end_time:
+                raise HuaweiSolarException(
+                    "start_time and end_time must both be specified."
+                )
+            if start_time > end_time:
+                raise HuaweiSolarException("start_time must come before end_time")
+
+            customized_data = OptimizerRealTimeDataFile.query_within_timespan(
+                int(start_time.timestamp()), int(end_time.timestamp())
+            )
+
+        file_data = await self.client.get_file(
+            OptimizerRealTimeDataFile.FILE_TYPE, customized_data
+        )
+        return OptimizerRealTimeDataFile(file_data)
+
+    async def get_latest_optimizer_history_data(
+        self,
+    ) -> dict[int, OptimizerRealTimeData]:
+
+        file_data = await self.client.get_file(
+            OptimizerRealTimeDataFile.FILE_TYPE,
+            OptimizerRealTimeDataFile.query_last_data_only(),
+        )
+        real_time_data = OptimizerRealTimeDataFile(file_data)
+        latest_unit = real_time_data.data_units[0]
+        # we only expect one element, but if more would be present,
+        # then only the latest one is of interest (list is sorted time descending)
+
+        return {opt.optimizer_address: opt for opt in latest_unit.optimizers}
+
+    async def get_optimizer_system_information_data(
+        self,
+    ) -> dict[int, OptimizerSystemInformation]:
+        file_data = await self.client.get_file(
+            OptimizerSystemInformationDataFile.FILE_TYPE
+        )
+        system_information_data = OptimizerSystemInformationDataFile(file_data)
+
+        return {
+            opt.optimizer_address: opt for opt in system_information_data.optimizers
+        }
 
     def _compute_pv_registers(self):
         """Get the registers for the PV strings which were detected from the inverter"""
