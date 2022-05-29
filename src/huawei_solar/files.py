@@ -44,6 +44,9 @@ class OptimizerRunningStatus(IntEnum):
     RUNNING = 4
     POWER_OFF = 12
 
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").capitalize()
+
 
 @dataclass(frozen=True)
 class OptimizerRealTimeData:
@@ -171,6 +174,9 @@ class OptimizerOnlineStatus(IntEnum):
     OFFLINE = 0
     ONLINE = 1
     DISCONNECTED = 2
+
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").capitalize()
 
 
 @dataclass(frozen=True)
