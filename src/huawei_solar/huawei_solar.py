@@ -293,9 +293,9 @@ class AsyncHuaweiSolar:
         process described in 6.3.7.1 of the
         Solar Inverter Modbus Interface Definitions"""
 
-        def backoff_start_read_file_giveup(details):
+        def backoff_giveup(details):
             raise ReadException(
-                f"Failed to start upload of file {file_type} after {details['tries']} tries"
+                f"Failed to read file {file_type} after {details['tries']} tries"
             )
 
         @backoff.on_exception(
@@ -305,99 +305,32 @@ class AsyncHuaweiSolar:
             max_tries=FILE_UPLOAD_MAX_RETRIES,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
-                "Backing off starting file upload for %0.1f seconds after %d tries",
+                "Backing off file upload for %0.1f seconds after %d tries",
                 details["wait"],
                 details["tries"],
             ),
-            on_giveup=backoff_start_read_file_giveup,
+            on_giveup=backoff_giveup,
         )
-        async def _do_start_read_file():
-            start_upload_response = await self._client.protocol.execute(
-                StartUploadModbusRequest(file_type, customized_data)
-            )
+        async def _perform_request(request: ModbusRequest, response_type):
+            response = await self._client.protocol.execute(request)
 
-            if isinstance(start_upload_response, ExceptionResponse):
-                if start_upload_response.exception_code == 0x80:
+            if isinstance(response, ExceptionResponse):
+                if response.exception_code == 0x80:
                     raise PermissionDenied("Permission denied")
-                elif start_upload_response.exception_code == 0x06:
+                elif response.exception_code == 0x06:
                     raise SlaveBusyException()
                 raise ReadException(
-                    f"Exception occured while trying to read file: {hex(start_upload_response.exception_code)}"
+                    f"Exception occured while trying to read file {hex(file_type)}: {hex(response.exception_code)}"
                 )
 
-            return StartUploadModbusResponse(start_upload_response.content)
-
-        def backoff_read_file_frame_giveup(details):
-            raise ReadException(
-                f"Failed to read frame of file {file_type} after {details['tries']} tries"
-            )
-
-        @backoff.on_exception(
-            backoff.constant,
-            (asyncio.TimeoutError, SlaveBusyException),
-            interval=FILE_UPLOAD_RETRY_TIMEOUT,
-            max_tries=FILE_UPLOAD_MAX_RETRIES,
-            jitter=None,
-            on_backoff=lambda details: LOGGER.debug(
-                "Backing off reading file frame for %0.1f seconds after %d tries",
-                details["wait"],
-                details["tries"],
-            ),
-            on_giveup=backoff_start_read_file_giveup,
-        )
-        async def _do_read_file_frame(next_frame_no):
-            data_upload_response = await self._client.protocol.execute(
-                UploadModbusRequest(file_type, next_frame_no)
-            )
-
-            if isinstance(data_upload_response, ExceptionResponse):
-                if data_upload_response.exception_code == 0x80:
-                    raise PermissionDenied("Permission denied")
-                elif data_upload_response.exception_code == 0x06:
-                    raise SlaveBusyException()
-                raise ReadException(
-                    f"Exception occured while trying to read file frame: {hex(data_upload_response.exception_code)}"
-                )
-
-            return UploadModbusResponse(data_upload_response.content)
-
-        def backoff_read_file_finish_giveup(details):
-            raise ReadException(
-                f"Failed to complete file {file_type} retrieval after {details['tries']} tries"
-            )
-
-        @backoff.on_exception(
-            backoff.constant,
-            (asyncio.TimeoutError, SlaveBusyException),
-            interval=FILE_UPLOAD_RETRY_TIMEOUT,
-            max_tries=FILE_UPLOAD_MAX_RETRIES,
-            jitter=None,
-            on_backoff=lambda details: LOGGER.debug(
-                "Backing off completing file retrieval for %0.1f seconds after %d tries",
-                details["wait"],
-                details["tries"],
-            ),
-            on_giveup=backoff_start_read_file_giveup,
-        )
-        async def _do_complete_file():
-            complete_upload_response = await self._client.protocol.execute(
-                CompleteUploadModbusRequest(file_type)
-            )
-
-            if isinstance(complete_upload_response, ExceptionResponse):
-                if complete_upload_response.exception_code == 0x80:
-                    raise PermissionDenied("Permission denied")
-                elif complete_upload_response.exception_code == 0x06:
-                    raise SlaveBusyException()
-                raise ReadException(
-                    f"Exception occured while trying to read file frame: {hex(complete_upload_response.exception_code)}"
-                )
-
-            return CompleteUploadModbusResponse(complete_upload_response.content)
+            return response_type(response.content)
 
         async def _do_read_file():
             # Start the upload
-            start_upload_response = await _do_start_read_file()
+            start_upload_response = await _perform_request(
+                StartUploadModbusRequest(file_type, customized_data),
+                StartUploadModbusResponse,
+            )
 
             data_frame_length = start_upload_response.data_frame_length
             file_length = start_upload_response.file_length
@@ -408,13 +341,17 @@ class AsyncHuaweiSolar:
             next_frame_no = 0
 
             while (next_frame_no * data_frame_length) < file_length:
-                data_upload_response = await _do_read_file_frame(next_frame_no)
+                data_upload_response = await _perform_request(
+                    UploadModbusRequest(file_type, next_frame_no), UploadModbusResponse
+                )
 
                 file_data += data_upload_response.frame_data
                 next_frame_no += 1
 
             # Complete the upload and check the CRC
-            complete_upload_response = await _do_complete_file()
+            complete_upload_response = await _perform_request(
+                CompleteUploadModbusRequest(file_type), CompleteUploadModbusResponse
+            )
 
             file_crc = complete_upload_response.file_crc
             # swap upper and lower two bytes to match how computeCRC works
