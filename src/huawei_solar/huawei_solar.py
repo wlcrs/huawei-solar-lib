@@ -8,6 +8,7 @@ from collections import namedtuple
 from hashlib import sha256
 import hmac
 import secrets
+import struct
 
 import backoff
 from pymodbus.client.asynchronous.async_io import (
@@ -21,6 +22,7 @@ from pymodbus.pdu import ModbusRequest, ModbusResponse, ModbusExceptions
 from pymodbus.pdu import ExceptionResponse
 from pymodbus.factory import ClientDecoder
 from pymodbus.transaction import ModbusSocketFramer
+from pymodbus.utilities import checkCRC, computeCRC
 
 import huawei_solar.register_names as rn
 
@@ -283,6 +285,73 @@ class AsyncHuaweiSolar:
             )  # throttle requests to prevent errors
             return result
 
+    async def get_file(self, file_type, customized_data=None):
+        """Reads a 'file' as defined by the 'Uploading Files'
+        process described in 6.3.7.1 of the
+        Solar Inverter Modbus Interface Definitions"""
+
+        async def _do_read_file():
+
+            # Start the upload
+            start_upload_response = await self._client.protocol.execute(
+                StartUploadModbusRequest(file_type, customized_data)
+            )
+
+            start_upload_response = StartUploadModbusResponse(
+                start_upload_response.content
+            )
+
+            data_frame_length = start_upload_response.data_frame_length
+            file_length = start_upload_response.file_length
+
+            # Request the data in 'frames'
+
+            file_data = bytes()
+            next_frame_no = 0
+
+            while (next_frame_no * data_frame_length) < file_length:
+                data_upload_response = await self._client.protocol.execute(
+                    UploadModbusRequest(file_type, next_frame_no)
+                )
+                data_upload_response = UploadModbusResponse(
+                    data_upload_response.content
+                )
+
+                file_data += data_upload_response.frame_data
+                next_frame_no += 1
+
+            # Complete the upload and check the CRC
+
+            complete_upload_response = await self._client.protocol.execute(
+                CompleteUploadModbusRequest(file_type)
+            )
+            complete_upload_response = CompleteUploadModbusResponse(
+                complete_upload_response.content
+            )
+
+            file_crc = complete_upload_response.file_crc
+            # swap upper and lower two bytes to match how computeCRC works
+            swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
+
+            if not checkCRC(file_data, swapped_crc):
+                LOGGER.error(
+                    "Computed CRC %#x for file %#x does not match expected value %#x",
+                    computeCRC(file_data),
+                    file_type,
+                    swapped_crc,
+                )
+
+            return file_data
+
+        async with self._communication_lock:
+            LOGGER.debug("Reading file %#x", file_type)
+            result = await _do_read_file()
+            await asyncio.sleep(
+                self._cooldown_time
+            )  # throttle requests to prevent errors
+
+            return result
+
     async def set(self, name, value, slave=None):
         """set named register from device"""
         try:
@@ -418,7 +487,7 @@ class AsyncHuaweiSolar:
 class PrivateHuaweiModbusResponse(ModbusResponse):
     """Response with the private Huawei Solar function code"""
 
-    function_code = 65
+    function_code = 0x41
 
     def __init__(self, **kwargs):
         ModbusResponse.__init__(self, **kwargs)
@@ -437,7 +506,7 @@ class PrivateHuaweiModbusResponse(ModbusResponse):
 class PrivateHuaweiModbusRequest(ModbusRequest):
     """Request with the private Huawei Solar function code"""
 
-    function_code = 65
+    function_code = 0x41
 
     def __init__(self, sub_command, content: bytes):
         ModbusRequest.__init__(self)
@@ -453,3 +522,122 @@ class PrivateHuaweiModbusRequest(ModbusRequest):
 
     def __str__(self):
         return f"{self.__class__.__name__}({self.sub_command})"
+
+
+class StartUploadModbusRequest(ModbusRequest):
+    function_code = 0x41
+    sub_function_code = 0x05
+
+    def __init__(self, file_type, customized_data: t.Optional[bytes] = None):
+        ModbusRequest.__init__(self)
+        self.file_type = file_type
+
+        if customized_data is None:
+            self.customised_data = bytes()
+        else:
+            self.customised_data = customized_data
+
+    def encode(self):
+        data_length = 1 + len(self.customised_data)
+        return (
+            struct.pack(">BBB", self.sub_function_code, data_length, self.file_type)
+            + self.customised_data
+        )
+
+    def decode(self, data):
+        sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
+        self.customised_data = data[3:]
+
+        assert sub_function_code == self.sub_function_code
+        assert len(self.customised_data) == data_length - 1
+
+
+class StartUploadModbusResponse:
+    function_code = 0x41
+    sub_function_code = 0x05
+
+    def __init__(self, data):
+        ModbusResponse.__init__(self)
+
+        (
+            data_length,
+            self.file_type,
+            self.file_length,
+            self.data_frame_length,
+        ) = struct.unpack_from(">BBLB", data, 0)
+        self.customised_data = data[7:]
+
+        assert len(self.customised_data) == data_length - 6
+
+
+class UploadModbusRequest(ModbusRequest):
+    function_code = 0x41
+    sub_function_code = 0x06
+
+    def __init__(self, file_type, frame_no):
+        ModbusRequest.__init__(self)
+        self.file_type = file_type
+        self.frame_no = frame_no
+
+    def encode(self):
+        data_length = 3
+        return struct.pack(
+            ">BBBH", self.sub_function_code, data_length, self.file_type, self.frame_no
+        )
+
+    def decode(self, data):
+        sub_function_code, data_length, self.file_type, self.frame_no = struct.unpack(
+            ">BBBH", data
+        )
+
+        assert sub_function_code == self.sub_function_code
+        assert data_length == 3
+
+
+class UploadModbusResponse:
+    function_code = 0x41
+    sub_function_code = 0x06
+
+    def __init__(self, data):
+
+        (
+            data_length,
+            self.file_type,
+            self.frame_no,
+        ) = struct.unpack_from(">BBH", data, 0)
+        self.frame_data = data[4:]
+
+        assert len(self.frame_data) == data_length - 3
+
+
+class CompleteUploadModbusRequest(ModbusRequest):
+    function_code = 0x41
+    sub_function_code = 0x0C
+
+    def __init__(self, file_type):
+        ModbusRequest.__init__(self)
+        self.file_type = file_type
+
+    def encode(self):
+        data_length = 1
+        return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type)
+
+    def decode(self, data):
+        sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
+
+        assert sub_function_code == self.sub_function_code
+        assert data_length == 1
+
+
+class CompleteUploadModbusResponse:
+    function_code = 0x41
+    sub_function_code = 0x0C
+
+    def __init__(self, data):
+        (
+            data_length,
+            self.file_type,
+            self.file_crc,
+        ) = struct.unpack_from(">BBH", data, 0)
+
+        assert data_length == 3
