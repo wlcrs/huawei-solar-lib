@@ -451,6 +451,7 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.NB_OPTIMIZERS: U16Register(None, 1, 37200, 1),
     rn.NB_ONLINE_OPTIMIZERS: U16Register(None, 1, 37201, 1),
     rn.SYSTEM_TIME: TimestampRegister(40000, 2),
+    rn.SYSTEM_TIME_RAW: U32Register("seconds", 1, 40000, 2),
     # seems to be the same as unknown_time_4
     rn.UNKNOWN_TIME_5: TimestampRegister(40500, 2),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000, 1),
