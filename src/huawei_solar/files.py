@@ -84,6 +84,10 @@ class OptimizerRealTimeDataFile:
 
         offset = 0
 
+        # Check if we have an empty file
+        if len(file_data) < struct.calcsize(OptimizerRealTimeDataFile.HEADER):
+            return
+
         self.file_version = struct.unpack_from(
             OptimizerRealTimeDataFile.HEADER, file_data, offset
         )
@@ -157,15 +161,6 @@ class OptimizerRealTimeDataFile:
 
         reserved = 0
         return struct.pack(">BBIII", tag, value_length, start_time, end_time, reserved)
-
-    @staticmethod
-    def query_last_data_only():
-
-        # emulates behavior from FusionSolar app when current status of optimizers is queried
-        end_time = int(datetime.now().timestamp())
-        start_time = end_time - 600
-
-        return OptimizerRealTimeDataFile.query_within_timespan(start_time, end_time)
 
 
 class OptimizerOnlineStatus(IntEnum):

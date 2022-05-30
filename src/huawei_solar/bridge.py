@@ -216,11 +216,19 @@ class HuaweiSolarBridge:
         self,
     ) -> dict[int, OptimizerRealTimeData]:
 
+        # emulates behavior from FusionSolar app when current status of optimizers is queried
+        end_time = (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
+        start_time = end_time - 600
+
         file_data = await self.client.get_file(
             OptimizerRealTimeDataFile.FILE_TYPE,
-            OptimizerRealTimeDataFile.query_last_data_only(),
+            OptimizerRealTimeDataFile.query_within_timespan(start_time, end_time),
         )
         real_time_data = OptimizerRealTimeDataFile(file_data)
+
+        if len(real_time_data.data_units) == 0:
+            return {}
+
         latest_unit = real_time_data.data_units[0]
         # we only expect one element, but if more would be present,
         # then only the latest one is of interest (list is sorted time descending)
