@@ -287,7 +287,7 @@ class HuaweiSolarBridge:
         except PermissionDenied:
             return False
 
-    async def login(self, username: str, password: str):
+    async def login(self, username: str, password: str) -> bool:
         """Performs the login-sequence with the provided username/password."""
         if not await self.client.login(username, password):
             raise InvalidCredentials()
@@ -296,6 +296,8 @@ class HuaweiSolarBridge:
         self.__username = username
         self.__password = password
         self.start_heartbeat()
+
+        return True
 
     def start_heartbeat(self):
         """Start the heartbeat thread to stay logged in."""
