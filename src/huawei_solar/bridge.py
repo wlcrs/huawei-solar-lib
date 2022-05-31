@@ -188,29 +188,35 @@ class HuaweiSolarBridge:
 
         return result
 
-    async def read_optimizer_history_data(
-        self,
-        start_time: t.Optional[datetime] = None,
-        end_time: t.Optional[datetime] = None,
-    ) -> OptimizerRealTimeDataFile:
+    async def _read_file(self, file_type, customized_data=None) -> bytes:
+        """
+        Wraps `get_file` from `AsyncHuaweiSolar` in a retry-logic for when
+        the login-sequence needs to be repeated.
+        """
+        if (
+            self.__username and not self.__heartbeat_enabled
+        ):  # we must login again before trying to read the file
+            logged_in = await self.login(self.__username, self.__password)
 
-        customized_data = None
-        if start_time or end_time:
-            if not start_time or not end_time:
-                raise HuaweiSolarException(
-                    "start_time and end_time must both be specified."
+            if not logged_in:
+                _LOGGER.warning(
+                    "Could not login, reading file %x will probably fail.", file_type
                 )
-            if start_time > end_time:
-                raise HuaweiSolarException("start_time must come before end_time")
 
-            customized_data = OptimizerRealTimeDataFile.query_within_timespan(
-                int(start_time.timestamp()), int(end_time.timestamp())
-            )
+        try:
+            return await self.client.get_file(file_type, customized_data)
+        except PermissionDenied as err:
+            if self.__username:
+                logged_in = await self.login(self.__username, self.__password)
 
-        file_data = await self.client.get_file(
-            OptimizerRealTimeDataFile.FILE_TYPE, customized_data
-        )
-        return OptimizerRealTimeDataFile(file_data)
+                if not logged_in:
+                    _LOGGER.error("Could not login to read file %x .", file_type)
+                    raise err
+
+                return await self.client.get_file(file_type, customized_data)
+
+            # we have no login-credentials available, pass on permission error
+            raise err
 
     async def get_latest_optimizer_history_data(
         self,
@@ -220,7 +226,7 @@ class HuaweiSolarBridge:
         end_time = (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
         start_time = end_time - 600
 
-        file_data = await self.client.get_file(
+        file_data = await self._read_file(
             OptimizerRealTimeDataFile.FILE_TYPE,
             OptimizerRealTimeDataFile.query_within_timespan(start_time, end_time),
         )
@@ -238,9 +244,7 @@ class HuaweiSolarBridge:
     async def get_optimizer_system_information_data(
         self,
     ) -> dict[int, OptimizerSystemInformation]:
-        file_data = await self.client.get_file(
-            OptimizerSystemInformationDataFile.FILE_TYPE
-        )
+        file_data = await self._read_file(OptimizerSystemInformationDataFile.FILE_TYPE)
         system_information_data = OptimizerSystemInformationDataFile(file_data)
 
         return {
