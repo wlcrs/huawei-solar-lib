@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import typing as t
 import asyncio
-from datetime import datetime
 import logging
 from huawei_solar.files import (
     OptimizerRealTimeData,
@@ -204,7 +203,7 @@ class HuaweiSolarBridge:
                 )
 
         try:
-            return await self.client.get_file(file_type, customized_data)
+            return await self.client.get_file(file_type, customized_data, self.slave_id)
         except PermissionDenied as err:
             if self.__username:
                 logged_in = await self.login(self.__username, self.__password)
@@ -213,7 +212,9 @@ class HuaweiSolarBridge:
                     _LOGGER.error("Could not login to read file %x .", file_type)
                     raise err
 
-                return await self.client.get_file(file_type, customized_data)
+                return await self.client.get_file(
+                    file_type, customized_data, self.slave_id
+                )
 
             # we have no login-credentials available, pass on permission error
             raise err
@@ -293,7 +294,7 @@ class HuaweiSolarBridge:
 
     async def login(self, username: str, password: str) -> bool:
         """Performs the login-sequence with the provided username/password."""
-        if not await self.client.login(username, password):
+        if not await self.client.login(username, password, self.slave_id):
             raise InvalidCredentials()
 
         # save the correct login credentials

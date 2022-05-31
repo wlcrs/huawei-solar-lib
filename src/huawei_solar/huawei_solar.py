@@ -288,7 +288,9 @@ class AsyncHuaweiSolar:
             )  # throttle requests to prevent errors
             return result
 
-    async def get_file(self, file_type, customized_data=None) -> bytes:
+    async def get_file(
+        self, file_type, customized_data=None, slave: t.Optional[int] = None
+    ) -> bytes:
         """Reads a 'file' as defined by the 'Uploading Files'
         process described in 6.3.7.1 of the
         Solar Inverter Modbus Interface Definitions"""
@@ -328,7 +330,9 @@ class AsyncHuaweiSolar:
         async def _do_read_file():
             # Start the upload
             start_upload_response = await _perform_request(
-                StartUploadModbusRequest(file_type, customized_data),
+                StartUploadModbusRequest(
+                    file_type, customized_data, unit=slave or self.slave
+                ),
                 StartUploadModbusResponse,
             )
 
@@ -342,7 +346,10 @@ class AsyncHuaweiSolar:
 
             while (next_frame_no * data_frame_length) < file_length:
                 data_upload_response = await _perform_request(
-                    UploadModbusRequest(file_type, next_frame_no), UploadModbusResponse
+                    UploadModbusRequest(
+                        file_type, next_frame_no, unit=slave or self.slave
+                    ),
+                    UploadModbusResponse,
                 )
 
                 file_data += data_upload_response.frame_data
@@ -350,7 +357,8 @@ class AsyncHuaweiSolar:
 
             # Complete the upload and check the CRC
             complete_upload_response = await _perform_request(
-                CompleteUploadModbusRequest(file_type), CompleteUploadModbusResponse
+                CompleteUploadModbusRequest(file_type, unit=slave or self.slave),
+                CompleteUploadModbusResponse,
             )
 
             file_crc = complete_upload_response.file_crc
@@ -430,11 +438,13 @@ class AsyncHuaweiSolar:
             LOGGER.exception("Failed to connect to device, is the host correct?")
             raise ConnectionException(err) from err
 
-    async def login(self, username: str, password: str):
+    async def login(self, username: str, password: str, slave: t.Optional[int] = None):
         """Login into the inverter."""
 
         # Get challenge
-        challenge_request = PrivateHuaweiModbusRequest(36, bytes([1, 0]))
+        challenge_request = PrivateHuaweiModbusRequest(
+            36, bytes([1, 0]), unit=slave or self.slave
+        )
 
         challenge_response = await self._client.protocol.execute(challenge_request)
 
@@ -461,7 +471,9 @@ class AsyncHuaweiSolar:
             ]
         )
         await asyncio.sleep(0.05)
-        login_request = PrivateHuaweiModbusRequest(37, login_bytes)
+        login_request = PrivateHuaweiModbusRequest(
+            37, login_bytes, unit=slave or self.slave
+        )
         login_response = await self._client.protocol.execute(login_request)
 
         if login_response.content[1] == 0:
@@ -530,8 +542,8 @@ class PrivateHuaweiModbusRequest(ModbusRequest):
 
     function_code = 0x41
 
-    def __init__(self, sub_command, content: bytes):
-        ModbusRequest.__init__(self)
+    def __init__(self, sub_command, content: bytes, **kwargs):
+        ModbusRequest.__init__(self, **kwargs)
         self.sub_command = sub_command
         self.content = content
 
@@ -550,8 +562,8 @@ class StartUploadModbusRequest(ModbusRequest):
     function_code = 0x41
     sub_function_code = 0x05
 
-    def __init__(self, file_type, customized_data: t.Optional[bytes] = None):
-        ModbusRequest.__init__(self)
+    def __init__(self, file_type, customized_data: t.Optional[bytes] = None, **kwargs):
+        ModbusRequest.__init__(self, **kwargs)
         self.file_type = file_type
 
         if customized_data is None:
@@ -596,8 +608,8 @@ class UploadModbusRequest(ModbusRequest):
     function_code = 0x41
     sub_function_code = 0x06
 
-    def __init__(self, file_type, frame_no):
-        ModbusRequest.__init__(self)
+    def __init__(self, file_type, frame_no, **kwargs):
+        ModbusRequest.__init__(self, **kwargs)
         self.file_type = file_type
         self.frame_no = frame_no
 
@@ -636,8 +648,8 @@ class CompleteUploadModbusRequest(ModbusRequest):
     function_code = 0x41
     sub_function_code = 0x0C
 
-    def __init__(self, file_type):
-        ModbusRequest.__init__(self)
+    def __init__(self, file_type, **kwargs):
+        ModbusRequest.__init__(self, **kwargs)
         self.file_type = file_type
 
     def encode(self):
