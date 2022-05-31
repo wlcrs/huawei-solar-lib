@@ -288,7 +288,7 @@ class AsyncHuaweiSolar:
             )  # throttle requests to prevent errors
             return result
 
-    async def get_file(self, file_type, customized_data=None):
+    async def get_file(self, file_type, customized_data=None) -> bytes:
         """Reads a 'file' as defined by the 'Uploading Files'
         process described in 6.3.7.1 of the
         Solar Inverter Modbus Interface Definitions"""
