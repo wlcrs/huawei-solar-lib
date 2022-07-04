@@ -193,7 +193,12 @@ class OptimizerSystemInformationDataFile:
     FILE_TYPE = 0x45
 
     HEADER = ">4sHH?3xH"
-    OPTIMIZER_FEATURE_DATA = ">HHHH20s30s20s30s"
+
+    # first byte of string_number is ignored, as it seems that this is
+    # always a duplicate of the second byte, resulting in string
+    # numbers 257 and 514 instead of 1 and 2.
+    # cfr: https://github.com/wlcrs/huawei_solar/issues/76#issue-1268597032
+    OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s"
 
     def __init__(self, file_data):
 
