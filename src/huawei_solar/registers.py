@@ -202,7 +202,9 @@ def bitfield_decoder(definition, bitfield):
     """Decodes a bitfield into a list of statuses."""
     result = []
     for key, value in definition.items():
-        if key & bitfield:
+        if isinstance(value, rv.OnOffBit):
+            result.append(value.on_value if key & bitfield else value.off_value)
+        elif key & bitfield:
             result.append(value)
 
     return result
