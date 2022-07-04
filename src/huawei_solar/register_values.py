@@ -5,6 +5,7 @@ from enum import IntEnum
 
 GridCode = namedtuple("GridCode", "standard country")
 Alarm = namedtuple("Alarm", "name id level")
+OnOffBit = namedtuple("OnOffBit", "off_value on_value")
 
 DEVICE_STATUS_DEFINITIONS = {
     0x0000: "Standby: initializing",
@@ -416,9 +417,7 @@ STATE_CODES_1 = {
     0b0000_0000_0000_0010: "grid-connected",
     0b0000_0000_0000_0100: "grid-connected normally",
     0b0000_0000_0000_1000: "grid connection with derating due to power rationing",
-    0b0000_0000_0001_0000: (
-        "grid connection with derating due to internalcauses" "of the solar inverter"
-    ),
+    0b0000_0000_0001_0000: "grid connection with derating due to internalcauses of the solar inverter",
     0b0000_0000_0010_0000: "normal stop",
     0b0000_0000_0100_0000: "stop due to faults",
     0b0000_0000_1000_0000: "stop due to power rationing",
@@ -427,14 +426,14 @@ STATE_CODES_1 = {
 }
 
 STATE_CODES_2 = {
-    0b0000_0000_0000_0001: ("locked", "unlocked"),
-    0b0000_0000_0000_0010: ("PV disconnected", "PV connected"),
-    0b0000_0000_0000_0100: ("no DSP data collection", "DSP data collection"),
+    0b0000_0000_0000_0001: OnOffBit("locked", "unlocked"),
+    0b0000_0000_0000_0010: OnOffBit("PV disconnected", "PV connected"),
+    0b0000_0000_0000_0100: OnOffBit("no DSP data collection", "DSP data collection"),
 }
 
 STATE_CODES_3 = {
-    0b0000_0000_0000_0000_0000_0000_0000_0001: ("on-grid", "off-grid"),
-    0b0000_0000_0000_0000_0000_0000_0000_0010: (
+    0b0000_0000_0000_0000_0000_0000_0000_0001: OnOffBit("on-grid", "off-grid"),
+    0b0000_0000_0000_0000_0000_0000_0000_0010: OnOffBit(
         "off-grid switch disabled",
         "off-grid switch enabled",
     ),
