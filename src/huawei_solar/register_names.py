@@ -391,6 +391,9 @@ STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS = (
     "storage_time_of_use_charging_and_discharging_periods"
 )
 STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU = "storage_excess_pv_energy_use_in_tou"
+ACTIVE_POWER_CONTROL_MODE="active_power_control_mode"
+MAXIMUM_FEED_GRID_POWER_WATT="maximum_feed_grid_power_watt"
+MAXIMUM_FEED_GRID_POWER_PERCENT="maximum_feed_grid_power_percent"
 DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER = (
     "dongle_plant_maximum_charge_from_grid_power"
 )

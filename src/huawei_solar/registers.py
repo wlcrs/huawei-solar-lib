@@ -715,6 +715,13 @@ BATTERY_REGISTERS = {
     rn.STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU: U16Register(
         rv.StorageExcessPvEnergyUseInTOU, 1, 47299, 1, writeable=True
     ),
+    rn.ACTIVE_POWER_CONTROL_MODE: U16Register(
+        rv.ActivePowerControlMode, 1, 47415, 1, writeable=True
+    ),
+    rn.MAXIMUM_FEED_GRID_POWER_WATT: I32Register(None, 1, 47416, 2, writeable=True),
+    rn.MAXIMUM_FEED_GRID_POWER_PERCENT: I16Register(
+        None, 1000, 47418, 1, writeable=True
+    ),
     rn.DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER: U32Register(
         "W", 1, 47590, 2, writeable=True
     ),
