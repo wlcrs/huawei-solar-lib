@@ -110,15 +110,19 @@ class AsyncHuaweiSolar:
                 ).value
             except ReadException as rerr:
                 if "IllegalAddress" in str(rerr):
+                    LOGGER.info("Received IllegalAddress-error while determining battery support. Setting it to None.", exc_info=rerr)
                     # inverter doesn't seem to support a battery
                     huawei_solar.battery_type = None
                 else:
+                    LOGGER.exception(f"Got error {rerr} while trying to determine battery.")
                     raise rerr
 
             return huawei_solar
         except Exception as err:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
+            LOGGER.exception("Aborting client creation due to error.")
+
             if client is not None:
                 client.stop()
             raise err
