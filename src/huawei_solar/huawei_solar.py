@@ -58,6 +58,33 @@ def _compute_digest(password, seed):
     return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
 
 
+rtu_bug_patch_applied = False
+
+
+def monkey_patch_rtu_bug():
+    """
+    Dirty fix for bug triggered when RTU responses arrive in multiple packets.
+
+    Based on https://github.com/riptideio/pymodbus/pull/707
+    """
+
+    global rtu_bug_patch_applied
+
+    if rtu_bug_patch_applied:
+        return
+
+    from pymodbus.framer.rtu_framer import ModbusRtuFramer
+
+    origprocessIncomingPacket = ModbusRtuFramer.processIncomingPacket
+
+    def patched_processIncomingPacket(self, data, callback, unit, **kwargs):
+        unit = self.decode_data(self._buffer).get("unit", 0)
+        return origprocessIncomingPacket(self, data, callback, unit, **kwargs)
+
+    ModbusRtuFramer.processIncomingPacket = patched_processIncomingPacket
+    rtu_bug_patch_applied = True
+
+
 class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter"""
 
@@ -161,6 +188,7 @@ class AsyncHuaweiSolar:
 
     @classmethod
     async def __get_rtu_client(cls, port, loop=None, **serial_kwargs):
+        monkey_patch_rtu_bug()
         return AsyncioModbusSerialClient(
             port,
             framer=ModbusRtuFramer(decoder=cls.__get_modbus_decoder()),
