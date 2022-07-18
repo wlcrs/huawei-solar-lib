@@ -103,18 +103,23 @@ class AsyncHuaweiSolar:
 
             huawei_solar.time_zone = (await huawei_solar.get(rn.TIME_ZONE)).value
             try:
-                # we assume that when at least one battery is present, it will 
+                # we assume that when at least one battery is present, it will
                 # always be put in storage_unit_1 first
                 huawei_solar.battery_type = (
                     await huawei_solar.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)
                 ).value
             except ReadException as rerr:
                 if "IllegalAddress" in str(rerr):
-                    LOGGER.info("Received IllegalAddress-error while determining battery support. Setting it to None.", exc_info=rerr)
+                    LOGGER.info(
+                        "Received IllegalAddress-error while determining battery support. Setting it to None.",
+                        exc_info=rerr,
+                    )
                     # inverter doesn't seem to support a battery
                     huawei_solar.battery_type = None
                 else:
-                    LOGGER.exception(f"Got error {rerr} while trying to determine battery.")
+                    LOGGER.exception(
+                        f"Got error {rerr} while trying to determine battery."
+                    )
                     raise rerr
 
             return huawei_solar
