@@ -107,12 +107,14 @@ class StorageExcessPvEnergyUseInTOU(IntEnum):
     FED_TO_GRID = 0
     CHARGE = 1
 
+
 class ActivePowerControlMode(IntEnum):
-    UNLIMITED = 0 # default mode
+    UNLIMITED = 0  # default mode
     DI_ACTIVE_SCHEDULING = 1
     ZERO_POWER_GRID_CONNECTION = 5
     POWER_LIMITED_GRID_CONNECTION_WATT = 6
     POWER_LIMITED_GRID_CONNECTION_PERCENT = 7
+
 
 class MeterStatus(IntEnum):
     """Power meter status."""
