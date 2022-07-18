@@ -81,6 +81,21 @@ class HuaweiSolarBridge:
         return bridge
 
     @classmethod
+    async def create_rtu(
+        cls,
+        port: str,
+        slave_id: int = 0,
+        loop=None,
+    ):
+        """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
+        client = await AsyncHuaweiSolar.create_rtu(port, slave_id, loop=loop)
+        update_lock = asyncio.Lock()
+        bridge = cls(client, update_lock, primary=True, loop=loop)
+        await HuaweiSolarBridge.__populate_fields(bridge)
+
+        return bridge
+
+    @classmethod
     async def create_extra_slave(
         cls, primary_bridge: "HuaweiSolarBridge", slave_id: int
     ):

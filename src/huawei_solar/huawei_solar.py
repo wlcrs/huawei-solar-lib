@@ -13,6 +13,7 @@ import struct
 import backoff
 from pymodbus.client.asynchronous.async_io import (
     ReconnectingAsyncioModbusTcpClient,
+    AsyncioModbusSerialClient,
     init_tcp_client,
 )
 from pymodbus.constants import Endian
@@ -21,7 +22,7 @@ from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 from pymodbus.pdu import ModbusRequest, ModbusResponse, ModbusExceptions
 from pymodbus.pdu import ExceptionResponse
 from pymodbus.factory import ClientDecoder
-from pymodbus.transaction import ModbusSocketFramer
+from pymodbus.transaction import ModbusSocketFramer, ModbusRtuFramer
 from pymodbus.utilities import checkCRC, computeCRC
 
 import huawei_solar.register_names as rn
@@ -62,7 +63,7 @@ class AsyncHuaweiSolar:
 
     def __init__(
         self,
-        client: ReconnectingAsyncioModbusTcpClient,
+        client: t.Union[ReconnectingAsyncioModbusTcpClient, AsyncioModbusSerialClient],
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: int = DEFAULT_COOLDOWN_TIME,
@@ -77,9 +78,29 @@ class AsyncHuaweiSolar:
         # Huawei inverters can't cope with those
         self._communication_lock = asyncio.Lock()
 
-        # These values are set by the `create()` method
+        # These values are set by the `initialize()` method
         self.time_zone = None
         self.battery_type = None
+
+    async def _initialize(self):
+        # get some registers which are needed to correctly decode all values
+
+        self.time_zone = (await self.get(rn.TIME_ZONE)).value
+        try:
+            # we assume that when at least one battery is present, it will
+            # always be put in storage_unit_1 first
+            self.battery_type = (await self.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)).value
+        except ReadException as rerr:
+            if "IllegalAddress" in str(rerr):
+                LOGGER.info(
+                    "Received IllegalAddress-error while determining battery support. Setting it to None.",
+                    exc_info=rerr,
+                )
+                # inverter doesn't seem to support a battery
+                self.battery_type = None
+            else:
+                LOGGER.exception(f"Got error {rerr} while trying to determine battery.")
+                raise rerr
 
     @classmethod
     async def create(
@@ -95,32 +116,11 @@ class AsyncHuaweiSolar:
 
         client = None
         try:
-            client = await cls.__get_client(host, port, loop)
+            client = await cls.__get_tcp_client(host, port, loop)
 
             huawei_solar = cls(client, slave, timeout, cooldown_time)
 
-            # get some registers which are needed to correctly decode all values
-
-            huawei_solar.time_zone = (await huawei_solar.get(rn.TIME_ZONE)).value
-            try:
-                # we assume that when at least one battery is present, it will
-                # always be put in storage_unit_1 first
-                huawei_solar.battery_type = (
-                    await huawei_solar.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)
-                ).value
-            except ReadException as rerr:
-                if "IllegalAddress" in str(rerr):
-                    LOGGER.info(
-                        "Received IllegalAddress-error while determining battery support. Setting it to None.",
-                        exc_info=rerr,
-                    )
-                    # inverter doesn't seem to support a battery
-                    huawei_solar.battery_type = None
-                else:
-                    LOGGER.exception(
-                        f"Got error {rerr} while trying to determine battery."
-                    )
-                    raise rerr
+            await huawei_solar._initialize()
 
             return huawei_solar
         except Exception as err:
@@ -133,22 +133,70 @@ class AsyncHuaweiSolar:
             raise err
 
     @classmethod
-    async def __get_client(cls, host, port, loop) -> ReconnectingAsyncioModbusTcpClient:
+    async def create_rtu(
+        cls,
+        port,
+        slave: int = DEFAULT_SLAVE,
+        timeout: int = DEFAULT_TIMEOUT,
+        cooldown_time: int = DEFAULT_COOLDOWN_TIME,
+        loop=None,
+        **serial_kwargs,
+    ):
+        client = None
+        try:
+            client = await cls.__get_rtu_client(port, loop, **serial_kwargs)
+            await client.connect()
+            huawei_solar = cls(client, slave, timeout, cooldown_time)
+            await huawei_solar._initialize()
 
-        decoder = ClientDecoder()
-        decoder.register(PrivateHuaweiModbusResponse)
+            return huawei_solar
+        except Exception as err:
+            # if an error occurs, we need to make sure that the Modbus-client is stopped,
+            # otherwise it can stay active and cause even more problems ...
+            LOGGER.exception("Aborting client creation due to error.")
+
+            if client is not None:
+                client.stop()
+            raise err
+
+    @classmethod
+    async def __get_rtu_client(cls, port, loop=None, **serial_kwargs):
+        return AsyncioModbusSerialClient(
+            port,
+            framer=ModbusRtuFramer(decoder=cls.__get_modbus_decoder()),
+            loop=loop,
+            **serial_kwargs,
+        )
+
+    @classmethod
+    async def __get_tcp_client(
+        cls, host, port, loop
+    ) -> ReconnectingAsyncioModbusTcpClient:
+
         client = await init_tcp_client(
             None,
             loop,
             host,
             port,
             reset_socket=False,
-            framer=ModbusSocketFramer(decoder),
+            framer=ModbusSocketFramer(decoder=cls.__get_modbus_decoder()),
         )
         # wait a little bit to prevent a timeout on the first request
         await asyncio.sleep(1)
 
         return client
+
+    @classmethod
+    def __get_modbus_decoder(cls):
+        decoder = ClientDecoder()
+        decoder.register(PrivateHuaweiModbusResponse)
+
+        return decoder
+
+    def is_client_connected(self):
+        if isinstance(self._client, AsyncioModbusSerialClient):
+            return self._client._connected
+        return self._client.connected
 
     async def stop(self):
         """Stop the modbus client."""
@@ -263,7 +311,7 @@ class AsyncHuaweiSolar:
         )
         async def _do_read():
 
-            if not self._client.connected:
+            if not self.is_client_connected():
                 message = "Modbus client is not connected to the inverter."
                 LOGGER.exception(message)
                 raise ConnectionException(message)
@@ -433,7 +481,8 @@ class AsyncHuaweiSolar:
         """
         Async write register to device.
         """
-        if not self._client.connected:
+
+        if not self.is_client_connected():
             message = "Modbus client is not connected to the inverter."
             LOGGER.exception(message)
             raise ConnectionException(message)
@@ -515,7 +564,7 @@ class AsyncHuaweiSolar:
 
     async def heartbeat(self, slave_id):
         """Performs the heartbeat command. Only useful when maintaining a session."""
-        if not self._client.connected:
+        if not self.is_client_connected():
             return False
         try:
             # 49999 is the magic register used to keep the connection alive
@@ -539,6 +588,7 @@ class PrivateHuaweiModbusResponse(ModbusResponse):
     """Response with the private Huawei Solar function code"""
 
     function_code = 0x41
+    _rtu_byte_count_pos = 3
 
     def __init__(self, **kwargs):
         ModbusResponse.__init__(self, **kwargs)
@@ -558,6 +608,7 @@ class PrivateHuaweiModbusRequest(ModbusRequest):
     """Request with the private Huawei Solar function code"""
 
     function_code = 0x41
+    _rtu_byte_count_pos = 3
 
     def __init__(self, sub_command, content: bytes, **kwargs):
         ModbusRequest.__init__(self, **kwargs)
