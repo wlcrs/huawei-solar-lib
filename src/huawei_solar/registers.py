@@ -69,6 +69,9 @@ class NumberRegister(RegisterDefinition):
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         result = getattr(decoder, self._decode_function_name)()
 
+        if result == self._invalid_value:
+            return None
+
         if self.gain != 1:
             result /= self.gain
         if callable(self.unit):
@@ -78,9 +81,6 @@ class NumberRegister(RegisterDefinition):
                 result = self.unit[result]
             except KeyError as err:
                 raise DecodeError from err
-
-        if result == self._invalid_value:
-            return None
 
         return result
 
