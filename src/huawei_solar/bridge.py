@@ -296,7 +296,7 @@ class HuaweiSolarBridge:
     # Everything write-related #
     ############################
 
-    async def has_write_permission(self):
+    async def has_write_permission(self) -> t.Optional[bool]:
         """Tests write permission by getting the time zone and trying to write that same value back to the inverter"""
 
         try:
@@ -304,6 +304,10 @@ class HuaweiSolarBridge:
 
             await self.client.set(rn.TIME_ZONE, time_zone.value, self.slave_id)
             return True
+        except ReadException:
+            # A ReadException can occur when connecting via a SmartLogger 3000A.
+            # In that case, we do not support writing values at all.
+            return None
         except PermissionDenied:
             return False
 
