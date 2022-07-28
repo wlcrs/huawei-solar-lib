@@ -134,7 +134,7 @@ async def test_get_state_1_extra_bits_set(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b1111_1100_0000_0000]),
+        return_value=ReadHoldingRegistersResponse([0b0111_1100_0000_0000]),
     ):
         result = await huawei_solar.get(rn.STATE_1)
         assert result.value == []
@@ -153,7 +153,7 @@ async def test_get_state_2_extra_bits_set(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b1111_1111_1111_1000]),
+        return_value=ReadHoldingRegistersResponse([0b0111_1111_1111_1000]),
     ):
         result = await huawei_solar.get(rn.STATE_2)
 
@@ -174,7 +174,7 @@ async def test_get_state_3_extra_bits_set(huawei_solar):
         huawei_solar,
         "_read_registers",
         return_value=ReadHoldingRegistersResponse(
-            [0b1111_1111_1111_1111, 0b1111_1111_1111_1111]
+            [0b0111_1111_1111_1111, 0b0111_1111_1111_1111]
         ),
     ):
         result = await huawei_solar.get(rn.STATE_3)
