@@ -69,7 +69,7 @@ class NumberRegister(RegisterDefinition):
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         result = getattr(decoder, self._decode_function_name)()
 
-        if result == self._invalid_value:
+        if self._invalid_value is not None and result == self._invalid_value:
             return None
 
         if self.gain != 1:
@@ -110,7 +110,9 @@ class NumberRegister(RegisterDefinition):
 class U16Register(NumberRegister):
     """Unsigned 16-bit register"""
 
-    def __init__(self, unit, gain, register, length, writeable=False):
+    def __init__(
+        self, unit, gain, register, length, writeable=False, ignore_invalid=False
+    ):
         super().__init__(
             unit,
             gain,
@@ -119,7 +121,7 @@ class U16Register(NumberRegister):
             "decode_16bit_uint",
             "add_16bit_uint",
             writeable=writeable,
-            invalid_value=2**16 - 1,
+            invalid_value=2**16 - 1 if not ignore_invalid else None,
         )
 
 
@@ -414,8 +416,12 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.STATE_1: U16Register(partial(bitfield_decoder, rv.STATE_CODES_1), 1, 32000, 1),
     rn.STATE_2: U16Register(partial(bitfield_decoder, rv.STATE_CODES_2), 1, 32002, 1),
     rn.STATE_3: U32Register(partial(bitfield_decoder, rv.STATE_CODES_3), 1, 32003, 2),
-    rn.ALARM_1: U16Register(partial(bitfield_decoder, rv.ALARM_CODES_1), 1, 32008, 1),
-    rn.ALARM_2: U16Register(partial(bitfield_decoder, rv.ALARM_CODES_2), 1, 32009, 1),
+    rn.ALARM_1: U16Register(
+        partial(bitfield_decoder, rv.ALARM_CODES_1), 1, 32008, 1, ignore_invalid=True
+    ),
+    rn.ALARM_2: U16Register(
+        partial(bitfield_decoder, rv.ALARM_CODES_2), 1, 32009, 1, ignore_invalid=True
+    ),
     rn.ALARM_3: U16Register(partial(bitfield_decoder, rv.ALARM_CODES_3), 1, 32010, 1),
     rn.INPUT_POWER: I32Register("W", 1, 32064, 2),
     rn.GRID_VOLTAGE: U16Register("V", 10, 32066, 1),
