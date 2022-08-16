@@ -11,15 +11,24 @@ logging.basicConfig(level=logging.DEBUG)
 
 async def test():
 
-    bridge = await HuaweiSolarBridge.create("131.87.12.200", port=502, slave_id=1)
+    smartlogger_bridge = await HuaweiSolarBridge.create("131.87.12.200", port=502, slave_id=0)
 
-    # print("Write permission: ", await bridge.has_write_permission())
-
-    #  await bridge.login("installer", "00000a")
-
-    # print("Write permission: ", await bridge.has_write_permission())
+    bridge = await HuaweiSolarBridge.create_extra_slave(smartlogger_bridge, 1)
 
     await asyncio.sleep(5)
+
+    print(await bridge.client.get(rn.STORAGE_MAXIMUM_DISCHARGING_POWER))
+
+    print(await bridge.update())
+
+    write_permission = await bridge.has_write_permission()
+    print("Write permission: ", write_permission)
+
+    if not write_permission:
+      await bridge.login("installer", "00000a")
+
+    print("Write permission: ", await bridge.has_write_permission())
+
 
     # for _ in range(5):
     #     start = time.perf_counter()
