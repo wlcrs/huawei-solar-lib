@@ -405,3 +405,8 @@ STORAGE_UNIT_1_PACK_3_NO = "storage_unit_1_pack_3_no"
 STORAGE_UNIT_2_PACK_1_NO = "storage_unit_2_pack_1_no"
 STORAGE_UNIT_2_PACK_2_NO = "storage_unit_2_pack_2_no"
 STORAGE_UNIT_2_PACK_3_NO = "storage_unit_2_pack_3_no"
+
+
+# These registers are only relevant for setups where a Smartlogger 3000A is used:
+SMARTLOGGER_TIME_ZONE = "smartlogger_time_zone"
+SMARTLOGGER_FIRST_SLAVE_POWER = "smartlogger_first_slave_power"
