@@ -11,11 +11,11 @@ logging.basicConfig(level=logging.DEBUG)
 
 async def test():
 
-    bridge = await HuaweiSolarBridge.create("131.87.12.200", port=502,slave_id=1)
+    bridge = await HuaweiSolarBridge.create("131.87.12.200", port=502, slave_id=1)
 
     # print("Write permission: ", await bridge.has_write_permission())
 
-  #  await bridge.login("installer", "00000a")
+    #  await bridge.login("installer", "00000a")
 
     # print("Write permission: ", await bridge.has_write_permission())
 
@@ -55,4 +55,3 @@ async def test():
 
 
 loop.run_until_complete(test())
-

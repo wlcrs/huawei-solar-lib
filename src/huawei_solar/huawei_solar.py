@@ -109,14 +109,16 @@ class AsyncHuaweiSolar:
         self.time_zone = None
         self.battery_type = None
         self.detected_smart_logger = False
-             
+
     async def _initialize(self):
 
-        #try to determine if device with slaveid=0 is Smartlogger
+        # try to determine if device with slaveid=0 is Smartlogger
         if self.slave == 0:
             try:
                 # we try to read active power of 1 connected  inverter using "Remapped Modbus definitions" from smartlogger modbus definitions
-                self.inv_1_power = (await self.get(rn.SMARTLOGGER_FIRST_SLAVE_POWER)).value
+                self.inv_1_power = (
+                    await self.get(rn.SMARTLOGGER_FIRST_SLAVE_POWER)
+                ).value
                 if self.inv_1_power >= 0:
                     self.detected_smart_logger = True
                     LOGGER.info("Smartlogger detected")
@@ -132,7 +134,9 @@ class AsyncHuaweiSolar:
             try:
                 # we assume that when at least one battery is present, it will
                 # always be put in storage_unit_1 first
-                self.battery_type = (await self.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)).value
+                self.battery_type = (
+                    await self.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)
+                ).value
             except ReadException as rerr:
                 if "IllegalAddress" in str(rerr):
                     LOGGER.info(
@@ -142,7 +146,9 @@ class AsyncHuaweiSolar:
                     # inverter doesn't seem to support a battery
                     self.battery_type = None
                 else:
-                    LOGGER.exception(f"Got error {rerr} while trying to determine battery.")
+                    LOGGER.exception(
+                        f"Got error {rerr} while trying to determine battery."
+                    )
                 raise rerr
 
     @classmethod

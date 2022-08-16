@@ -464,11 +464,9 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.UNKNOWN_TIME_5: TimestampRegister(40500, 2),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000, 1),
     rn.TIME_ZONE: I16Register("min", 1, 43006, 1, writeable=True),
-
     # These registers are only relevant for setups where a Smartlogger 3000A is used:
     rn.SMARTLOGGER_TIME_ZONE: I16Register("min", 1, 40005, 1, writeable=True),
     rn.SMARTLOGGER_FIRST_SLAVE_POWER: U32Register("kW", 1000, 51001, 2),
-    
 }
 
 
