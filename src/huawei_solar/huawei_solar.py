@@ -43,13 +43,16 @@ Result = namedtuple("Result", "value unit")
 
 DEFAULT_SLAVE = 0
 DEFAULT_TIMEOUT = 5
-DEFAULT_WAIT = 2
+DEFAULT_WAIT = 1
 DEFAULT_COOLDOWN_TIME = 0.05
 
 HEARTBEAT_REGISTER = 49999
 
 FILE_UPLOAD_MAX_RETRIES = 6
 FILE_UPLOAD_RETRY_TIMEOUT = 10
+
+PERMISSION_DENIED_EXCEPTION_CODE = 0x80
+ABNORMAL_SLAVE_RESPONSE_FUNCTION_CODE = 0x83
 
 
 def _compute_digest(password, seed):
@@ -325,10 +328,10 @@ class AsyncHuaweiSolar:
             )
 
         @backoff.on_exception(
-            backoff.constant,
+            backoff.expo,
             (asyncio.TimeoutError, SlaveBusyException),
-            interval=DEFAULT_WAIT,
-            max_tries=5,
+            base=2,
+            max_tries=10,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
                 "Backing off reading for %0.1f seconds after %d tries",
@@ -353,7 +356,11 @@ class AsyncHuaweiSolar:
 
                 # trigger a backoff if we get a SlaveBusy-exception
                 if isinstance(response, ExceptionResponse):
-                    if response.exception_code == ModbusExceptions.SlaveBusy:
+                    if (
+                        response.exception_code == ModbusExceptions.SlaveBusy
+                        or response.function_code
+                        == ABNORMAL_SLAVE_RESPONSE_FUNCTION_CODE
+                    ):
                         raise SlaveBusyException()
 
                     # Not a slavebusy-exception
@@ -410,9 +417,12 @@ class AsyncHuaweiSolar:
             response = await self._client.protocol.execute(request)
 
             if isinstance(response, ExceptionResponse):
-                if response.exception_code == 0x80:
+                if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
-                elif response.exception_code == 0x06:
+                elif (
+                    response.exception_code == ModbusExceptions.SlaveBusy
+                    or response.function_code == ABNORMAL_SLAVE_RESPONSE_FUNCTION_CODE
+                ):
                     raise SlaveBusyException()
                 raise ReadException(
                     f"Exception occured while trying to read file {hex(file_type)}: {hex(response.exception_code)}"
@@ -524,7 +534,7 @@ class AsyncHuaweiSolar:
                 timeout=self._timeout,
             )
             if isinstance(response, ExceptionResponse):
-                if response.exception_code == 0x80:
+                if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
                 raise WriteException(ModbusExceptions.decode(response.exception_code))
             return response

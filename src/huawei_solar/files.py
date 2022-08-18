@@ -78,7 +78,7 @@ class OptimizerRealTimeDataFile:
 
     OPTIMIZER_DATA = "<3HI6HI"
 
-    def __init__(self, file_data):
+    def __init__(self, file_data: bytes):
 
         self.data_units: list[OptimizerHistoryRealTimeDataUnit] = []
 
