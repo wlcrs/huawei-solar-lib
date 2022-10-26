@@ -10,8 +10,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 async def test():
 
-    bridge = await HuaweiSolarBridge.create_rtu(port="/tmp/tty1", slave_id=1)
-
+    bridge = await HuaweiSolarBridge.create(host="192.168.200.1", port=6607)
+    await bridge.login("installer", "00000a")
     print(await bridge.client.get(rn.STORAGE_MAXIMUM_DISCHARGING_POWER))
     print(await bridge.update())
     print(await bridge.get_latest_optimizer_history_data())
