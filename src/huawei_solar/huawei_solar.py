@@ -368,6 +368,11 @@ class AsyncHuaweiSolar:
                         f"Got error while reading from register {register} with length {length}: {response}"
                     )
 
+                if len(response.registers) != length:
+                    raise SlaveBusyException(
+                        f"Mismatch between number of requested registers ({length}) and number of received registers ({len(response.registers)})"
+                    )
+
                 return response
 
             except ModbusConnectionException as err:
