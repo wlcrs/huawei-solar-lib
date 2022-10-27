@@ -370,7 +370,8 @@ class AsyncHuaweiSolar:
 
                 if len(response.registers) != length:
                     raise SlaveBusyException(
-                        f"Mismatch between number of requested registers ({length}) and number of received registers ({len(response.registers)})"
+                        f"Mismatch between number of requested registers ({length}) "
+                        f"and number of received registers ({len(response.registers)})"
                     )
 
                 return response
