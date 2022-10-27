@@ -11,11 +11,11 @@ from collections import namedtuple
 from hashlib import sha256
 
 import backoff
-from pymodbus.client.asynchronous.async_io import (
-    AsyncioModbusSerialClient,
-    ReconnectingAsyncioModbusTcpClient,
-    init_tcp_client,
+from pymodbus.client import (
+    AsyncModbusTcpClient,
+    AsyncModbusSerialClient
 )
+from pymodbus.framer import ModbusFramer
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 from pymodbus.factory import ClientDecoder
@@ -64,38 +64,13 @@ def _compute_digest(password, seed):
     return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
 
 
-rtu_bug_patch_applied = False  # pylint: disable = C
-
-
-def monkey_patch_rtu_bug():
-    """
-    Dirty fix for bug triggered when RTU responses arrive in multiple packets.
-
-    Based on https://github.com/riptideio/pymodbus/pull/707
-    """
-    # pylint: disable = E, W, R, C
-
-    global rtu_bug_patch_applied
-
-    if rtu_bug_patch_applied:
-        return
-
-    origprocessIncomingPacket = ModbusRtuFramer.processIncomingPacket
-
-    def patched_processIncomingPacket(self, data, callback, unit, **kwargs):
-        unit = self.decode_data(self._buffer).get("unit", 0)
-        return origprocessIncomingPacket(self, data, callback, unit, **kwargs)
-
-    ModbusRtuFramer.processIncomingPacket = patched_processIncomingPacket
-    rtu_bug_patch_applied = True
-
 
 class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter"""
 
     def __init__(
         self,
-        client: t.Union[ReconnectingAsyncioModbusTcpClient, AsyncioModbusSerialClient],
+        client: t.Union[AsyncModbusTcpClient, AsyncModbusSerialClient],
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: int = DEFAULT_COOLDOWN_TIME,
@@ -151,7 +126,11 @@ class AsyncHuaweiSolar:
         client = None
         try:
             client = await cls.__get_tcp_client(host, port, loop)
+            await client.connect()
 
+            # wait a little bit to prevent a timeout on the first request
+            await asyncio.sleep(1)
+    
             huawei_solar = cls(client, slave, timeout, cooldown_time)
 
             await huawei_solar._initialize()
@@ -196,43 +175,28 @@ class AsyncHuaweiSolar:
 
     @classmethod
     async def __get_rtu_client(cls, port, loop=None, **serial_kwargs):
-        monkey_patch_rtu_bug()
-        return AsyncioModbusSerialClient(
+        client = AsyncModbusSerialClient(
             port,
-            framer=ModbusRtuFramer(decoder=cls.__get_modbus_decoder()),
-            loop=loop,
+            framer=ModbusRtuFramer, #(decoder=cls.__get_modbus_decoder()),
             **serial_kwargs,
         )
+        client.register(PrivateHuaweiModbusResponse)
+        return client
 
     @classmethod
     async def __get_tcp_client(
         cls, host, port, loop
-    ) -> ReconnectingAsyncioModbusTcpClient:
+    ) -> AsyncModbusTcpClient:
 
-        client = await init_tcp_client(
-            None,
-            loop,
+        client = AsyncModbusTcpClient(
             host,
             port,
-            reset_socket=False,
-            framer=ModbusSocketFramer(decoder=cls.__get_modbus_decoder()),
+            framer=ModbusSocketFramer, #(decoder=cls.__get_modbus_decoder()),
         )
-        # wait a little bit to prevent a timeout on the first request
-        await asyncio.sleep(1)
-
+        client.register(PrivateHuaweiModbusResponse)        
         return client
 
-    @classmethod
-    def __get_modbus_decoder(cls):
-        decoder = ClientDecoder()
-        decoder.register(PrivateHuaweiModbusResponse)
-
-        return decoder
-
     def is_client_connected(self):
-        """Workaround for checking if client is connected"""
-        if isinstance(self._client, AsyncioModbusSerialClient):
-            return self._client._connected  # pylint: disable=protected-access
         return self._client.connected
 
     async def stop(self):
@@ -356,7 +320,7 @@ class AsyncHuaweiSolar:
                 response = await self._client.protocol.read_holding_registers(
                     register,
                     length,
-                    unit=slave or self.slave,
+                    slave=slave or self.slave,
                     timeout=self._timeout,
                 )
 
@@ -436,7 +400,7 @@ class AsyncHuaweiSolar:
             # Start the upload
             start_upload_response = await _perform_request(
                 StartUploadModbusRequest(
-                    file_type, customized_data, unit=slave or self.slave
+                    file_type, customized_data, slave=slave or self.slave
                 ),
                 StartUploadModbusResponse,
             )
@@ -452,7 +416,7 @@ class AsyncHuaweiSolar:
             while (next_frame_no * data_frame_length) < file_length:
                 data_upload_response = await _perform_request(
                     UploadModbusRequest(
-                        file_type, next_frame_no, unit=slave or self.slave
+                        file_type, next_frame_no, slave=slave or self.slave
                     ),
                     UploadModbusResponse,
                 )
@@ -462,7 +426,7 @@ class AsyncHuaweiSolar:
 
             # Complete the upload and check the CRC
             complete_upload_response = await _perform_request(
-                CompleteUploadModbusRequest(file_type, unit=slave or self.slave),
+                CompleteUploadModbusRequest(file_type, slave=slave or self.slave),
                 CompleteUploadModbusResponse,
             )
 
@@ -527,7 +491,7 @@ class AsyncHuaweiSolar:
             response = await self._client.protocol.write_registers(
                 register,
                 value,
-                unit=slave or self.slave,
+                slave=slave or self.slave,
                 timeout=self._timeout,
             )
             if isinstance(response, ExceptionResponse):
@@ -566,7 +530,7 @@ class AsyncHuaweiSolar:
 
             # Get challenge
             challenge_request = PrivateHuaweiModbusRequest(
-                36, bytes([1, 0]), unit=slave or self.slave
+                36, bytes([1, 0]), slave=slave or self.slave
             )
 
             challenge_response = await self._client.protocol.execute(challenge_request)
@@ -597,7 +561,7 @@ class AsyncHuaweiSolar:
             )
             await asyncio.sleep(0.05)
             login_request = PrivateHuaweiModbusRequest(
-                37, login_bytes, unit=slave or self.slave
+                37, login_bytes, slave=slave or self.slave
             )
             login_response = await self._client.protocol.execute(login_request)
 
