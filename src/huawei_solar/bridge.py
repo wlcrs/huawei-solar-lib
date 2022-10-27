@@ -58,7 +58,6 @@ class HuaweiSolarBridge:
 
         self._pv_registers = None
 
-        self._loop = loop or asyncio.get_running_loop()
         self.__heartbeat_enabled = False
         self.__heartbeat_task: t.Optional[asyncio.Task] = None
 
@@ -66,17 +65,11 @@ class HuaweiSolarBridge:
         self.__password: t.Optional[str] = None
 
     @classmethod
-    async def create(
-        cls,
-        host: str,
-        port: int = 502,
-        slave_id: int = 0,
-        loop=None,
-    ):
+    async def create(cls, host: str, port: int = 502, slave_id: int = 0):
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
-        client = await AsyncHuaweiSolar.create(host, port, slave_id, loop=loop)
+        client = await AsyncHuaweiSolar.create(host, port, slave_id)
         update_lock = asyncio.Lock()
-        bridge = cls(client, update_lock, primary=True, loop=loop)
+        bridge = cls(client, update_lock, primary=True)
         await HuaweiSolarBridge.__populate_fields(bridge)
 
         return bridge
@@ -86,12 +79,11 @@ class HuaweiSolarBridge:
         cls,
         port: str,
         slave_id: int = 0,
-        loop=None,
     ):
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
-        client = await AsyncHuaweiSolar.create_rtu(port, slave_id, loop=loop)
+        client = await AsyncHuaweiSolar.create_rtu(port, slave_id)
         update_lock = asyncio.Lock()
-        bridge = cls(client, update_lock, primary=True, loop=loop)
+        bridge = cls(client, update_lock, primary=True)
         await HuaweiSolarBridge.__populate_fields(bridge)
 
         return bridge
