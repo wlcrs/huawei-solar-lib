@@ -237,6 +237,7 @@ class HuaweiSolarBridge:
     async def get_latest_optimizer_history_data(
         self,
     ) -> dict[int, OptimizerRealTimeData]:
+        """Reads the latest Optimizer History Data File from the inverter"""
 
         # emulates behavior from FusionSolar app when current status of optimizers is queried
         end_time = (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
@@ -260,6 +261,7 @@ class HuaweiSolarBridge:
     async def get_optimizer_system_information_data(
         self,
     ) -> dict[int, OptimizerSystemInformation]:
+        """Reads the Optimizer System Information Data File from the inverter"""
         file_data = await self._read_file(OptimizerSystemInformationDataFile.FILE_TYPE)
         system_information_data = OptimizerSystemInformationDataFile(file_data)
 

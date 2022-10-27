@@ -109,6 +109,8 @@ class StorageExcessPvEnergyUseInTOU(IntEnum):
 
 
 class ActivePowerControlMode(IntEnum):
+    """Active Power Control Mode."""
+
     UNLIMITED = 0  # default mode
     DI_ACTIVE_SCHEDULING = 1
     ZERO_POWER_GRID_CONNECTION = 5
