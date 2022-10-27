@@ -50,6 +50,11 @@ class OptimizerRunningStatus(IntEnum):
 
 @dataclass(frozen=True)
 class OptimizerRealTimeData:
+    """
+    Optimizer History Real Time Data, as specified in
+    the Huawei Modbus Solar Interface Definitions
+    """
+
     optimizer_address: int
     output_power: float  # W
     voltage_to_ground: float  # V
@@ -65,11 +70,17 @@ class OptimizerRealTimeData:
 
 @dataclass(frozen=True)
 class OptimizerHistoryRealTimeDataUnit:
+    """
+    Optimizer History Real Time Data Unit, as specified in
+    the Huawei Modbus Solar Interface Definitions
+    """
+
     time: datetime
     optimizers: list[OptimizerRealTimeData]
 
 
 class OptimizerRealTimeDataFile:
+    """Optimizer Real Time Data File, as specified in the Huawei Modbus Solar Interface Definitions"""
 
     FILE_TYPE = 0x44
 
@@ -78,7 +89,7 @@ class OptimizerRealTimeDataFile:
 
     OPTIMIZER_DATA = "<3HI6HI"
 
-    def __init__(self, file_data: bytes):
+    def __init__(self, file_data: bytes):  # pylint: disable=too-many-locals
 
         self.data_units: list[OptimizerHistoryRealTimeDataUnit] = []
 
@@ -96,7 +107,11 @@ class OptimizerRealTimeDataFile:
         has_next_optimizer_data_unit = True
         while has_next_optimizer_data_unit:
 
-            time, length, number_of_optimizers = struct.unpack_from(
+            (
+                time,
+                length,  # pylint: disable=unused-variable
+                number_of_optimizers,
+            ) = struct.unpack_from(
                 OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT, file_data, offset
             )
             offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT)
@@ -154,6 +169,7 @@ class OptimizerRealTimeDataFile:
 
     @staticmethod
     def query_within_timespan(start_time: int, end_time: int):
+        """Creates a query for values within a given timeframe"""
 
         # the values below were deduced from observing network traffic and reverse-engineering the app
         tag = 0x10
@@ -176,19 +192,28 @@ class OptimizerOnlineStatus(IntEnum):
 
 @dataclass(frozen=True)
 class OptimizerSystemInformation:
+    """
+    Optimizer System Information as specified in
+    the Huawei Modbus Solar Interface Definitions
+    """
+
     optimizer_address: int
     online_status: OptimizerOnlineStatus
     string_number: int
     position_in_current_string: Optional[
         int
     ]  # relative position connection starting point
-    sn: str
+    sn: str  # pylint: disable=invalid-name
     software_version: str
     alias: str
     model: str
 
 
-class OptimizerSystemInformationDataFile:
+class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-methods
+    """
+    Optimizer System Information Data File, as specified in the
+    Huawei Modbus Solar Interface Definitions
+    """
 
     FILE_TYPE = 0x45
 
@@ -200,12 +225,13 @@ class OptimizerSystemInformationDataFile:
     # cfr: https://github.com/wlcrs/huawei_solar/issues/76#issue-1268597032
     OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s"
 
-    def __init__(self, file_data):
+    def __init__(self, file_data):  # pylint: disable=too-many-locals
 
         self.optimizers: list[OptimizerSystemInformation] = []
 
         offset = 0
 
+        # pylint: disable=unused-variable
         (
             self.file_version,
             feature_data_sequence_number,
@@ -226,7 +252,7 @@ class OptimizerSystemInformationDataFile:
                 online_status,
                 string_number,
                 position_in_current_string,
-                sn,
+                sn,  # pylint: disable=invalid-name
                 software_version,
                 alias,
                 model,

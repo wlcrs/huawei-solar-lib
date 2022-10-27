@@ -1,3 +1,7 @@
+"""
+Generic Utilities
+"""
+
 from datetime import datetime, tzinfo
 
 

@@ -61,7 +61,7 @@ def _compute_digest(password, seed):
     return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
 
 
-rtu_bug_patch_applied = False
+rtu_bug_patch_applied = False  # pylint: disable = C
 
 
 def monkey_patch_rtu_bug():
@@ -70,13 +70,12 @@ def monkey_patch_rtu_bug():
 
     Based on https://github.com/riptideio/pymodbus/pull/707
     """
+    # pylint: disable = E, W, R, C
 
     global rtu_bug_patch_applied
 
     if rtu_bug_patch_applied:
         return
-
-    from pymodbus.framer.rtu_framer import ModbusRtuFramer
 
     origprocessIncomingPacket = ModbusRtuFramer.processIncomingPacket
 
@@ -129,7 +128,9 @@ class AsyncHuaweiSolar:
                 # inverter doesn't seem to support a battery
                 self.battery_type = None
             else:
-                LOGGER.exception(f"Got error {rerr} while trying to determine battery.")
+                LOGGER.exception(
+                    "Got error %s while trying to determine battery.", rerr
+                )
                 raise rerr
 
     @classmethod
@@ -172,6 +173,7 @@ class AsyncHuaweiSolar:
         loop=None,
         **serial_kwargs,
     ):
+        """Create a serial client"""
         client = None
         try:
             client = await cls.__get_rtu_client(port, loop, **serial_kwargs)
@@ -225,8 +227,9 @@ class AsyncHuaweiSolar:
         return decoder
 
     def is_client_connected(self):
+        """Workaround for checking if client is connected"""
         if isinstance(self._client, AsyncioModbusSerialClient):
-            return self._client._connected
+            return self._client._connected  # pylint: disable=protected-access
         return self._client.connected
 
     async def stop(self):
@@ -425,7 +428,7 @@ class AsyncHuaweiSolar:
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
-                elif (
+                if (
                     response.exception_code == ModbusExceptions.SlaveBusy
                     or response.function_code == ABNORMAL_SLAVE_RESPONSE_FUNCTION_CODE
                 ):
@@ -476,8 +479,8 @@ class AsyncHuaweiSolar:
 
             if not checkCRC(file_data, swapped_crc):
                 raise ReadException(
-                    "Computed CRC %#x for file %#x does not match expected value %#x"
-                    % (computeCRC(file_data), file_type, swapped_crc)
+                    f"Computed CRC {computeCRC(file_data):x} for file {file_type} "
+                    f"does not match expected value {swapped_crc}"
                 )
 
             return file_data
@@ -671,6 +674,10 @@ class PrivateHuaweiModbusRequest(ModbusRequest):
 
 
 class StartUploadModbusRequest(ModbusRequest):
+    """
+    Modbus file upload request
+    """
+
     function_code = 0x41
     sub_function_code = 0x05
 
@@ -698,7 +705,13 @@ class StartUploadModbusRequest(ModbusRequest):
         assert len(self.customised_data) == data_length - 1
 
 
-class StartUploadModbusResponse:
+class StartUploadModbusResponse(
+    ModbusResponse
+):  # pylint: disable=too-few-public-methods
+    """
+    Modbus Response to a file upload request
+    """
+
     function_code = 0x41
     sub_function_code = 0x05
 
@@ -717,6 +730,10 @@ class StartUploadModbusResponse:
 
 
 class UploadModbusRequest(ModbusRequest):
+    """
+    Modbus Request for (a part of) a file
+    """
+
     function_code = 0x41
     sub_function_code = 0x06
 
@@ -740,11 +757,16 @@ class UploadModbusRequest(ModbusRequest):
         assert data_length == 3
 
 
-class UploadModbusResponse:
+class UploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-public-methods
+    """
+    Modbus Response with (a part of) a file
+    """
+
     function_code = 0x41
     sub_function_code = 0x06
 
     def __init__(self, data):
+        ModbusResponse.__init__(self)
 
         (
             data_length,
@@ -757,6 +779,10 @@ class UploadModbusResponse:
 
 
 class CompleteUploadModbusRequest(ModbusRequest):
+    """
+    Modbus Request to complete a file upload
+    """
+
     function_code = 0x41
     sub_function_code = 0x0C
 
@@ -775,11 +801,18 @@ class CompleteUploadModbusRequest(ModbusRequest):
         assert data_length == 1
 
 
-class CompleteUploadModbusResponse:
+class CompleteUploadModbusResponse(
+    ModbusResponse
+):  # pylint: disable=too-few-public-methods
+    """
+    Modbus Response when a file upload has been completed
+    """
+
     function_code = 0x41
     sub_function_code = 0x0C
 
     def __init__(self, data):
+        ModbusResponse.__init__(self)
         (
             data_length,
             self.file_type,
