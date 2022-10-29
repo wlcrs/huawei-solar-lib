@@ -1,14 +1,16 @@
 """File definitions from the Huawei inverter"""
-from typing import Optional
-from datetime import datetime
-from enum import IntEnum
+import binascii
+import logging
 import struct
 from dataclasses import dataclass
+from datetime import datetime
+from enum import IntEnum
+from typing import Optional
 
 from huawei_solar.exceptions import HuaweiSolarException
-
 from huawei_solar.utils import get_local_timezone
 
+_LOGGER = logging.getLogger(__name__)
 
 OPTIMIZER_ALARM_CODES = {
     0b0000_0000_0000_0001: "Input Overvoltage",
@@ -273,9 +275,17 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
                     position_in_current_string
                     if position_in_current_string != 0xFFFF
                     else None,
-                    sn.decode("ascii").rstrip("\x00"),
-                    software_version.decode("ascii").rstrip("\x00"),
-                    alias.decode("ascii").rstrip("\x00"),
-                    model.decode("ascii").rstrip("\x00"),
+                    _to_string(sn),
+                    _to_string(software_version),
+                    _to_string(alias),
+                    _to_string(model),
                 )
             )
+
+
+def _to_string(data: bytes):
+    try:
+        return data.decode("ascii").rstrip("\x00")
+    except ValueError:
+        _LOGGER.exception("Could not decode '%s'. Ignoring.", binascii.hexlify(data))
+        return None
