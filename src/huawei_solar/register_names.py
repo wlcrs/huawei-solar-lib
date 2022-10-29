@@ -2,6 +2,7 @@
 
 MODEL_NAME = "model_name"
 SERIAL_NUMBER = "serial_number"
+PN = "pn"
 MODEL_ID = "model_id"
 NB_PV_STRINGS = "nb_pv_strings"
 NB_MPP_TRACKS = "nb_mpp_tracks"

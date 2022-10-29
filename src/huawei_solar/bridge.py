@@ -4,12 +4,7 @@ from __future__ import annotations
 import typing as t
 import asyncio
 import logging
-from huawei_solar.files import (
-    OptimizerRealTimeData,
-    OptimizerRealTimeDataFile,
-    OptimizerSystemInformation,
-    OptimizerSystemInformationDataFile,
-)
+import typing as t
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
@@ -18,6 +13,12 @@ from huawei_solar.exceptions import (
     InvalidCredentials,
     PermissionDenied,
     ReadException,
+)
+from huawei_solar.files import (
+    OptimizerRealTimeData,
+    OptimizerRealTimeDataFile,
+    OptimizerSystemInformation,
+    OptimizerSystemInformationDataFile,
 )
 from huawei_solar.huawei_solar import AsyncHuaweiSolar, Result
 
@@ -47,6 +48,7 @@ class HuaweiSolarBridge:
 
         self.model_name: t.Optional[str] = None
         self.serial_number: t.Optional[str] = None
+        self.firmware_version: t.Optional[str] = None
 
         self.pv_string_count: int = 0
 
@@ -115,12 +117,17 @@ class HuaweiSolarBridge:
     async def __populate_fields(bridge: "HuaweiSolarBridge"):
         """Computes all the fields that should be returned on each update-call."""
 
-        model_name_result, serial_number_result = await bridge.client.get_multiple(
-            [rn.MODEL_NAME, rn.SERIAL_NUMBER], bridge.slave_id
+        (
+            model_name_result,
+            serial_number_result,
+            pn_result,
+        ) = await bridge.client.get_multiple(
+            [rn.MODEL_NAME, rn.SERIAL_NUMBER, rn.PN], bridge.slave_id
         )
 
         bridge.model_name = model_name_result.value
         bridge.serial_number = serial_number_result.value
+        bridge.firmware_version = pn_result.value
 
         bridge.pv_string_count = (
             await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)
@@ -183,7 +190,12 @@ class HuaweiSolarBridge:
         async with self.update_lock:
             result = await _get_multiple_to_dict(INVERTER_REGISTERS)
 
-            result.update(await _get_multiple_to_dict(self._pv_registers))
+            # State and Alarm registers can be combined with PV registers due to close proximity
+            result.update(
+                await _get_multiple_to_dict(
+                    STATE_AND_ALARM_REGISTERS + self._pv_registers
+                )
+            )
 
             if self.has_optimizers:
                 result.update(await _get_multiple_to_dict(OPTIMIZER_REGISTERS))
@@ -399,6 +411,16 @@ INVERTER_REGISTERS = [
     rn.SHUTDOWN_TIME,
     rn.ACCUMULATED_YIELD_ENERGY,
     rn.DAILY_YIELD_ENERGY,
+]
+
+# State and alarm registers can be combined with PV String readout
+STATE_AND_ALARM_REGISTERS = [
+    rn.STATE_1,
+    rn.STATE_2,
+    rn.STATE_3,
+    rn.ALARM_1,
+    rn.ALARM_2,
+    rn.ALARM_3,
 ]
 
 # Registers that should be read if optimizers are present

@@ -405,6 +405,7 @@ class ChargeDischargePeriodRegisters(RegisterDefinition):
 REGISTERS: dict[str, RegisterDefinition] = {
     rn.MODEL_NAME: StringRegister(30000, 15),
     rn.SERIAL_NUMBER: StringRegister(30015, 10),
+    rn.PN: StringRegister(30025, 10),
     rn.MODEL_ID: U16Register(None, 1, 30070, 1),
     rn.NB_PV_STRINGS: U16Register(None, 1, 30071, 1),
     rn.NB_MPP_TRACKS: U16Register(None, 1, 30072, 1),
