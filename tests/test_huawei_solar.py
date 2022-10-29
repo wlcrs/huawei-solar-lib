@@ -125,7 +125,7 @@ async def test_get_Q_max_in(huawei_solar):
 @pytest.mark.asyncio
 async def test_get_state_1(huawei_solar):
     result = await huawei_solar.get(rn.STATE_1)
-    assert result.value == ["standby"]
+    assert result.value == ["Standby"]
     assert result.unit is None
 
 
@@ -144,7 +144,7 @@ async def test_get_state_1_extra_bits_set(huawei_solar):
 @pytest.mark.asyncio
 async def test_get_state_2(huawei_solar):
     result = await huawei_solar.get(rn.STATE_2)
-    assert result.value == ["locked", "PV disconnected", "no DSP data collection"]
+    assert result.value == ["Locked", "PV disconnected", "No DSP data collection"]
     assert result.unit is None
 
 
@@ -157,14 +157,14 @@ async def test_get_state_2_extra_bits_set(huawei_solar):
     ):
         result = await huawei_solar.get(rn.STATE_2)
 
-        result.value == ["locked", "PV disconnected", "no DSP data collection"]
+        result.value == ["Locked", "PV disconnected", "No DSP data collection"]
         assert result.unit is None
 
 
 @pytest.mark.asyncio
 async def test_get_state_3(huawei_solar):
     result = await huawei_solar.get(rn.STATE_3)
-    assert result.value == ["on-grid", "off-grid switch disabled"]
+    assert result.value == ["On-grid", "Off-grid switch disabled"]
     assert result.unit is None
 
 
@@ -178,7 +178,7 @@ async def test_get_state_3_extra_bits_set(huawei_solar):
         ),
     ):
         result = await huawei_solar.get(rn.STATE_3)
-        assert result.value, ["off-grid", "off-grid switch enabled"]
+        assert result.value, ["Off-grid", "Off-grid switch enabled"]
         assert result.unit is None
 
 

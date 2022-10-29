@@ -423,29 +423,29 @@ GRID_CODES = {
 }
 
 STATE_CODES_1 = {
-    0b0000_0000_0000_0001: "standby",
-    0b0000_0000_0000_0010: "grid-connected",
-    0b0000_0000_0000_0100: "grid-connected normally",
-    0b0000_0000_0000_1000: "grid connection with derating due to power rationing",
-    0b0000_0000_0001_0000: "grid connection with derating due to internalcauses of the solar inverter",
-    0b0000_0000_0010_0000: "normal stop",
-    0b0000_0000_0100_0000: "stop due to faults",
-    0b0000_0000_1000_0000: "stop due to power rationing",
-    0b0000_0001_0000_0000: "shutdown",
-    0b0000_0010_0000_0000: "spot check",
+    0b0000_0000_0000_0001: "Standby",
+    0b0000_0000_0000_0010: "Grid-Connected",
+    0b0000_0000_0000_0100: "Grid-Connected normally",
+    0b0000_0000_0000_1000: "Grid connection with derating due to power rationing",
+    0b0000_0000_0001_0000: "Grid connection with derating due to internalcauses of the solar inverter",
+    0b0000_0000_0010_0000: "Normal stop",
+    0b0000_0000_0100_0000: "Stop due to faults",
+    0b0000_0000_1000_0000: "Stop due to power rationing",
+    0b0000_0001_0000_0000: "Shutdown",
+    0b0000_0010_0000_0000: "Spot check",
 }
 
 STATE_CODES_2 = {
-    0b0000_0000_0000_0001: OnOffBit("locked", "unlocked"),
+    0b0000_0000_0000_0001: OnOffBit("Locked", "Unlocked"),
     0b0000_0000_0000_0010: OnOffBit("PV disconnected", "PV connected"),
-    0b0000_0000_0000_0100: OnOffBit("no DSP data collection", "DSP data collection"),
+    0b0000_0000_0000_0100: OnOffBit("No DSP data collection", "DSP data collection"),
 }
 
 STATE_CODES_3 = {
-    0b0000_0000_0000_0000_0000_0000_0000_0001: OnOffBit("on-grid", "off-grid"),
+    0b0000_0000_0000_0000_0000_0000_0000_0001: OnOffBit("On-grid", "Off-grid"),
     0b0000_0000_0000_0000_0000_0000_0000_0010: OnOffBit(
-        "off-grid switch disabled",
-        "off-grid switch enabled",
+        "Off-grid switch disabled",
+        "Off-grid switch enabled",
     ),
 }
 
