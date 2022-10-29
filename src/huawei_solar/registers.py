@@ -7,7 +7,7 @@ from enum import IntEnum
 from functools import partial
 from inspect import isclass
 
-from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
+from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
