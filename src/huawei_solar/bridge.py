@@ -1,7 +1,6 @@
 """Higher-level access to Huawei Solar inverters."""
 from __future__ import annotations
 
-import typing as t
 import asyncio
 import logging
 import typing as t
