@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.DEBUG)
 async def test():
 
     bridge = await HuaweiSolarBridge.create(host="192.168.200.1", port=6607)
+    print(await bridge.has_write_permission())
     await bridge.login("installer", "00000a")
     print(await bridge.client.get(rn.STORAGE_MAXIMUM_DISCHARGING_POWER))
     print(await bridge.update())
