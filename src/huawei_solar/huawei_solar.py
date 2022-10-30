@@ -11,14 +11,9 @@ from collections import namedtuple
 from hashlib import sha256
 
 import backoff
-from pymodbus.client import (
-    AsyncModbusTcpClient,
-    AsyncModbusSerialClient
-)
-from pymodbus.framer import ModbusFramer
+from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
-from pymodbus.factory import ClientDecoder
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
 from pymodbus.pdu import (
     ExceptionResponse,
@@ -62,7 +57,6 @@ def _compute_digest(password, seed):
     hashed_password = sha256(password).digest()
 
     return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
-
 
 
 class AsyncHuaweiSolar:
@@ -119,18 +113,17 @@ class AsyncHuaweiSolar:
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: int = DEFAULT_COOLDOWN_TIME,
-        loop=None,
     ):  # pylint: disable=too-many-arguments
         """Creates an AsyncHuaweiSolar instance."""
 
         client = None
         try:
-            client = await cls.__get_tcp_client(host, port, loop)
+            client = await cls.__get_tcp_client(host, port)
             await client.connect()
 
             # wait a little bit to prevent a timeout on the first request
             await asyncio.sleep(1)
-    
+
             huawei_solar = cls(client, slave, timeout, cooldown_time)
 
             await huawei_solar._initialize()
@@ -142,7 +135,7 @@ class AsyncHuaweiSolar:
             LOGGER.exception("Aborting client creation due to error.")
 
             if client is not None:
-                client.stop()
+                await client.close()
             raise err
 
     @classmethod
@@ -152,13 +145,12 @@ class AsyncHuaweiSolar:
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: int = DEFAULT_COOLDOWN_TIME,
-        loop=None,
         **serial_kwargs,
     ):
         """Create a serial client"""
         client = None
         try:
-            client = await cls.__get_rtu_client(port, loop, **serial_kwargs)
+            client = await cls.__get_rtu_client(port, **serial_kwargs)
             await client.connect()
             huawei_solar = cls(client, slave, timeout, cooldown_time)
             await huawei_solar._initialize()
@@ -174,34 +166,24 @@ class AsyncHuaweiSolar:
             raise err
 
     @classmethod
-    async def __get_rtu_client(cls, port, loop=None, **serial_kwargs):
-        client = AsyncModbusSerialClient(
-            port,
-            framer=ModbusRtuFramer, #(decoder=cls.__get_modbus_decoder()),
-            **serial_kwargs,
-        )
+    async def __get_rtu_client(cls, port,  **serial_kwargs):
+        client = AsyncModbusSerialClient(            port,            **serial_kwargs,        )
         client.register(PrivateHuaweiModbusResponse)
         return client
 
     @classmethod
-    async def __get_tcp_client(
-        cls, host, port, loop
-    ) -> AsyncModbusTcpClient:
+    async def __get_tcp_client(cls, host, port) -> AsyncModbusTcpClient:
 
         client = AsyncModbusTcpClient(
             host,
             port,
-            framer=ModbusSocketFramer, #(decoder=cls.__get_modbus_decoder()),
         )
-        client.register(PrivateHuaweiModbusResponse)        
+        client.register(PrivateHuaweiModbusResponse)
         return client
-
-    def is_client_connected(self):
-        return self._client.connected
 
     async def stop(self):
         """Stop the modbus client."""
-        self._client.stop()
+        await self._client.close()
 
     async def _decode_response(
         self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder
@@ -312,7 +294,7 @@ class AsyncHuaweiSolar:
         )
         async def _do_read():
 
-            if not self.is_client_connected():
+            if not self._client.connected:
                 message = "Modbus client is not connected to the inverter."
                 LOGGER.exception(message)
                 raise ConnectionException(message)
@@ -481,7 +463,7 @@ class AsyncHuaweiSolar:
         Async write register to device.
         """
 
-        if not self.is_client_connected():
+        if not self._client.connected:
             message = "Modbus client is not connected to the inverter."
             LOGGER.exception(message)
             raise ConnectionException(message)
@@ -596,7 +578,7 @@ class AsyncHuaweiSolar:
 
     async def heartbeat(self, slave_id):
         """Performs the heartbeat command. Only useful when maintaining a session."""
-        if not self.is_client_connected():
+        if not self._client.connected:
             return False
         try:
             # 49999 is the magic register used to keep the connection alive

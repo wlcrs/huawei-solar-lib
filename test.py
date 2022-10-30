@@ -6,7 +6,7 @@ loop = asyncio.new_event_loop()
 
 async def test(names):
 
-    hs = await AsyncHuaweiSolar.create("192.168.10.2", loop=loop)
+    hs = await AsyncHuaweiSolar.create("192.168.10.2")
     responses = await hs.get_multiple(names)
 
     for name, response in zip(names, responses):
@@ -129,7 +129,7 @@ loop.run_until_complete(
 
 async def test_single(name):
 
-    hs = await AsyncHuaweiSolar.create("192.168.10.2", loop=loop)
+    hs = await AsyncHuaweiSolar.create("192.168.10.2")
 
     print(await hs.get(name))
 
