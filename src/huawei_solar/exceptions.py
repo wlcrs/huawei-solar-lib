@@ -1,5 +1,7 @@
 """Exceptions from the Huawei Solar library."""
 
+import typing as t
+
 
 class HuaweiSolarException(Exception):
     """Base class for Huawei Solar exceptions."""
@@ -16,7 +18,7 @@ class ConnectionException(HuaweiSolarException):
 class ReadException(HuaweiSolarException):
     """Exception reading register from device"""
 
-    def __init__(self, *args, modbus_exception_code: int | None = None, **kwargs):
+    def __init__(self, *args, modbus_exception_code: t.Optional[int] = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.modbus_exception_code = modbus_exception_code
 
@@ -28,7 +30,7 @@ class SlaveBusyException(HuaweiSolarException):
 class WriteException(HuaweiSolarException):
     """Exception writing register to device"""
 
-    def __init__(self, *args, modbus_exception_code: int | None = None, **kwargs):
+    def __init__(self, *args, modbus_exception_code: t.Optional[int] = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.modbus_exception_code = modbus_exception_code
 
