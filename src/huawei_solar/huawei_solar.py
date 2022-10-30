@@ -56,7 +56,6 @@ FILE_UPLOAD_MAX_RETRIES = 6
 FILE_UPLOAD_RETRY_TIMEOUT = 10
 
 PERMISSION_DENIED_EXCEPTION_CODE = 0x80
-ABNORMAL_SLAVE_RESPONSE_FUNCTION_CODE = 0x83
 
 
 def _compute_digest(password, seed):
@@ -363,16 +362,13 @@ class AsyncHuaweiSolar:
 
                 # trigger a backoff if we get a SlaveBusy-exception
                 if isinstance(response, ExceptionResponse):
-                    if (
-                        response.exception_code == ModbusExceptions.SlaveBusy
-                        or response.function_code
-                        == ABNORMAL_SLAVE_RESPONSE_FUNCTION_CODE
-                    ):
+                    if response.exception_code == ModbusExceptions.SlaveBusy:
                         raise SlaveBusyException()
 
                     # Not a slavebusy-exception
                     raise ReadException(
-                        f"Got error while reading from register {register} with length {length}: {response}"
+                        f"Got error while reading from register {register} with length {length}: {response}",
+                        modbus_exception_code=response.exception_code,
                     )
 
                 if len(response.registers) != length:
@@ -387,11 +383,6 @@ class AsyncHuaweiSolar:
                 message = "Could not read register value, has another device interrupted the connection?"
                 LOGGER.error(message)
                 raise ReadException(message) from err
-            # errors are different with async pymodbus,
-            # we should not be able to reach this code. Keep it for debugging
-            message = "could not read register value for unknown reason"
-            LOGGER.error(message)
-            raise ReadException(message)
 
         async with self._communication_lock:
             LOGGER.debug("Reading register %s", register)
@@ -432,13 +423,11 @@ class AsyncHuaweiSolar:
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
-                if (
-                    response.exception_code == ModbusExceptions.SlaveBusy
-                    or response.function_code == ABNORMAL_SLAVE_RESPONSE_FUNCTION_CODE
-                ):
+                if response.exception_code == ModbusExceptions.SlaveBusy:
                     raise SlaveBusyException()
                 raise ReadException(
-                    f"Exception occured while trying to read file {hex(file_type)}: {hex(response.exception_code)}"
+                    f"Exception occured while trying to read file {hex(file_type)}: {hex(response.exception_code)}",
+                    modbus_exception_code=response.exception_code,
                 )
 
             return response_type(response.content)
@@ -521,11 +510,6 @@ class AsyncHuaweiSolar:
             )
             await asyncio.sleep(self._cooldown_time)
 
-        if isinstance(response, ExceptionResponse):
-            raise WriteException(
-                f"Got error while writing from register {reg.register} : {response}"
-            )
-
         return response.address == reg.register and response.count == reg.length
 
     async def write_registers(self, register, value, slave=None):
@@ -549,7 +533,11 @@ class AsyncHuaweiSolar:
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
-                raise WriteException(ModbusExceptions.decode(response.exception_code))
+                raise WriteException(
+                    f"Failed to write value {value} to register {register}: "
+                    f"{ModbusExceptions.decode(response.exception_code)}",
+                    modbus_exception_code=response.exception_code,
+                )
             return response
         except ModbusConnectionException as err:
             LOGGER.exception("Failed to connect to device, is the host correct?")
@@ -558,60 +546,89 @@ class AsyncHuaweiSolar:
     async def login(self, username: str, password: str, slave: t.Optional[int] = None):
         """Login into the inverter."""
 
-        # Get challenge
-        challenge_request = PrivateHuaweiModbusRequest(
-            36, bytes([1, 0]), unit=slave or self.slave
+        def backoff_giveup(details):
+            raise ReadException(f"Failed to login after {details['tries']} tries")
+
+        @backoff.on_exception(
+            backoff.expo,
+            (asyncio.TimeoutError, SlaveBusyException),
+            base=2,
+            max_tries=10,
+            jitter=None,
+            on_backoff=lambda details: LOGGER.debug(
+                "Backing off reading for %0.1f seconds after %d tries",
+                details["wait"],
+                details["tries"],
+            ),
+            on_giveup=backoff_giveup,
         )
+        async def _do_login():
 
-        challenge_response = await self._client.protocol.execute(challenge_request)
+            # Get challenge
+            challenge_request = PrivateHuaweiModbusRequest(
+                36, bytes([1, 0]), unit=slave or self.slave
+            )
 
-        assert challenge_response.content[0] == 0x11
-        inverter_challenge = challenge_response.content[1:17]
+            challenge_response = await self._client.protocol.execute(challenge_request)
 
-        client_challenge = secrets.token_bytes(16)
+            assert challenge_response.content[0] == 0x11
+            inverter_challenge = challenge_response.content[1:17]
 
-        encoded_username = username.encode("utf-8")
-        hashed_password = _compute_digest(password.encode("utf-8"), inverter_challenge)
+            client_challenge = secrets.token_bytes(16)
 
-        login_bytes = bytes(
-            [
-                len(client_challenge)
-                + 1
-                + len(encoded_username)
-                + 1
-                + len(hashed_password),
-                *client_challenge,
-                len(encoded_username),
-                *encoded_username,
-                len(hashed_password),
-                *hashed_password,
-            ]
-        )
-        await asyncio.sleep(0.05)
-        login_request = PrivateHuaweiModbusRequest(
-            37, login_bytes, unit=slave or self.slave
-        )
-        login_response = await self._client.protocol.execute(login_request)
+            encoded_username = username.encode("utf-8")
+            hashed_password = _compute_digest(
+                password.encode("utf-8"), inverter_challenge
+            )
 
-        if login_response.content[1] == 0:
+            login_bytes = bytes(
+                [
+                    len(client_challenge)
+                    + 1
+                    + len(encoded_username)
+                    + 1
+                    + len(hashed_password),
+                    *client_challenge,
+                    len(encoded_username),
+                    *encoded_username,
+                    len(hashed_password),
+                    *hashed_password,
+                ]
+            )
+            await asyncio.sleep(0.05)
+            login_request = PrivateHuaweiModbusRequest(
+                37, login_bytes, unit=slave or self.slave
+            )
+            login_response = await self._client.protocol.execute(login_request)
 
-            # check if inverter returned the right hash of the password as well
-            inverter_mac_response_lengths = login_response.content[2]
+            if login_response.content[1] == 0:
 
-            inverter_mac_response = login_response.content[
-                3 : 3 + inverter_mac_response_lengths
-            ]
+                # check if inverter returned the right hash of the password as well
+                inverter_mac_response_lengths = login_response.content[2]
 
-            if (
-                not _compute_digest(password.encode("utf-8"), client_challenge)
-                == inverter_mac_response
-            ):
-                LOGGER.error(
-                    "Inverter response contains an invalid challenge answer. This could indicate a MitM-attack!"
-                )
+                inverter_mac_response = login_response.content[
+                    3 : 3 + inverter_mac_response_lengths
+                ]
 
-            return True
-        return False
+                if (
+                    not _compute_digest(password.encode("utf-8"), client_challenge)
+                    == inverter_mac_response
+                ):
+                    LOGGER.error(
+                        "Inverter response contains an invalid challenge answer. This could indicate a MitM-attack!"
+                    )
+
+                return True
+            return False
+
+        async with self._communication_lock:
+            LOGGER.debug("Logging in")
+            result = await _do_login()
+            await asyncio.sleep(
+                self._cooldown_time
+            )  # throttle requests to prevent errors
+
+            return result
 
     async def heartbeat(self, slave_id):
         """Performs the heartbeat command. Only useful when maintaining a session."""
@@ -625,7 +642,7 @@ class AsyncHuaweiSolar:
             if isinstance(response, ExceptionResponse):
                 LOGGER.warning(
                     "Received an error after sending the heartbeat command: %s",
-                    response,
+                    ModbusExceptions.decode(response.exception_code),
                 )
                 return False
             LOGGER.debug("Heartbeat succeeded")

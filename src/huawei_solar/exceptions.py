@@ -16,13 +16,21 @@ class ConnectionException(HuaweiSolarException):
 class ReadException(HuaweiSolarException):
     """Exception reading register from device"""
 
+    def __init__(self, *args, modbus_exception_code: int | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.modbus_exception_code = modbus_exception_code
+
 
 class SlaveBusyException(HuaweiSolarException):
-    """Non-fatal exception while trying to read from device."""
+    """Non-fatal exception while trying to read from device"""
 
 
 class WriteException(HuaweiSolarException):
     """Exception writing register to device"""
+
+    def __init__(self, *args, modbus_exception_code: int | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.modbus_exception_code = modbus_exception_code
 
 
 class PermissionDenied(HuaweiSolarException):
