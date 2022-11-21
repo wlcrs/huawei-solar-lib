@@ -30,7 +30,6 @@ class HuaweiSolarBridge:
         update_lock: asyncio.Lock,
         primary: bool,
         slave_id: t.Optional[int] = None,
-        loop=None,
     ):
 
         self.client = client
