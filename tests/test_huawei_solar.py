@@ -1,12 +1,13 @@
+from datetime import datetime, timezone
 from unittest.mock import patch
+
+from pymodbus.register_read_message import ReadHoldingRegistersResponse
 import pytest
+
 from huawei_solar.exceptions import DecodeError
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
-from datetime import datetime, timezone
-
 from huawei_solar.register_values import GridCode
-from pymodbus.register_read_message import ReadHoldingRegistersResponse
 
 
 @pytest.mark.asyncio
@@ -173,9 +174,7 @@ async def test_get_state_3_extra_bits_set(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse(
-            [0b0111_1111_1111_1111, 0b0111_1111_1111_1111]
-        ),
+        return_value=ReadHoldingRegistersResponse([0b0111_1111_1111_1111, 0b0111_1111_1111_1111]),
     ):
         result = await huawei_solar.get(rn.STATE_3)
         assert result.value, ["Off-grid", "Off-grid switch enabled"]
@@ -195,9 +194,7 @@ async def test_get_alarm_1_some(huawei_solar):
 
 @pytest.mark.asyncio
 async def test_get_alarm_1_none(huawei_solar):
-    with patch.object(
-        huawei_solar, "_read_registers", return_value=ReadHoldingRegistersResponse([0])
-    ):
+    with patch.object(huawei_solar, "_read_registers", return_value=ReadHoldingRegistersResponse([0])):
         result = await huawei_solar.get(rn.ALARM_1)
         assert result.value == []
         assert result.unit is None
@@ -229,9 +226,7 @@ async def test_get_alarm_2_some(huawei_solar):
 
 @pytest.mark.asyncio
 async def test_get_alarm_2_none(huawei_solar):
-    with patch.object(
-        huawei_solar, "_read_registers", return_value=ReadHoldingRegistersResponse([0])
-    ):
+    with patch.object(huawei_solar, "_read_registers", return_value=ReadHoldingRegistersResponse([0])):
         result = await huawei_solar.get(rn.ALARM_2)
         expected_result = []
         assert result.value == expected_result
@@ -254,9 +249,7 @@ async def test_get_alarm_2_all(huawei_solar):
 @pytest.mark.asyncio
 async def test_get_alarm_3_some(huawei_solar):
     result = await huawei_solar.get(rn.ALARM_3)
-    expected_result = (
-        list(rv.ALARM_CODES_3.values())[0:2] + list(rv.ALARM_CODES_3.values())[3:5]
-    )
+    expected_result = list(rv.ALARM_CODES_3.values())[0:2] + list(rv.ALARM_CODES_3.values())[3:5]
     assert result.value == expected_result
     assert result.unit is None
 

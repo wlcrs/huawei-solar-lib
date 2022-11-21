@@ -5,21 +5,15 @@ import asyncio
 import logging
 import typing as t
 
-import huawei_solar.register_names as rn
-import huawei_solar.register_values as rv
-from huawei_solar.exceptions import (
-    HuaweiSolarException,
-    InvalidCredentials,
-    PermissionDenied,
-    ReadException,
-)
-from huawei_solar.files import (
+from . import register_names as rn, register_values as rv
+from .exceptions import HuaweiSolarException, InvalidCredentials, PermissionDenied, ReadException
+from .files import (
     OptimizerRealTimeData,
     OptimizerRealTimeDataFile,
     OptimizerSystemInformation,
     OptimizerSystemInformationDataFile,
 )
-from huawei_solar.huawei_solar import AsyncHuaweiSolar, Result
+from .huawei_solar import AsyncHuaweiSolar, Result
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,9 +83,7 @@ class HuaweiSolarBridge:
         return bridge
 
     @classmethod
-    async def create_extra_slave(
-        cls, primary_bridge: "HuaweiSolarBridge", slave_id: int
-    ):
+    async def create_extra_slave(cls, primary_bridge: "HuaweiSolarBridge", slave_id: int):
         """Creates a HuaweiSolarBridge instance for extra slaves accessible via the given AsyncHuaweiSolar instance."""
         assert primary_bridge.slave_id != slave_id
 
@@ -112,51 +104,33 @@ class HuaweiSolarBridge:
             model_name_result,
             serial_number_result,
             pn_result,
-        ) = await bridge.client.get_multiple(
-            [rn.MODEL_NAME, rn.SERIAL_NUMBER, rn.PN], bridge.slave_id
-        )
+        ) = await bridge.client.get_multiple([rn.MODEL_NAME, rn.SERIAL_NUMBER, rn.PN], bridge.slave_id)
 
         bridge.model_name = model_name_result.value
         bridge.serial_number = serial_number_result.value
         bridge.firmware_version = pn_result.value
 
-        bridge.pv_string_count = (
-            await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)
-        ).value
+        bridge.pv_string_count = (await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)).value
         bridge._compute_pv_registers()  # pylint: disable=protected-access
 
         try:
-            bridge.has_optimizers = (
-                await bridge.client.get(rn.NB_OPTIMIZERS, bridge.slave_id)
-            ).value
+            bridge.has_optimizers = (await bridge.client.get(rn.NB_OPTIMIZERS, bridge.slave_id)).value
         except ReadException:  # some inverters throw an IllegalAddress exception when accessing this address
             pass
 
         try:
-            has_power_meter = (
-                await bridge.client.get(rn.METER_STATUS, bridge.slave_id)
-            ).value == rv.MeterStatus.NORMAL
+            has_power_meter = (await bridge.client.get(rn.METER_STATUS, bridge.slave_id)).value == rv.MeterStatus.NORMAL
             if has_power_meter:
-                bridge.power_meter_type = (
-                    await bridge.client.get(rn.METER_TYPE, bridge.slave_id)
-                ).value
+                bridge.power_meter_type = (await bridge.client.get(rn.METER_TYPE, bridge.slave_id)).value
         except ReadException:
             pass
 
         try:
-            bridge.battery_1_type = (
-                await bridge.client.get(
-                    rn.STORAGE_UNIT_1_PRODUCT_MODEL, bridge.slave_id
-                )
-            ).value
+            bridge.battery_1_type = (await bridge.client.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL, bridge.slave_id)).value
         except ReadException:
             pass
         try:
-            bridge.battery_2_type = (
-                await bridge.client.get(
-                    rn.STORAGE_UNIT_2_PRODUCT_MODEL, bridge.slave_id
-                )
-            ).value
+            bridge.battery_2_type = (await bridge.client.get(rn.STORAGE_UNIT_2_PRODUCT_MODEL, bridge.slave_id)).value
         except ReadException:
             pass
 
@@ -165,28 +139,20 @@ class HuaweiSolarBridge:
             and bridge.battery_2_type != rv.StorageProductModel.NONE
             and bridge.battery_1_type != bridge.battery_2_type
         ):
-            _LOGGER.warning(
-                "Detected two batteries of a different type. This can lead to unexpected behavior"
-            )
+            _LOGGER.warning("Detected two batteries of a different type. This can lead to unexpected behavior")
 
     async def update(self) -> dict[str, Result]:
         """Receive an update for all (interesting) available registers"""
 
         async def _get_multiple_to_dict(names: list[str]) -> dict[str, Result]:
-            return dict(
-                zip(names, await self.client.get_multiple(names, self.slave_id))
-            )
+            return dict(zip(names, await self.client.get_multiple(names, self.slave_id)))
 
         # Only update one slave at a time
         async with self.update_lock:
             result = await _get_multiple_to_dict(INVERTER_REGISTERS)
 
             # State and Alarm registers can be combined with PV registers due to close proximity
-            result.update(
-                await _get_multiple_to_dict(
-                    STATE_AND_ALARM_REGISTERS + self._pv_registers
-                )
-            )
+            result.update(await _get_multiple_to_dict(STATE_AND_ALARM_REGISTERS + self._pv_registers))
 
             if self.has_optimizers:
                 result.update(await _get_multiple_to_dict(OPTIMIZER_REGISTERS))
@@ -194,12 +160,8 @@ class HuaweiSolarBridge:
             if self.power_meter_type is not None:
                 result.update(await _get_multiple_to_dict(POWER_METER_REGISTERS))
 
-            if (
-                self.battery_1_type
-                and self.battery_1_type != rv.StorageProductModel.NONE
-            ) or (
-                self.battery_2_type
-                and self.battery_2_type != rv.StorageProductModel.NONE
+            if (self.battery_1_type and self.battery_1_type != rv.StorageProductModel.NONE) or (
+                self.battery_2_type and self.battery_2_type != rv.StorageProductModel.NONE
             ):
                 result.update(await _get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
 
@@ -210,15 +172,11 @@ class HuaweiSolarBridge:
         Wraps `get_file` from `AsyncHuaweiSolar` in a retry-logic for when
         the login-sequence needs to be repeated.
         """
-        if (
-            self.__username and not self.__heartbeat_enabled
-        ):  # we must login again before trying to read the file
+        if self.__username and not self.__heartbeat_enabled:  # we must login again before trying to read the file
             logged_in = await self.login(self.__username, self.__password)
 
             if not logged_in:
-                _LOGGER.warning(
-                    "Could not login, reading file %x will probably fail.", file_type
-                )
+                _LOGGER.warning("Could not login, reading file %x will probably fail.", file_type)
 
         try:
             return await self.client.get_file(file_type, customized_data, self.slave_id)
@@ -230,9 +188,7 @@ class HuaweiSolarBridge:
                     _LOGGER.error("Could not login to read file %x .", file_type)
                     raise err
 
-                return await self.client.get_file(
-                    file_type, customized_data, self.slave_id
-                )
+                return await self.client.get_file(file_type, customized_data, self.slave_id)
 
             # we have no login-credentials available, pass on permission error
             raise err
@@ -268,9 +224,7 @@ class HuaweiSolarBridge:
         file_data = await self._read_file(OptimizerSystemInformationDataFile.FILE_TYPE)
         system_information_data = OptimizerSystemInformationDataFile(file_data)
 
-        return {
-            opt.optimizer_address: opt for opt in system_information_data.optimizers
-        }
+        return {opt.optimizer_address: opt for opt in system_information_data.optimizers}
 
     def _compute_pv_registers(self):
         """Get the registers for the PV strings which were detected from the inverter"""
@@ -336,9 +290,7 @@ class HuaweiSolarBridge:
         async def heartbeat():
             while self.__heartbeat_enabled:
                 try:
-                    self.__heartbeat_enabled = await self.client.heartbeat(
-                        self.slave_id
-                    )
+                    self.__heartbeat_enabled = await self.client.heartbeat(self.slave_id)
                     await asyncio.sleep(HEARTBEAT_INTERVAL)
                 except HuaweiSolarException as err:
                     _LOGGER.warning("Heartbeat stopped because of, %s", err)
@@ -350,15 +302,11 @@ class HuaweiSolarBridge:
     async def set(self, name: str, value):
         """Sets a register to a certain value."""
 
-        if (
-            self.__username and not self.__heartbeat_enabled
-        ):  # we must login again before trying to set the value
+        if self.__username and not self.__heartbeat_enabled:  # we must login again before trying to set the value
             logged_in = await self.login(self.__username, self.__password)
 
             if not logged_in:
-                _LOGGER.warning(
-                    "Could not login, setting, %s will probably fail.", name
-                )
+                _LOGGER.warning("Could not login, setting, %s will probably fail.", name)
 
         try:
             return await self.client.set(name, value, slave=self.slave_id)

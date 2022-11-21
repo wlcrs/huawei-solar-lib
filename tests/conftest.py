@@ -1,8 +1,7 @@
+from pymodbus.register_read_message import ReadHoldingRegistersResponse
 import pytest
 
 from huawei_solar.huawei_solar import AsyncHuaweiSolar
-from pymodbus.register_read_message import ReadHoldingRegistersResponse
-
 from huawei_solar.register_values import StorageProductModel
 
 MOCK_REGISTERS = {

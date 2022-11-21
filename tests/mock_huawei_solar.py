@@ -1,6 +1,7 @@
 import asyncio
 
 from huawei_solar import AsyncHuaweiSolar
+
 from .conftest import MOCK_REGISTERS
 
 

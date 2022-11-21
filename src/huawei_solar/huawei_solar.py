@@ -2,26 +2,20 @@
 Get production and status information from the Huawei Inverter using Modbus over TCP
 """
 import asyncio
+from collections import namedtuple
+from hashlib import sha256
 import hmac
 import logging
 import secrets
 import struct
 import typing as t
-from collections import namedtuple
-from hashlib import sha256
 
 import backoff
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
-from pymodbus.pdu import (
-    ExceptionResponse,
-    ModbusExceptions,
-    ModbusRequest,
-    ModbusResponse,
-)
-from pymodbus.transaction import ModbusRtuFramer, ModbusSocketFramer
+from pymodbus.pdu import ExceptionResponse, ModbusExceptions, ModbusRequest, ModbusResponse
 from pymodbus.utilities import checkCRC, computeCRC
 
 import huawei_solar.register_names as rn
@@ -100,9 +94,7 @@ class AsyncHuaweiSolar:
                 # inverter doesn't seem to support a battery
                 self.battery_type = None
             else:
-                LOGGER.exception(
-                    "Got error %s while trying to determine battery.", rerr
-                )
+                LOGGER.exception("Got error %s while trying to determine battery.", rerr)
                 raise rerr
 
     @classmethod
@@ -188,9 +180,7 @@ class AsyncHuaweiSolar:
         """Stop the modbus client."""
         await self._client.close()
 
-    async def _decode_response(
-        self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder
-    ):
+    async def _decode_response(self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder):
         """Decodes a modbus register and puts it into a Result object."""
         result = reg.decode(decoder, self)
 
@@ -218,53 +208,32 @@ class AsyncHuaweiSolar:
             raise ValueError("Did not recognize all register names")
 
         for idx in range(1, len(names)):
-            if (
-                registers[idx - 1].register + registers[idx - 1].length
-                > registers[idx].register
-            ):
+            if registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:
                 raise ValueError(
                     f"Requested registers must be in monotonically increasing order, "
                     f"but {registers[idx-1].register} + {registers[idx-1].length} > {registers[idx].register}!"
                 )
 
-            register_distance = (
-                registers[idx - 1].register
-                + registers[idx - 1].length
-                - registers[idx].register
-            )
+            register_distance = registers[idx - 1].register + registers[idx - 1].length - registers[idx].register
 
             if register_distance > 64:
-                raise ValueError(
-                    "Gap between requested registers is too large. Split it in two requests"
-                )
+                raise ValueError("Gap between requested registers is too large. Split it in two requests")
 
-        total_length = (
-            registers[-1].register + registers[-1].length - registers[0].register
-        )
+        total_length = registers[-1].register + registers[-1].length - registers[0].register
 
-        response = await self._read_registers(
-            registers[0].register, total_length, slave
-        )
+        response = await self._read_registers(registers[0].register, total_length, slave)
 
-        decoder = BinaryPayloadDecoder.fromRegisters(
-            response.registers, byteorder=Endian.Big, wordorder=Endian.Big
-        )
+        decoder = BinaryPayloadDecoder.fromRegisters(response.registers, byteorder=Endian.Big, wordorder=Endian.Big)
 
         result = [await self._decode_response(registers[0], decoder)]
         for idx in range(1, len(registers)):
-            skip_registers = registers[idx].register - (
-                registers[idx - 1].register + registers[idx - 1].length
-            )
-            decoder.skip_bytes(
-                skip_registers * 2
-            )  # registers are 16-bit, so we need to multiply by two
+            skip_registers = registers[idx].register - (registers[idx - 1].register + registers[idx - 1].length)
+            decoder.skip_bytes(skip_registers * 2)  # registers are 16-bit, so we need to multiply by two
             result.append(await self._decode_response(registers[idx], decoder))
 
         return result
 
-    async def _read_registers(
-        self, register: RegisterDefinition, length: int, slave: t.Optional[int]
-    ):
+    async def _read_registers(self, register: RegisterDefinition, length: int, slave: t.Optional[int]):
         """
         Async read register from device.
 
@@ -278,9 +247,7 @@ class AsyncHuaweiSolar:
         """
 
         def backoff_giveup(details):
-            raise ReadException(
-                f"Failed to read register {register} after {details['tries']} tries"
-            )
+            raise ReadException(f"Failed to read register {register} after {details['tries']} tries")
 
         @backoff.on_exception(
             backoff.expo,
@@ -336,22 +303,16 @@ class AsyncHuaweiSolar:
         async with self._communication_lock:
             LOGGER.debug("Reading register %s", register)
             result = await _do_read()
-            await asyncio.sleep(
-                self._cooldown_time
-            )  # throttle requests to prevent errors
+            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
             return result
 
-    async def get_file(
-        self, file_type, customized_data=None, slave: t.Optional[int] = None
-    ) -> bytes:
+    async def get_file(self, file_type, customized_data=None, slave: t.Optional[int] = None) -> bytes:
         """Reads a 'file' as defined by the 'Uploading Files'
         process described in 6.3.7.1 of the
         Solar Inverter Modbus Interface Definitions"""
 
         def backoff_giveup(details):
-            raise ReadException(
-                f"Failed to read file {file_type} after {details['tries']} tries"
-            )
+            raise ReadException(f"Failed to read file {file_type} after {details['tries']} tries")
 
         @backoff.on_exception(
             backoff.constant,
@@ -384,9 +345,7 @@ class AsyncHuaweiSolar:
         async def _do_read_file():
             # Start the upload
             start_upload_response = await _perform_request(
-                StartUploadModbusRequest(
-                    file_type, customized_data, slave=slave or self.slave
-                ),
+                StartUploadModbusRequest(file_type, customized_data, slave=slave or self.slave),
                 StartUploadModbusResponse,
             )
 
@@ -395,14 +354,12 @@ class AsyncHuaweiSolar:
 
             # Request the data in 'frames'
 
-            file_data = bytes()
+            file_data = b""
             next_frame_no = 0
 
             while (next_frame_no * data_frame_length) < file_length:
                 data_upload_response = await _perform_request(
-                    UploadModbusRequest(
-                        file_type, next_frame_no, slave=slave or self.slave
-                    ),
+                    UploadModbusRequest(file_type, next_frame_no, slave=slave or self.slave),
                     UploadModbusResponse,
                 )
 
@@ -430,9 +387,7 @@ class AsyncHuaweiSolar:
         async with self._communication_lock:
             LOGGER.debug("Reading file %#x", file_type)
             result = await _do_read_file()
-            await asyncio.sleep(
-                self._cooldown_time
-            )  # throttle requests to prevent errors
+            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
 
             return result
 
@@ -454,9 +409,7 @@ class AsyncHuaweiSolar:
             raise WriteException("Wrong number of registers to write")
 
         async with self._communication_lock:
-            response = await self.write_registers(
-                reg.register, builder.to_registers(), slave
-            )
+            response = await self.write_registers(reg.register, builder.to_registers(), slave)
             await asyncio.sleep(self._cooldown_time)
 
         return response.address == reg.register and response.count == reg.length
@@ -514,9 +467,7 @@ class AsyncHuaweiSolar:
         async def _do_login():
 
             # Get challenge
-            challenge_request = PrivateHuaweiModbusRequest(
-                36, bytes([1, 0]), slave=slave or self.slave
-            )
+            challenge_request = PrivateHuaweiModbusRequest(36, bytes([1, 0]), slave=slave or self.slave)
 
             challenge_response = await self._client.protocol.execute(challenge_request)
 
@@ -526,17 +477,11 @@ class AsyncHuaweiSolar:
             client_challenge = secrets.token_bytes(16)
 
             encoded_username = username.encode("utf-8")
-            hashed_password = _compute_digest(
-                password.encode("utf-8"), inverter_challenge
-            )
+            hashed_password = _compute_digest(password.encode("utf-8"), inverter_challenge)
 
             login_bytes = bytes(
                 [
-                    len(client_challenge)
-                    + 1
-                    + len(encoded_username)
-                    + 1
-                    + len(hashed_password),
+                    len(client_challenge) + 1 + len(encoded_username) + 1 + len(hashed_password),
                     *client_challenge,
                     len(encoded_username),
                     *encoded_username,
@@ -545,9 +490,7 @@ class AsyncHuaweiSolar:
                 ]
             )
             await asyncio.sleep(0.05)
-            login_request = PrivateHuaweiModbusRequest(
-                37, login_bytes, slave=slave or self.slave
-            )
+            login_request = PrivateHuaweiModbusRequest(37, login_bytes, slave=slave or self.slave)
             login_response = await self._client.protocol.execute(login_request)
 
             if login_response.content[1] == 0:
@@ -555,14 +498,9 @@ class AsyncHuaweiSolar:
                 # check if inverter returned the right hash of the password as well
                 inverter_mac_response_lengths = login_response.content[2]
 
-                inverter_mac_response = login_response.content[
-                    3 : 3 + inverter_mac_response_lengths
-                ]
+                inverter_mac_response = login_response.content[3 : 3 + inverter_mac_response_lengths]
 
-                if (
-                    not _compute_digest(password.encode("utf-8"), client_challenge)
-                    == inverter_mac_response
-                ):
+                if not _compute_digest(password.encode("utf-8"), client_challenge) == inverter_mac_response:
                     LOGGER.error(
                         "Inverter response contains an invalid challenge answer. This could indicate a MitM-attack!"
                     )
@@ -573,9 +511,7 @@ class AsyncHuaweiSolar:
         async with self._communication_lock:
             LOGGER.debug("Logging in")
             result = await _do_login()
-            await asyncio.sleep(
-                self._cooldown_time
-            )  # throttle requests to prevent errors
+            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
 
             return result
 
@@ -585,9 +521,7 @@ class AsyncHuaweiSolar:
             return False
         try:
             # 49999 is the magic register used to keep the connection alive
-            response = await self._client.protocol.write_register(
-                HEARTBEAT_REGISTER, 0x1, slave=slave_id or self.slave
-            )
+            response = await self._client.protocol.write_register(HEARTBEAT_REGISTER, 0x1, slave=slave_id or self.slave)
             if isinstance(response, ExceptionResponse):
                 LOGGER.warning(
                     "Received an error after sending the heartbeat command: %s",
@@ -611,7 +545,7 @@ class PrivateHuaweiModbusResponse(ModbusResponse):
         ModbusResponse.__init__(self, **kwargs)
 
         self.sub_command = None
-        self.content = bytes()
+        self.content = b""
 
     def decode(self, data):
         self.sub_command = int(data[0])
@@ -656,16 +590,13 @@ class StartUploadModbusRequest(ModbusRequest):
         self.file_type = file_type
 
         if customized_data is None:
-            self.customised_data = bytes()
+            self.customised_data = b""
         else:
             self.customised_data = customized_data
 
     def encode(self):
         data_length = 1 + len(self.customised_data)
-        return (
-            struct.pack(">BBB", self.sub_function_code, data_length, self.file_type)
-            + self.customised_data
-        )
+        return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type) + self.customised_data
 
     def decode(self, data):
         sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
@@ -675,9 +606,7 @@ class StartUploadModbusRequest(ModbusRequest):
         assert len(self.customised_data) == data_length - 1
 
 
-class StartUploadModbusResponse(
-    ModbusResponse
-):  # pylint: disable=too-few-public-methods
+class StartUploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-public-methods
     """
     Modbus Response to a file upload request
     """
@@ -714,14 +643,10 @@ class UploadModbusRequest(ModbusRequest):
 
     def encode(self):
         data_length = 3
-        return struct.pack(
-            ">BBBH", self.sub_function_code, data_length, self.file_type, self.frame_no
-        )
+        return struct.pack(">BBBH", self.sub_function_code, data_length, self.file_type, self.frame_no)
 
     def decode(self, data):
-        sub_function_code, data_length, self.file_type, self.frame_no = struct.unpack(
-            ">BBBH", data
-        )
+        sub_function_code, data_length, self.file_type, self.frame_no = struct.unpack(">BBBH", data)
 
         assert sub_function_code == self.sub_function_code
         assert data_length == 3
@@ -771,9 +696,7 @@ class CompleteUploadModbusRequest(ModbusRequest):
         assert data_length == 1
 
 
-class CompleteUploadModbusResponse(
-    ModbusResponse
-):  # pylint: disable=too-few-public-methods
+class CompleteUploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-public-methods
     """
     Modbus Response when a file upload has been completed
     """

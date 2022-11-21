@@ -1,10 +1,10 @@
 """File definitions from the Huawei inverter"""
 import binascii
-import logging
-import struct
 from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
+import logging
+import struct
 from typing import Optional
 
 from huawei_solar.exceptions import HuaweiSolarException
@@ -101,9 +101,7 @@ class OptimizerRealTimeDataFile:
         if len(file_data) < struct.calcsize(OptimizerRealTimeDataFile.HEADER):
             return
 
-        self.file_version = struct.unpack_from(
-            OptimizerRealTimeDataFile.HEADER, file_data, offset
-        )
+        self.file_version = struct.unpack_from(OptimizerRealTimeDataFile.HEADER, file_data, offset)
         offset += struct.calcsize(OptimizerRealTimeDataFile.HEADER)
 
         has_next_optimizer_data_unit = True
@@ -113,9 +111,7 @@ class OptimizerRealTimeDataFile:
                 time,
                 length,  # pylint: disable=unused-variable
                 number_of_optimizers,
-            ) = struct.unpack_from(
-                OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT, file_data, offset
-            )
+            ) = struct.unpack_from(OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT, file_data, offset)
             offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT)
 
             optimizers = []
@@ -132,9 +128,7 @@ class OptimizerRealTimeDataFile:
                     temperature,
                     running_status,
                     accumulated_energy_yield,
-                ) = struct.unpack_from(
-                    OptimizerRealTimeDataFile.OPTIMIZER_DATA, file_data, offset
-                )
+                ) = struct.unpack_from(OptimizerRealTimeDataFile.OPTIMIZER_DATA, file_data, offset)
                 offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA)
 
                 alarms = []
@@ -159,9 +153,7 @@ class OptimizerRealTimeDataFile:
                 )
 
             self.data_units.append(
-                OptimizerHistoryRealTimeDataUnit(
-                    datetime.fromtimestamp(time, tz=get_local_timezone()), optimizers
-                )
+                OptimizerHistoryRealTimeDataUnit(datetime.fromtimestamp(time, tz=get_local_timezone()), optimizers)
             )
 
             has_next_optimizer_data_unit = offset < len(file_data)
@@ -202,9 +194,7 @@ class OptimizerSystemInformation:
     optimizer_address: int
     online_status: OptimizerOnlineStatus
     string_number: int
-    position_in_current_string: Optional[
-        int
-    ]  # relative position connection starting point
+    position_in_current_string: Optional[int]  # relative position connection starting point
     sn: str  # pylint: disable=invalid-name
     software_version: str
     alias: str
@@ -240,9 +230,7 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
             length,
             reserved,
             number_of_optimizers,
-        ) = struct.unpack_from(
-            OptimizerSystemInformationDataFile.HEADER, file_data, offset
-        )
+        ) = struct.unpack_from(OptimizerSystemInformationDataFile.HEADER, file_data, offset)
         offset += struct.calcsize(OptimizerSystemInformationDataFile.HEADER)
 
         if self.file_version != b"V102":
@@ -263,18 +251,14 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
                 file_data,
                 offset,
             )
-            offset += struct.calcsize(
-                OptimizerSystemInformationDataFile.OPTIMIZER_FEATURE_DATA
-            )
+            offset += struct.calcsize(OptimizerSystemInformationDataFile.OPTIMIZER_FEATURE_DATA)
 
             self.optimizers.append(
                 OptimizerSystemInformation(
                     optimizer_address,
                     OptimizerOnlineStatus(online_status),
                     string_number,
-                    position_in_current_string
-                    if position_in_current_string != 0xFFFF
-                    else None,
+                    position_in_current_string if position_in_current_string != 0xFFFF else None,
                     _to_string(sn),
                     _to_string(software_version),
                     _to_string(alias),
