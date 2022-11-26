@@ -34,6 +34,8 @@ LOGGER = logging.getLogger(__name__)
 
 Result = namedtuple("Result", "value unit")
 
+RECONNECT_DELAY = 1000  # in milliseconds
+
 DEFAULT_SLAVE = 0
 DEFAULT_TIMEOUT = 5
 DEFAULT_WAIT = 1
@@ -162,6 +164,7 @@ class AsyncHuaweiSolar:
         client = AsyncModbusSerialClient(
             port,
             **serial_kwargs,
+            reconnect_delay=RECONNECT_DELAY,
         )
         client.register(PrivateHuaweiModbusResponse)
         return client
@@ -172,6 +175,7 @@ class AsyncHuaweiSolar:
         client = AsyncModbusTcpClient(
             host,
             port,
+            reconnect_delay=RECONNECT_DELAY,
         )
         client.register(PrivateHuaweiModbusResponse)
         return client
@@ -253,7 +257,7 @@ class AsyncHuaweiSolar:
             backoff.expo,
             (asyncio.TimeoutError, SlaveBusyException),
             base=2,
-            max_tries=10,
+            max_tries=6,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
                 "Backing off reading for %0.1f seconds after %d tries",
@@ -455,7 +459,7 @@ class AsyncHuaweiSolar:
             backoff.expo,
             (asyncio.TimeoutError, SlaveBusyException),
             base=2,
-            max_tries=10,
+            max_tries=4,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
                 "Backing off reading for %0.1f seconds after %d tries",
