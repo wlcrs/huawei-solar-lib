@@ -283,23 +283,26 @@ class TimeOfUsePeriodsValidator():
                 raise TimeOfUsePeriodsException('TOU period is invalid (Spans over more than one day)')
             if tou_period.start_time >= tou_period.end_time:
                 raise TimeOfUsePeriodsException('TOU period is invalid (start-time is greater than end-time)')
-            self._validate_day(day_index, tou_period)
+            if self._tou_period_is_effective(tou_period=tou_period, day_index=day_index):
+                self._validate_day(day_index, tou_period, self._days[day_index])
 
-    def _validate_day(self, day_index, tou_period):
-        start = self._zero_date + timedelta(minutes=tou_period.start_time)
-        end = self._zero_date + timedelta(minutes=tou_period.end_time)
+    def _tou_period_is_effective(self, tou_period, day_index):
         if self._data_type is HUAWEI_LUNA2000_TimeOfUsePeriod:
             if tou_period.days_effective[day_index] is True:
-                self._validate_day_period(start, end, day_index)
-                self._days[day_index].append((start, end))
+                return True
         elif self._data_type is LG_RESU_TimeOfUsePeriod:
-            self._validate_day_period(start, end, day_index)
-            self._days[day_index].append((start, end))
+            return True
         else:
             raise TimeOfUsePeriodsException('TOU period is of an unexpected type')
 
-    def _validate_day_period(self, start, end, day_index):
-        for (existing_start, existing_end) in self._days[day_index]:
+    def _validate_day(self, day_index, tou_period, existing_day_periods):
+        start = self._zero_date + timedelta(minutes=tou_period.start_time)
+        end = self._zero_date + timedelta(minutes=tou_period.end_time)
+        self._validate_day_period(start, end, existing_day_periods)
+        existing_day_periods.append((start, end))
+
+    def _validate_day_period(self, start, end, existing_day_periods):
+        for (existing_start, existing_end) in existing_day_periods:
             if existing_start <= start <= existing_end or existing_start <= end <= existing_end:
                 raise TimeOfUsePeriodsException('TOU periods are overlapping')
 
