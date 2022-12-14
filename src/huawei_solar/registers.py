@@ -290,19 +290,17 @@ class TimeOfUsePeriodsValidator():
         end = self._zero_date + timedelta(minutes=tou_period.end_time)
         if self._data_type is HUAWEI_LUNA2000_TimeOfUsePeriod:
             if tou_period.days_effective[day_index] is True:
-                self._validate_day_periods(start, end, day_index)
+                self._validate_day_period(start, end, day_index)
                 self._days[day_index].append((start, end))
         elif self._data_type is LG_RESU_TimeOfUsePeriod:
-            self._validate_day_periods(start, end, day_index)
+            self._validate_day_period(start, end, day_index)
             self._days[day_index].append((start, end))
         else:
             raise TimeOfUsePeriodsException('TOU period is of an unexpected type')
 
-    def _validate_day_periods(self, start, end, day_index):
+    def _validate_day_period(self, start, end, day_index):
         for (existing_start, existing_end) in self._days[day_index]:
-            if start >= existing_start and start <= existing_end:
-                raise TimeOfUsePeriodsException('TOU periods are overlapping')
-            if end >= existing_start and end <= existing_end:
+            if existing_start <= start <= existing_end or existing_start <= end <= existing_end:
                 raise TimeOfUsePeriodsException('TOU periods are overlapping')
 
 
