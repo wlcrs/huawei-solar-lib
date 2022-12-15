@@ -1,7 +1,7 @@
 """Register definitions from the Huawei inverter"""
 
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from functools import partial
 from inspect import isclass
@@ -9,7 +9,7 @@ import typing as t
 
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
 
-from huawei_solar.exceptions import DecodeError, EncodeError, WriteException, TimeOfUsePeriodsException
+from huawei_solar.exceptions import DecodeError, EncodeError, TimeOfUsePeriodsException, WriteException
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
 
@@ -250,7 +250,7 @@ LG_RESU_TOU_PERIODS = 10
 HUAWEI_LUNA2000_TOU_PERIODS = 14
 
 
-class TimeOfUsePeriodsValidator():
+class TimeOfUsePeriodsValidator:
     """Validates a list of TimeOfUse periods"""
 
     def __init__(self, tou_periods: list):
@@ -262,7 +262,7 @@ class TimeOfUsePeriodsValidator():
     @property
     def data_type(self):
         if self._data_type is None:
-            raise TimeOfUsePeriodsException('Execute validate function to be able to read the TOU data type')
+            raise TimeOfUsePeriodsException("Execute validate function to be able to read the TOU data type")
         return self._data_type
 
     def validate(self):
@@ -270,7 +270,7 @@ class TimeOfUsePeriodsValidator():
         self._data_type = data_types.pop() if len(data_types) == 1 else None
 
         if self._data_type is None:
-            raise TimeOfUsePeriodsException('TOU periods cannot be of different types')
+            raise TimeOfUsePeriodsException("TOU periods cannot be of different types")
 
         for tou_period in self._tou_periods:
             self._validate_tou_period(tou_period)
@@ -278,11 +278,11 @@ class TimeOfUsePeriodsValidator():
     def _validate_tou_period(self, tou_period):
         for day_index in range(len(self._days)):
             if tou_period.start_time < 0 or tou_period.end_time < 0:
-                raise TimeOfUsePeriodsException('TOU period is invalid (Below zero)')
+                raise TimeOfUsePeriodsException("TOU period is invalid (Below zero)")
             if tou_period.start_time > 24 * 60 or tou_period.end_time > 24 * 60:
-                raise TimeOfUsePeriodsException('TOU period is invalid (Spans over more than one day)')
+                raise TimeOfUsePeriodsException("TOU period is invalid (Spans over more than one day)")
             if tou_period.start_time >= tou_period.end_time:
-                raise TimeOfUsePeriodsException('TOU period is invalid (start-time is greater than end-time)')
+                raise TimeOfUsePeriodsException("TOU period is invalid (start-time is greater than end-time)")
             if self._tou_period_is_effective(tou_period=tou_period, day_index=day_index):
                 self._validate_day(day_index, tou_period, self._days[day_index])
 
@@ -293,7 +293,7 @@ class TimeOfUsePeriodsValidator():
         elif self._data_type is LG_RESU_TimeOfUsePeriod:
             return True
         else:
-            raise TimeOfUsePeriodsException('TOU period is of an unexpected type')
+            raise TimeOfUsePeriodsException("TOU period is of an unexpected type")
 
     def _validate_day(self, day_index, tou_period, existing_day_periods):
         start = self._zero_date + timedelta(minutes=tou_period.start_time)
@@ -304,7 +304,7 @@ class TimeOfUsePeriodsValidator():
     def _validate_day_period(self, start, end, existing_day_periods):
         for (existing_start, existing_end) in existing_day_periods:
             if existing_start <= start <= existing_end or existing_start <= end <= existing_end:
-                raise TimeOfUsePeriodsException('TOU periods are overlapping')
+                raise TimeOfUsePeriodsException("TOU periods are overlapping")
 
 
 class TimeOfUseRegisters(RegisterDefinition):
@@ -339,9 +339,7 @@ class TimeOfUseRegisters(RegisterDefinition):
             return self.encode_huawei_luna2000(data=data, builder=builder)
         if tou_validator.data_type is LG_RESU_TimeOfUsePeriod:
             return self.encode_lg_resu(data=data, builder=builder)
-        raise EncodeError(
-            "Invalid dataclass to encode for TOU Registers.", tou_validator.data_type
-        )
+        raise EncodeError("Invalid dataclass to encode for TOU Registers.", tou_validator.data_type)
 
     def encode_lg_resu(self, data: list[LG_RESU_TimeOfUsePeriod], builder: BinaryPayloadBuilder):
         assert len(data) <= LG_RESU_TOU_PERIODS
