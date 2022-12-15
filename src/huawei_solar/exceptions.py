@@ -11,6 +11,14 @@ class DecodeError(HuaweiSolarException):
     """Decoding failed."""
 
 
+class EncodeError(HuaweiSolarException):
+    """Encoding failed."""
+
+
+class TimeOfUsePeriodsException(HuaweiSolarException):
+    """Validation of TOU periods failed."""
+
+
 class ConnectionException(HuaweiSolarException):
     """Exception connecting to device"""
 
