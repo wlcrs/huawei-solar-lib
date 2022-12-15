@@ -502,3 +502,10 @@ ALARM_CODES_3 = {
     0b0000_0000_1000_0000: Alarm("Internal Fan Abnormal", 2087, "Major"),
     0b0000_0001_0000_0000: Alarm("DC Protection Unit Abnormal", 2088, "Major"),
 }
+
+
+class StorageCapacityControlMode(IntEnum):
+    """Storage Capacity Control Mode"""
+
+    DISABLE = 0
+    ACTIVE_CAPACITY_CONTROL = 1

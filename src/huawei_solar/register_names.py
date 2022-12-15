@@ -274,3 +274,7 @@ STORAGE_UNIT_1_PACK_3_NO = "storage_unit_1_pack_3_no"
 STORAGE_UNIT_2_PACK_1_NO = "storage_unit_2_pack_1_no"
 STORAGE_UNIT_2_PACK_2_NO = "storage_unit_2_pack_2_no"
 STORAGE_UNIT_2_PACK_3_NO = "storage_unit_2_pack_3_no"
+
+STORAGE_CAPACITY_CONTROL_MODE = "storage_capacity_control_mode"
+STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING = "storage_capacity_control_soc_peak_shaving"
+STORAGE_CAPACITY_CONTROL_PERIODS = "storage_capacity_control_periods"

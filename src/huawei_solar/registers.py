@@ -342,6 +342,7 @@ class TimeOfUseRegisters(RegisterDefinition):
             builder.add_16bit_uint(0)
 
 
+@dataclass
 class ChargeDischargePeriod:
     start_time: int  # minutes sinds midnight
     end_time: int  # minutes sinds midnight
@@ -382,6 +383,81 @@ class ChargeDischargePeriodRegisters(RegisterDefinition):
             builder.add_16bit_uint(0)
             builder.add_16bit_uint(0)
             builder.add_32bit_uint(0)
+
+
+@dataclass
+class PeakSettingPeriod:
+    start_time: int  # minutes sinds midnight
+    end_time: int  # minutes sinds midnight
+    power: int  # power in watts
+    days_effective: t.Tuple[bool, bool, bool, bool, bool, bool, bool]  # Valid on days Sunday to
+
+
+PEAK_SETTING_PERIODS = 14
+
+
+def _days_effective_builder(days_tuple):
+    result = 0
+    mask = 0x1
+    for i in range(7):
+        if days_tuple[i]:
+            result += mask
+        mask = mask << 1
+
+    return result
+
+
+def _days_effective_parser(value):
+    result = []
+    mask = 0x1
+    for _ in range(7):
+        result.append((value & mask) != 0)
+        mask = mask << 1
+
+    return tuple(result)
+
+
+class PeakSettingPeriodRegisters(RegisterDefinition):
+    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar") -> list[PeakSettingPeriod]:
+        number_of_periods = decoder.decode_16bit_uint()
+
+        # Safety check
+        if number_of_periods > PEAK_SETTING_PERIODS:
+            number_of_periods = PEAK_SETTING_PERIODS
+
+        periods = []
+        for _ in range(number_of_periods):
+
+            start_time, end_time, peak_value, week_value = (
+                decoder.decode_16bit_uint(),
+                decoder.decode_16bit_uint(),
+                decoder.decode_32bit_int(),
+                decoder.decode_8bit_uint(),
+            )
+
+            if start_time != end_time and week_value != 0:
+                periods.append(PeakSettingPeriod(start_time, end_time, peak_value, _days_effective_parser(week_value)))
+
+        return periods[:number_of_periods]
+
+    def encode(self, data: list[PeakSettingPeriod], builder: BinaryPayloadBuilder):
+        if len(data) > PEAK_SETTING_PERIODS:
+            data = data[:PEAK_SETTING_PERIODS]
+
+        builder.add_16bit_uint(len(data))
+
+        for period in data:
+            builder.add_16bit_uint(period.start_time),
+            builder.add_16bit_uint(period.end_time),
+            builder.add_32bit_uint(period.power)
+            builder.add_8bit_uint(_days_effective_builder(period.days_effective))
+
+        # pad with empty periods
+        for _ in range(len(data), PEAK_SETTING_PERIODS):
+            builder.add_16bit_uint(0)
+            builder.add_16bit_uint(0)
+            builder.add_32bit_uint(0)
+            builder.add_8bit_uint(0)
 
 
 REGISTERS: dict[str, RegisterDefinition] = {
@@ -654,6 +730,11 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_2_PACK_1_NO: U16Register(None, 1, 47753, 1),
     rn.STORAGE_UNIT_2_PACK_2_NO: U16Register(None, 1, 47754, 1),
     rn.STORAGE_UNIT_2_PACK_3_NO: U16Register(None, 1, 47755, 1),
+    # We must check if we can read from these registers to know if this feature is supported
+    # by the inverter/battery firmware
+    rn.STORAGE_CAPACITY_CONTROL_MODE: U16Register(rv.StorageCapacityControlMode, 1, 47954, 1),
+    rn.STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING: U16Register("%", 10, 47955, 1, writeable=True),
+    rn.STORAGE_CAPACITY_CONTROL_PERIODS: PeakSettingPeriodRegisters(47956, 64, writeable=True),
 }
 
 REGISTERS.update(BATTERY_REGISTERS)
