@@ -303,7 +303,7 @@ class TimeOfUsePeriodsValidator:
 
     def _validate_day_period(self, start, end, existing_day_periods):
         for (existing_start, existing_end) in existing_day_periods:
-            if existing_start <= start <= existing_end or existing_start <= end <= existing_end:
+            if existing_start <= start < existing_end or existing_start < end <= existing_end:
                 raise TimeOfUsePeriodsException("TOU periods are overlapping")
 
 
