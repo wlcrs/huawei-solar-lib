@@ -47,6 +47,7 @@ class HuaweiSolarBridge:
         self.has_optimizers = False
         self.battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
         self.battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
+        self.supports_capacity_control = False
         self.power_meter_type: t.Optional[rv.MeterType] = None
 
         self._pv_registers = None
@@ -140,6 +141,13 @@ class HuaweiSolarBridge:
         ):
             _LOGGER.warning("Detected two batteries of a different type. This can lead to unexpected behavior")
 
+        if bridge.battery_type != rv.StorageProductModel.NONE:
+            try:
+                await bridge.client.get(rn.STORAGE_CAPACITY_CONTROL_MODE, bridge.slave_id)
+                bridge.supports_capacity_control = True
+            except ReadException:
+                pass
+
     async def update(self) -> dict[str, Result]:
         """Receive an update for all (interesting) available registers"""
 
@@ -159,9 +167,7 @@ class HuaweiSolarBridge:
             if self.power_meter_type is not None:
                 result.update(await _get_multiple_to_dict(POWER_METER_REGISTERS))
 
-            if (self.battery_1_type and self.battery_1_type != rv.StorageProductModel.NONE) or (
-                self.battery_2_type and self.battery_2_type != rv.StorageProductModel.NONE
-            ):
+            if self.battery_type != rv.StorageProductModel.NONE:
                 result.update(await _get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
 
         return result
@@ -321,6 +327,13 @@ class HuaweiSolarBridge:
 
             # we have no login-credentials available, pass on permission error
             raise err
+
+    @property
+    def battery_type(self) -> rv.StorageProductModel:
+        if self.battery_1_type != rv.StorageProductModel.NONE:
+            return self.battery_1_type
+        else:
+            return self.battery_2_type
 
 
 # Registers which should always be read

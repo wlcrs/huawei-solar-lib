@@ -797,6 +797,10 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_2_PACK_1_NO: U16Register(None, 1, 47753, 1),
     rn.STORAGE_UNIT_2_PACK_2_NO: U16Register(None, 1, 47754, 1),
     rn.STORAGE_UNIT_2_PACK_3_NO: U16Register(None, 1, 47755, 1),
+}
+REGISTERS.update(BATTERY_REGISTERS)
+
+CAPACITY_CONTROL_REGISTERS = {
     # We must check if we can read from these registers to know if this feature is supported
     # by the inverter/battery firmware
     rn.STORAGE_CAPACITY_CONTROL_MODE: U16Register(rv.StorageCapacityControlMode, 1, 47954, 1),
@@ -804,7 +808,7 @@ BATTERY_REGISTERS = {
     rn.STORAGE_CAPACITY_CONTROL_PERIODS: PeakSettingPeriodRegisters(47956, 64, writeable=True),
 }
 
-REGISTERS.update(BATTERY_REGISTERS)
+REGISTERS.update(CAPACITY_CONTROL_REGISTERS)
 
 METER_REGISTERS = {
     rn.METER_STATUS: U16Register(rv.MeterStatus, 1, 37100, 1),
