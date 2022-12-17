@@ -148,28 +148,41 @@ class HuaweiSolarBridge:
             except ReadException:
                 pass
 
+    async def _get_multiple_to_dict(self, names: list[str]) -> dict[str, Result]:
+        return dict(zip(names, await self.client.get_multiple(names, self.slave_id)))
+
     async def update(self) -> dict[str, Result]:
         """Receive an update for all (interesting) available registers"""
 
-        async def _get_multiple_to_dict(names: list[str]) -> dict[str, Result]:
-            return dict(zip(names, await self.client.get_multiple(names, self.slave_id)))
-
         # Only update one slave at a time
         async with self.update_lock:
-            result = await _get_multiple_to_dict(INVERTER_REGISTERS)
+            result = await self._get_multiple_to_dict(INVERTER_REGISTERS)
 
             # State and Alarm registers can be combined with PV registers due to close proximity
-            result.update(await _get_multiple_to_dict(STATE_AND_ALARM_REGISTERS + self._pv_registers))
+            result.update(await self._get_multiple_to_dict(STATE_AND_ALARM_REGISTERS + self._pv_registers))
 
             if self.has_optimizers:
-                result.update(await _get_multiple_to_dict(OPTIMIZER_REGISTERS))
+                result.update(await self._get_multiple_to_dict(OPTIMIZER_REGISTERS))
 
             if self.power_meter_type is not None:
-                result.update(await _get_multiple_to_dict(POWER_METER_REGISTERS))
+                result.update(await self._get_multiple_to_dict(POWER_METER_REGISTERS))
 
             if self.battery_type != rv.StorageProductModel.NONE:
-                result.update(await _get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
+                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
 
+        return result
+
+    async def update_configuration_registers(self):
+        """Receive an update for all configurable registers"""
+
+        result = {}
+        async with self.update_lock:
+            if self.battery_type != rv.StorageProductModel.NONE:
+                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_1))
+                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_2))
+                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_3))
+            if self.supports_capacity_control:
+                result.update(await self._get_multiple_to_dict(CAPACITY_CONTROL_REGISTERS))
         return result
 
     async def _read_file(self, file_type, customized_data=None) -> bytes:
@@ -412,4 +425,34 @@ ENERGY_STORAGE_REGISTERS = [
     rn.STORAGE_TOTAL_DISCHARGE,
     rn.STORAGE_CURRENT_DAY_CHARGE_CAPACITY,
     rn.STORAGE_CURRENT_DAY_DISCHARGE_CAPACITY,
+]
+
+# Covers registers 47075 - 47088 (maximum would be 47139)
+ENERGY_STORAGE_CONFIGURATION_PARAMETERS_1 = [
+    rn.STORAGE_MAXIMUM_CHARGING_POWER,
+    rn.STORAGE_MAXIMUM_DISCHARGING_POWER,
+    rn.STORAGE_CHARGING_CUTOFF_CAPACITY,
+    rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY,
+    rn.STORAGE_WORKING_MODE_SETTINGS,
+    rn.STORAGE_CHARGE_FROM_GRID_FUNCTION,
+    rn.STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE,
+]
+
+# Covers registers 47200 - 47244 (maximum would be 47264)
+ENERGY_STORAGE_CONFIGURATION_PARAMETERS_2 = [
+    rn.STORAGE_FIXED_CHARGING_AND_DISCHARGING_PERIODS,
+    rn.STORAGE_POWER_OF_CHARGE_FROM_GRID,
+    rn.STORAGE_MAXIMUM_POWER_OF_CHARGE_FROM_GRID,
+]
+
+# Covers register 47255 - 47299 (maximum would be 47319)
+ENERGY_STORAGE_CONFIGURATION_PARAMETERS_3 = [
+    rn.STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS,
+    rn.STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU,
+]
+
+CAPACITY_CONTROL_REGISTERS = [
+    rn.STORAGE_CAPACITY_CONTROL_MODE,
+    rn.STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING,
+    rn.STORAGE_CAPACITY_CONTROL_PERIODS,
 ]
