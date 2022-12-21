@@ -19,6 +19,10 @@ class TimeOfUsePeriodsException(HuaweiSolarException):
     """Validation of TOU periods failed."""
 
 
+class PeakPeriodsValidationError(Exception):
+    """Validation of Peak Periods failed."""
+
+
 class ConnectionException(HuaweiSolarException):
     """Exception connecting to device"""
 

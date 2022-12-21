@@ -1,7 +1,7 @@
 """Register definitions from the Huawei inverter"""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import IntEnum
 from functools import partial
 from inspect import isclass
@@ -9,7 +9,13 @@ import typing as t
 
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
 
-from huawei_solar.exceptions import DecodeError, EncodeError, TimeOfUsePeriodsException, WriteException
+from huawei_solar.exceptions import (
+    DecodeError,
+    EncodeError,
+    PeakPeriodsValidationError,
+    TimeOfUsePeriodsException,
+    WriteException,
+)
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
 
@@ -250,63 +256,6 @@ LG_RESU_TOU_PERIODS = 10
 HUAWEI_LUNA2000_TOU_PERIODS = 14
 
 
-class TimeOfUsePeriodsValidator:
-    """Validates a list of TimeOfUse periods"""
-
-    def __init__(self, tou_periods: list):
-        self._days = [[], [], [], [], [], [], []]
-        self._tou_periods = tou_periods
-        self._zero_date = datetime(year=1, month=1, day=1, hour=0, minute=0, second=0)
-        self._data_type = None
-
-    @property
-    def data_type(self):
-        if self._data_type is None:
-            raise TimeOfUsePeriodsException("Execute validate function to be able to read the TOU data type")
-        return self._data_type
-
-    def validate(self):
-        data_types = set(map(lambda x: type(x), self._tou_periods))
-        self._data_type = data_types.pop() if len(data_types) == 1 else None
-
-        if self._data_type is None:
-            raise TimeOfUsePeriodsException("TOU periods cannot be of different types")
-
-        for tou_period in self._tou_periods:
-            self._validate_tou_period(tou_period)
-
-    def _validate_tou_period(self, tou_period):
-        for day_index in range(len(self._days)):
-            if tou_period.start_time < 0 or tou_period.end_time < 0:
-                raise TimeOfUsePeriodsException("TOU period is invalid (Below zero)")
-            if tou_period.start_time > 24 * 60 or tou_period.end_time > 24 * 60:
-                raise TimeOfUsePeriodsException("TOU period is invalid (Spans over more than one day)")
-            if tou_period.start_time >= tou_period.end_time:
-                raise TimeOfUsePeriodsException("TOU period is invalid (start-time is greater than end-time)")
-            if self._tou_period_is_effective(tou_period=tou_period, day_index=day_index):
-                self._validate_day(day_index, tou_period, self._days[day_index])
-
-    def _tou_period_is_effective(self, tou_period, day_index):
-        if self._data_type is HUAWEI_LUNA2000_TimeOfUsePeriod:
-            if tou_period.days_effective[day_index] is True:
-                return True
-        elif self._data_type is LG_RESU_TimeOfUsePeriod:
-            return True
-        else:
-            raise TimeOfUsePeriodsException("TOU period is of an unexpected type")
-
-    def _validate_day(self, day_index, tou_period, existing_day_periods):
-        start = self._zero_date + timedelta(minutes=tou_period.start_time)
-        end = self._zero_date + timedelta(minutes=tou_period.end_time)
-        self._validate_day_period(start, end, existing_day_periods)
-        existing_day_periods.append((start, end))
-
-    def _validate_day_period(self, start, end, existing_day_periods):
-        for (existing_start, existing_end) in existing_day_periods:
-            if existing_start <= start < existing_end or existing_start < end <= existing_end:
-                raise TimeOfUsePeriodsException("TOU periods are overlapping")
-
-
 class TimeOfUseRegisters(RegisterDefinition):
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         if inverter.battery_type == rv.StorageProductModel.LG_RESU:
@@ -331,15 +280,81 @@ class TimeOfUseRegisters(RegisterDefinition):
 
         return periods[:number_of_periods]
 
-    def encode(self, data: list, builder: BinaryPayloadBuilder):
-        tou_validator = TimeOfUsePeriodsValidator(data)
-        tou_validator.validate()
+    def _validate(self, data: t.Union[list[HUAWEI_LUNA2000_TimeOfUsePeriod], list[LG_RESU_TimeOfUsePeriod]]):
+        # validate data type
 
-        if tou_validator.data_type is HUAWEI_LUNA2000_TimeOfUsePeriod:
+        if len(data) == 0:
+            return  # nothing to check
+
+        if len({type(period) for period in data}) != 1:
+            raise TimeOfUsePeriodsException("TOU periods cannot be of different types")
+
+        # Sanity check of each period individually
+        for tou_period in data:
+            if tou_period.start_time < 0 or tou_period.end_time < 0:
+                raise TimeOfUsePeriodsException("TOU period is invalid (Below zero)")
+            if tou_period.start_time > 24 * 60 or tou_period.end_time > 24 * 60:
+                raise TimeOfUsePeriodsException("TOU period is invalid (Spans over more than one day)")
+            if tou_period.start_time >= tou_period.end_time:
+                raise TimeOfUsePeriodsException("TOU period is invalid (start-time is greater than end-time)")
+
+        if isinstance(data[0], HUAWEI_LUNA2000_TimeOfUsePeriod):
+            return self._validate_huawei_luna2000(data)
+        elif isinstance(data[0], LG_RESU_TimeOfUsePeriod):
+            return self._validate_lg_resu(data)
+        else:
+            raise TimeOfUsePeriodsException("TOU period is of an unexpected type")
+
+    def _validate_huawei_luna2000(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod]):
+        # Sanity checks between periods
+
+        for day_idx in range(0, 7):
+            # find all ranges that are valid for the given day
+            active_periods: list[HUAWEI_LUNA2000_TimeOfUsePeriod] = list(
+                filter(lambda period: period.days_effective[day_idx], data)
+            )
+
+            active_periods.sort(key=lambda a: a.start_time)
+
+            for period_idx in range(1, len(active_periods)):
+                current_period = active_periods[period_idx]
+                prev_period = active_periods[period_idx - 1]
+                if (
+                    prev_period.start_time <= current_period.start_time < prev_period.end_time
+                    or prev_period.start_time < current_period.end_time <= prev_period.end_time
+                ):
+                    raise TimeOfUsePeriodsException("TOU periods are overlapping")
+
+    def _validate_lg_resu(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod]):
+        # Sanity checks between periods
+
+        # make a copy of the data to sort
+        sorted_periods: list[HUAWEI_LUNA2000_TimeOfUsePeriod] = data.copy()
+
+        sorted_periods.sort(key=lambda a: a.start_time)
+
+        for period_idx in range(1, len(sorted_periods)):
+            current_period = sorted_periods[period_idx]
+            prev_period = sorted_periods[period_idx - 1]
+            if (
+                prev_period.start_time <= current_period.start_time < prev_period.end_time
+                or prev_period.start_time < current_period.end_time <= prev_period.end_time
+            ):
+                raise TimeOfUsePeriodsException("TOU periods are overlapping")
+
+    def encode(
+        self,
+        data: t.Union[list[HUAWEI_LUNA2000_TimeOfUsePeriod], list[LG_RESU_TimeOfUsePeriod]],
+        builder: BinaryPayloadBuilder,
+    ):
+        self._validate(data)
+
+        if len(data) == 0 or isinstance(data[0], HUAWEI_LUNA2000_TimeOfUsePeriod):
             return self.encode_huawei_luna2000(data=data, builder=builder)
-        if tou_validator.data_type is LG_RESU_TimeOfUsePeriod:
+        elif isinstance(data[0], LG_RESU_TimeOfUsePeriod):
             return self.encode_lg_resu(data=data, builder=builder)
-        raise EncodeError("Invalid dataclass to encode for TOU Registers.", tou_validator.data_type)
+        else:
+            raise EncodeError(f"Invalid dataclass to encode for TOU Registers: {type(data[0])}")
 
     def encode_lg_resu(self, data: list[LG_RESU_TimeOfUsePeriod], builder: BinaryPayloadBuilder):
         assert len(data) <= LG_RESU_TOU_PERIODS
@@ -506,6 +521,33 @@ class PeakSettingPeriodRegisters(RegisterDefinition):
                 periods.append(PeakSettingPeriod(start_time, end_time, peak_value, _days_effective_parser(week_value)))
 
         return periods[:number_of_periods]
+
+    def _validate(self, data: list[PeakSettingPeriod]):
+
+        for day_idx in range(0, 7):
+            # find all ranges that are valid for the given day
+            active_periods: list[PeakSettingPeriod] = list(filter(lambda period: period.days_effective[day_idx], data))
+
+            if not len(active_periods):
+                raise PeakPeriodsValidationError("All days of the week need to be covered")
+
+            # require full day to be covered
+            active_periods.sort(key=lambda a: a.start_time)
+
+            if active_periods[0].start_time != 0:
+                raise PeakPeriodsValidationError("Every day must be covered from 00:00")
+
+            for period_idx in range(1, len(active_periods)):
+                current_period = active_periods[period_idx]
+                prev_period = active_periods[period_idx - 1]
+                if (
+                    prev_period.end_time != current_period.start_time
+                    and prev_period.end_time + 1 != current_period.start_time
+                ):
+                    raise PeakPeriodsValidationError("All moments of each day need to be covered")
+
+            if active_periods[-1].end_time not in ((24 * 60) - 1, 24 * 60):
+                raise PeakPeriodsValidationError("Every day must be covered until 23:59")
 
     def encode(self, data: list[PeakSettingPeriod], builder: BinaryPayloadBuilder):
         if len(data) > PEAK_SETTING_PERIODS:
