@@ -850,7 +850,7 @@ REGISTERS.update(BATTERY_REGISTERS)
 CAPACITY_CONTROL_REGISTERS = {
     # We must check if we can read from these registers to know if this feature is supported
     # by the inverter/battery firmware
-    rn.STORAGE_CAPACITY_CONTROL_MODE: U16Register(rv.StorageCapacityControlMode, 1, 47954, 1),
+    rn.STORAGE_CAPACITY_CONTROL_MODE: U16Register(rv.StorageCapacityControlMode, 1, 47954, 1, writeable=True),
     rn.STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING: U16Register("%", 10, 47955, 1, writeable=True),
     rn.STORAGE_CAPACITY_CONTROL_PERIODS: PeakSettingPeriodRegisters(47956, 64, writeable=True),
 }
