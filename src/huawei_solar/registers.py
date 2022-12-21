@@ -28,10 +28,11 @@ if t.TYPE_CHECKING:
 class RegisterDefinition:
     """Base class for register definitions."""
 
-    def __init__(self, register, length, writeable=False):
+    def __init__(self, register, length, writeable=False, readable=True):
         self.register = register
         self.length = length
         self.writeable = writeable
+        self.readable = readable
 
     def encode(self, data, builder: BinaryPayloadBuilder):
         raise NotImplementedError()
@@ -62,9 +63,10 @@ class NumberRegister(RegisterDefinition):
         decode_function_name,
         encode_function_name,
         writeable=False,
+        readable=True,
         invalid_value=None,
     ):
-        super().__init__(register, length, writeable)
+        super().__init__(register, length, writeable, readable)
         self.unit = unit
         self.gain = gain
 
@@ -114,7 +116,7 @@ class NumberRegister(RegisterDefinition):
 class U16Register(NumberRegister):
     """Unsigned 16-bit register"""
 
-    def __init__(self, unit, gain, register, length, writeable=False, ignore_invalid=False):
+    def __init__(self, unit, gain, register, length, writeable=False, readable=True, ignore_invalid=False):
         super().__init__(
             unit,
             gain,
@@ -123,6 +125,7 @@ class U16Register(NumberRegister):
             "decode_16bit_uint",
             "add_16bit_uint",
             writeable=writeable,
+            readable=readable,
             invalid_value=2**16 - 1 if not ignore_invalid else None,
         )
 
@@ -626,6 +629,8 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.SYSTEM_TIME_RAW: U32Register("seconds", 1, 40000, 2),
     # seems to be the same as unknown_time_4
     rn.UNKNOWN_TIME_5: TimestampRegister(40500, 2),
+    rn.STARTUP: U16Register(None, 1, 40200, 1, writeable=True, readable=False),
+    rn.SHUTDOWN: U16Register(None, 1, 40201, 1, writeable=True, readable=False),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000, 1),
     rn.TIME_ZONE: I16Register("min", 1, 43006, 1, writeable=True),
 }

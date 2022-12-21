@@ -154,9 +154,6 @@ class AsyncHuaweiSolar:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
             LOGGER.exception("Aborting client creation due to error.")
-
-            if client is not None:
-                client.stop()
             raise err
 
     @classmethod
@@ -210,6 +207,10 @@ class AsyncHuaweiSolar:
 
         if None in registers:
             raise ValueError("Did not recognize all register names")
+
+        for register, register_name in zip(registers, names):
+            if not register.readable:
+                raise ValueError(f"Trying to read unreadable register {register_name}")
 
         for idx in range(1, len(names)):
             if registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:
