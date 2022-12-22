@@ -200,6 +200,12 @@ class OptimizerSystemInformation:
     alias: str
     model: str
 
+    # following fields only available in V103, which is undocumented for the moment:
+    # machine_id: Optional[str] = None # machine_id looks like gibberish?
+    rated_power: Optional[int] = None
+    one_to_more: Optional[bool] = None
+    cpu_type: Optional[int] = None
+
 
 class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-methods
     """
@@ -215,7 +221,9 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
     # always a duplicate of the second byte, resulting in string
     # numbers 257 and 514 instead of 1 and 2.
     # cfr: https://github.com/wlcrs/huawei_solar/issues/76#issue-1268597032
-    OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s"
+    V102_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s"
+
+    V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s2sHHH"
 
     def __init__(self, file_data):  # pylint: disable=too-many-locals
 
@@ -233,38 +241,77 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
         ) = struct.unpack_from(OptimizerSystemInformationDataFile.HEADER, file_data, offset)
         offset += struct.calcsize(OptimizerSystemInformationDataFile.HEADER)
 
-        if self.file_version != b"V102":
-            raise HuaweiSolarException("Only V102 file format is supported.")
-
-        for _ in range(number_of_optimizers):
-            (
-                optimizer_address,
-                online_status,
-                string_number,
-                position_in_current_string,
-                sn,  # pylint: disable=invalid-name
-                software_version,
-                alias,
-                model,
-            ) = struct.unpack_from(
-                OptimizerSystemInformationDataFile.OPTIMIZER_FEATURE_DATA,
-                file_data,
-                offset,
-            )
-            offset += struct.calcsize(OptimizerSystemInformationDataFile.OPTIMIZER_FEATURE_DATA)
-
-            self.optimizers.append(
-                OptimizerSystemInformation(
+        if self.file_version == b"V102":
+            for _ in range(number_of_optimizers):
+                (
                     optimizer_address,
-                    OptimizerOnlineStatus(online_status),
+                    online_status,
                     string_number,
-                    position_in_current_string if position_in_current_string != 0xFFFF else None,
-                    _to_string(sn),
-                    _to_string(software_version),
-                    _to_string(alias),
-                    _to_string(model),
+                    position_in_current_string,
+                    sn,  # pylint: disable=invalid-name
+                    software_version,
+                    alias,
+                    model,
+                ) = struct.unpack_from(
+                    OptimizerSystemInformationDataFile.V102_OPTIMIZER_FEATURE_DATA,
+                    file_data,
+                    offset,
                 )
-            )
+                offset += struct.calcsize(OptimizerSystemInformationDataFile.V102_OPTIMIZER_FEATURE_DATA)
+
+                self.optimizers.append(
+                    OptimizerSystemInformation(
+                        optimizer_address,
+                        OptimizerOnlineStatus(online_status),
+                        string_number,
+                        position_in_current_string if position_in_current_string != 0xFFFF else None,
+                        _to_string(sn),
+                        _to_string(software_version),
+                        _to_string(alias),
+                        _to_string(model),
+                    )
+                )
+
+        elif self.file_version == b"V103":
+            for _ in range(number_of_optimizers):
+                (
+                    optimizer_address,
+                    online_status,
+                    string_number,
+                    position_in_current_string,
+                    sn,  # pylint: disable=invalid-name
+                    software_version,
+                    alias,
+                    model,
+                    machine_id,
+                    one_to_more,
+                    rated_power,
+                    cpu_type,
+                ) = struct.unpack_from(
+                    OptimizerSystemInformationDataFile.V103_OPTIMIZER_FEATURE_DATA,
+                    file_data,
+                    offset,
+                )
+                offset += struct.calcsize(OptimizerSystemInformationDataFile.V103_OPTIMIZER_FEATURE_DATA)
+
+                self.optimizers.append(
+                    OptimizerSystemInformation(
+                        optimizer_address,
+                        OptimizerOnlineStatus(online_status),
+                        string_number,
+                        position_in_current_string if position_in_current_string != 0xFFFF else None,
+                        _to_string(sn),
+                        _to_string(software_version),
+                        _to_string(alias),
+                        _to_string(model),
+                        # machine_id=_to_string(machine_id), # looks like gibberish? ignoring...
+                        one_to_more=bool(one_to_more),
+                        rated_power=rated_power,
+                        cpu_type=cpu_type,
+                    )
+                )
+        else:
+            raise HuaweiSolarException("Only V102 and V103 file format are supported.")
 
 
 def _to_string(data: bytes):
