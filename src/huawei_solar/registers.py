@@ -83,7 +83,10 @@ class NumberRegister(RegisterDefinition):
         if self.gain != 1:
             result /= self.gain
         if callable(self.unit):
-            result = self.unit(result)
+            try:
+                result = self.unit(result)
+            except ValueError as err:
+                raise DecodeError from err
         elif isinstance(self.unit, dict):
             try:
                 result = self.unit[result]
