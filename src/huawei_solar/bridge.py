@@ -231,7 +231,7 @@ class HuaweiSolarBridge:
         )
         real_time_data = OptimizerRealTimeDataFile(file_data)
 
-        if len(real_time_data.data_units > 0):
+        if len(real_time_data.data_units) > 0:
 
             # we only expect one element, but if more would be present,
             # then only the latest one is of interest (list is sorted time descending)
