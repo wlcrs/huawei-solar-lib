@@ -52,6 +52,11 @@ class HuaweiSolarBridge:
 
         self._pv_registers = None
 
+        # When optimizers go offline, they stop being reported in the realtime data file,
+        # we therefore keep the latest status in memory so that we can report their latest
+        # values instead of nothing
+        self._last_optimizer_data: dict[int, OptimizerRealTimeData] = {}
+
         self.__heartbeat_enabled = False
         self.__heartbeat_task: t.Optional[asyncio.Task] = None
 
@@ -226,14 +231,18 @@ class HuaweiSolarBridge:
         )
         real_time_data = OptimizerRealTimeDataFile(file_data)
 
-        if len(real_time_data.data_units) == 0:
-            return {}
+        if len(real_time_data.data_units > 0):
 
-        latest_unit = real_time_data.data_units[0]
-        # we only expect one element, but if more would be present,
-        # then only the latest one is of interest (list is sorted time descending)
+            # we only expect one element, but if more would be present,
+            # then only the latest one is of interest (list is sorted time descending)
+            latest_unit = real_time_data.data_units[0]
 
-        return {opt.optimizer_address: opt for opt in latest_unit.optimizers}
+            # Update self._last_optimizer_data with latest values that were retrieved.
+            # It is possible that only a few optimizers are reporting, when others are
+            # already offline. That is why we expicitely update instead of replace the dict
+            self._last_optimizer_data.update({opt.optimizer_address: opt for opt in latest_unit.optimizers})
+
+        return self._last_optimizer_data
 
     async def get_optimizer_system_information_data(
         self,
