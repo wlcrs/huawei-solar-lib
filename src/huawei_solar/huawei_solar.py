@@ -257,7 +257,6 @@ class AsyncHuaweiSolar:
         @backoff.on_exception(
             backoff.expo,
             (asyncio.TimeoutError, SlaveBusyException),
-            base=2,
             max_tries=6,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
@@ -413,11 +412,31 @@ class AsyncHuaweiSolar:
         if len(value) != reg.length:
             raise WriteException("Wrong number of registers to write")
 
-        async with self._communication_lock:
-            response = await self.write_registers(reg.register, builder.to_registers(), slave)
-            await asyncio.sleep(self._cooldown_time)
+        def backoff_giveup(details):
+            raise ReadException(f"Failed to write to register after {details['tries']} tries")
 
-        return response.address == reg.register and response.count == reg.length
+        @backoff.on_exception(
+            backoff.expo,
+            (asyncio.TimeoutError, SlaveBusyException),
+            max_tries=3,
+            jitter=None,
+            on_backoff=lambda details: LOGGER.debug(
+                "Backing off writing for %0.1f seconds after %d tries",
+                details["wait"],
+                details["tries"],
+            ),
+            on_giveup=backoff_giveup,
+        )
+        async def _do_set():
+            response = await self.write_registers(reg.register, builder.to_registers(), slave)
+
+            return response.address == reg.register and response.count == reg.length
+
+        async with self._communication_lock:
+            result = await _do_set()
+            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
+
+            return result
 
     async def write_registers(self, register, value, slave=None):
         """
@@ -459,11 +478,10 @@ class AsyncHuaweiSolar:
         @backoff.on_exception(
             backoff.expo,
             (asyncio.TimeoutError, SlaveBusyException),
-            base=2,
             max_tries=4,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
-                "Backing off reading for %0.1f seconds after %d tries",
+                "Backing off login for %0.1f seconds after %d tries",
                 details["wait"],
                 details["tries"],
             ),
