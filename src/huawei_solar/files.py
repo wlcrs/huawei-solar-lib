@@ -101,7 +101,7 @@ class OptimizerRealTimeDataFile:
         if len(file_data) < struct.calcsize(OptimizerRealTimeDataFile.HEADER):
             return
 
-        (self.file_version, reserved) = struct.unpack_from(OptimizerRealTimeDataFile.HEADER, file_data, offset)
+        self.file_version = struct.unpack_from(OptimizerRealTimeDataFile.HEADER, file_data, offset)
         offset += struct.calcsize(OptimizerRealTimeDataFile.HEADER)
 
         has_next_optimizer_data_unit = True
