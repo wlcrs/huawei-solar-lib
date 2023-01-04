@@ -146,6 +146,10 @@ class AsyncHuaweiSolar:
         try:
             client = await cls.__get_rtu_client(port, **serial_kwargs)
             await client.connect()
+
+            # wait a little bit to prevent a timeout on the first request
+            await asyncio.sleep(1)
+
             huawei_solar = cls(client, slave, timeout, cooldown_time)
             await huawei_solar._initialize()
 
