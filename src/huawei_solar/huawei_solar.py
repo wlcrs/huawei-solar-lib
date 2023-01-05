@@ -353,7 +353,7 @@ class AsyncHuaweiSolar:
         async def _do_read_file():
             # Start the upload
             start_upload_response = await _perform_request(
-                StartUploadModbusRequest(file_type, customized_data, slave=slave or self.slave),
+                StartUploadModbusRequest(file_type, customized_data, unit=slave or self.slave),
                 StartUploadModbusResponse,
             )
 
@@ -367,7 +367,7 @@ class AsyncHuaweiSolar:
 
             while (next_frame_no * data_frame_length) < file_length:
                 data_upload_response = await _perform_request(
-                    UploadModbusRequest(file_type, next_frame_no, slave=slave or self.slave),
+                    UploadModbusRequest(file_type, next_frame_no, unit=slave or self.slave),
                     UploadModbusResponse,
                 )
 
@@ -376,7 +376,7 @@ class AsyncHuaweiSolar:
 
             # Complete the upload and check the CRC
             complete_upload_response = await _perform_request(
-                CompleteUploadModbusRequest(file_type, slave=slave or self.slave),
+                CompleteUploadModbusRequest(file_type, unit=slave or self.slave),
                 CompleteUploadModbusResponse,
             )
 
@@ -494,7 +494,7 @@ class AsyncHuaweiSolar:
         async def _do_login():
 
             # Get challenge
-            challenge_request = PrivateHuaweiModbusRequest(36, bytes([1, 0]), slave=slave or self.slave)
+            challenge_request = PrivateHuaweiModbusRequest(36, bytes([1, 0]), unit=slave or self.slave)
 
             challenge_response = await self._client.protocol.execute(challenge_request)
 
@@ -517,7 +517,7 @@ class AsyncHuaweiSolar:
                 ]
             )
             await asyncio.sleep(0.05)
-            login_request = PrivateHuaweiModbusRequest(37, login_bytes, slave=slave or self.slave)
+            login_request = PrivateHuaweiModbusRequest(37, login_bytes, unit=slave or self.slave)
             login_response = await self._client.protocol.execute(login_request)
 
             if login_response.content[1] == 0:
