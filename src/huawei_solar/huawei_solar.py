@@ -37,7 +37,7 @@ Result = namedtuple("Result", "value unit")
 RECONNECT_DELAY = 1000  # in milliseconds
 
 DEFAULT_SLAVE = 0
-DEFAULT_TIMEOUT = 5
+DEFAULT_TIMEOUT = 10  # especially the SDongle can react quite slowly
 DEFAULT_WAIT = 1
 DEFAULT_COOLDOWN_TIME = 0.05
 
@@ -112,7 +112,7 @@ class AsyncHuaweiSolar:
 
         client = None
         try:
-            client = await cls.__get_tcp_client(host, port)
+            client = await cls.__get_tcp_client(host, port, timeout)
             await client.connect()
 
             # wait a little bit to prevent a timeout on the first request
@@ -144,7 +144,7 @@ class AsyncHuaweiSolar:
         """Create a serial client"""
         client = None
         try:
-            client = await cls.__get_rtu_client(port, **serial_kwargs)
+            client = await cls.__get_rtu_client(port, timeout, **serial_kwargs)
             await client.connect()
 
             # wait a little bit to prevent a timeout on the first request
@@ -161,21 +161,23 @@ class AsyncHuaweiSolar:
             raise err
 
     @classmethod
-    async def __get_rtu_client(cls, port, **serial_kwargs):
+    async def __get_rtu_client(cls, port, timeout: int, **serial_kwargs):
         client = AsyncModbusSerialClient(
             port,
             **serial_kwargs,
             reconnect_delay=RECONNECT_DELAY,
+            timeout=timeout,
         )
         client.register(PrivateHuaweiModbusResponse)
         return client
 
     @classmethod
-    async def __get_tcp_client(cls, host, port) -> AsyncModbusTcpClient:
+    async def __get_tcp_client(cls, host, port, timeout) -> AsyncModbusTcpClient:
 
         client = AsyncModbusTcpClient(
             host,
             port,
+            timeout=timeout,
             reconnect_delay=RECONNECT_DELAY,
         )
         client.register(PrivateHuaweiModbusResponse)
@@ -281,7 +283,6 @@ class AsyncHuaweiSolar:
                     register,
                     length,
                     slave=slave or self.slave,
-                    timeout=self._timeout,
                 )
 
                 # trigger a backoff if we get a SlaveBusy-exception
@@ -458,7 +459,6 @@ class AsyncHuaweiSolar:
                 register,
                 value,
                 slave=slave or self.slave,
-                timeout=self._timeout,
             )
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
