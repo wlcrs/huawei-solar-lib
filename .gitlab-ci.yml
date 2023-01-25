@@ -19,7 +19,7 @@ cache:
     - venv/
 
 before_script:
-  - python -V # Print out python version for debugging
+  - python -V  # Print out python version for debugging
   - pip install twine tox flake8 codecov build
 
 codecov:
