@@ -13,7 +13,7 @@ from .files import (
     OptimizerSystemInformation,
     OptimizerSystemInformationDataFile,
 )
-from .huawei_solar import AsyncHuaweiSolar, Result
+from .huawei_solar import DEFAULT_BAUDRATE, DEFAULT_SLAVE, DEFAULT_TCP_PORT, AsyncHuaweiSolar, Result
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class HuaweiSolarBridge:
         self.__password: t.Optional[str] = None
 
     @classmethod
-    async def create(cls, host: str, port: int = 502, slave_id: int = 0):
+    async def create(cls, host: str, port: int = DEFAULT_TCP_PORT, slave_id: int = DEFAULT_SLAVE):
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
         client = await AsyncHuaweiSolar.create(host, port, slave_id)
         update_lock = asyncio.Lock()
@@ -72,10 +72,11 @@ class HuaweiSolarBridge:
     async def create_rtu(
         cls,
         port: str,
-        slave_id: int = 0,
+        baudrate: int = DEFAULT_BAUDRATE,
+        slave_id: int = DEFAULT_SLAVE,
     ):
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
-        client = await AsyncHuaweiSolar.create_rtu(port, slave_id)
+        client = await AsyncHuaweiSolar.create_rtu(port, baudrate, slave_id)
         update_lock = asyncio.Lock()
         bridge = cls(client, update_lock, primary=True)
         await HuaweiSolarBridge.__populate_fields(bridge)

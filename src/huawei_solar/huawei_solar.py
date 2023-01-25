@@ -36,6 +36,9 @@ Result = namedtuple("Result", "value unit")
 
 RECONNECT_DELAY = 1000  # in milliseconds
 
+DEFAULT_TCP_PORT = 502
+DEFAULT_BAUDRATE = 9600
+
 DEFAULT_SLAVE = 0
 DEFAULT_TIMEOUT = 10  # especially the SDongle can react quite slowly
 DEFAULT_WAIT = 1
@@ -103,7 +106,7 @@ class AsyncHuaweiSolar:
     async def create(
         cls,
         host,
-        port="502",
+        port: int = DEFAULT_TCP_PORT,
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: int = DEFAULT_COOLDOWN_TIME,
@@ -136,6 +139,7 @@ class AsyncHuaweiSolar:
     async def create_rtu(
         cls,
         port,
+        baudrate: int = DEFAULT_BAUDRATE,
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: int = DEFAULT_COOLDOWN_TIME,
@@ -144,7 +148,7 @@ class AsyncHuaweiSolar:
         """Create a serial client"""
         client = None
         try:
-            client = await cls.__get_rtu_client(port, timeout, **serial_kwargs)
+            client = await cls.__get_rtu_client(port, baudrate, timeout, **serial_kwargs)
             await client.connect()
 
             # wait a little bit to prevent a timeout on the first request
@@ -161,10 +165,11 @@ class AsyncHuaweiSolar:
             raise err
 
     @classmethod
-    async def __get_rtu_client(cls, port, timeout: int, **serial_kwargs):
+    async def __get_rtu_client(cls, port, baudrate, timeout: int, **serial_kwargs):
         client = AsyncModbusSerialClient(
             port,
             **serial_kwargs,
+            baudrate=baudrate,
             reconnect_delay=RECONNECT_DELAY,
             timeout=timeout,
         )
