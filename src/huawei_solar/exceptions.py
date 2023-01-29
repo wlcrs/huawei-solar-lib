@@ -35,6 +35,10 @@ class ReadException(HuaweiSolarException):
         self.modbus_exception_code = modbus_exception_code
 
 
+class ConnectionInterruptedException(HuaweiSolarException):
+    """Exception because the connection to the inverter was interrupted"""
+
+
 class SlaveBusyException(HuaweiSolarException):
     """Non-fatal exception while trying to read from device"""
 

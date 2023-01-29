@@ -22,6 +22,7 @@ import huawei_solar.register_names as rn
 
 from .exceptions import (
     ConnectionException,
+    ConnectionInterruptedException,
     HuaweiSolarException,
     PermissionDenied,
     ReadException,
@@ -267,7 +268,7 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.expo,
-            (asyncio.TimeoutError, SlaveBusyException),
+            (asyncio.TimeoutError, SlaveBusyException, ConnectionInterruptedException),
             max_tries=6,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
@@ -282,9 +283,9 @@ class AsyncHuaweiSolar:
             if not self._client.connected:
                 message = "Modbus client is not connected to the inverter."
                 LOGGER.exception(message)
-                raise ConnectionException(message)
+                raise ConnectionInterruptedException(message)
             try:
-                response = await self._client.protocol.read_holding_registers(
+                response = await self._client.read_holding_registers(
                     register,
                     length,
                     slave=slave or self.slave,
@@ -312,7 +313,7 @@ class AsyncHuaweiSolar:
             except ModbusConnectionException as err:
                 message = "Could not read register value, has another device interrupted the connection?"
                 LOGGER.error(message)
-                raise ReadException(message) from err
+                raise ConnectionInterruptedException(message) from err
 
         async with self._communication_lock:
             LOGGER.debug("Reading register %s", register)
@@ -342,7 +343,7 @@ class AsyncHuaweiSolar:
             on_giveup=backoff_giveup,
         )
         async def _perform_request(request: ModbusRequest, response_type):
-            response = await self._client.protocol.execute(request)
+            response = await self._client.execute(request)
 
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
@@ -460,11 +461,14 @@ class AsyncHuaweiSolar:
         try:
             LOGGER.debug("Writing to %s: %s", register, value)
 
-            response = await self._client.protocol.write_registers(
-                register,
-                value,
-                slave=slave or self.slave,
-            )
+            if len(value) == 1:
+                response = await self._client.write_register(
+                    register,
+                    value[0],
+                    slave=slave or self.slave,
+                )
+            else:
+                response = await self._client.write_registers(register, value, slave=slave or self.slave)
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
@@ -553,7 +557,7 @@ class AsyncHuaweiSolar:
             return False
         try:
             # 49999 is the magic register used to keep the connection alive
-            response = await self._client.protocol.write_register(HEARTBEAT_REGISTER, 0x1, slave=slave_id or self.slave)
+            response = await self._client.write_register(HEARTBEAT_REGISTER, 0x1, slave=slave_id or self.slave)
             if isinstance(response, ExceptionResponse):
                 LOGGER.warning(
                     "Received an error after sending the heartbeat command: %s",
