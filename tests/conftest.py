@@ -104,15 +104,12 @@ MOCK_REGISTERS = {
 }
 
 
-class MockProtocol:
-    async def read_holding_registers(self, register, length, *args, **kwargs):
-        return ReadHoldingRegistersResponse(MOCK_REGISTERS[(register, length)])
-
-
 class MockModbusClient:
     def __init__(self) -> None:
-        self.protocol = MockProtocol()
         self.connected = True
+
+    async def read_holding_registers(self, register, length, *args, **kwargs):
+        return ReadHoldingRegistersResponse(MOCK_REGISTERS[(register, length)])
 
 
 @pytest.fixture
