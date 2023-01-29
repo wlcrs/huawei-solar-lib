@@ -134,7 +134,7 @@ class AsyncHuaweiSolar:
 
             if client is not None:
                 await client.close()
-            raise err
+            raise ConnectionException from err
 
     @classmethod
     async def create_rtu(
@@ -163,7 +163,7 @@ class AsyncHuaweiSolar:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
             LOGGER.exception("Aborting client creation due to error.")
-            raise err
+            raise ConnectionException from err
 
     @classmethod
     async def __get_rtu_client(cls, port, baudrate, timeout: int, **serial_kwargs):
@@ -428,7 +428,7 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.expo,
-            (asyncio.TimeoutError, SlaveBusyException),
+            (asyncio.TimeoutError, SlaveBusyException, ConnectionInterruptedException),
             max_tries=3,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
@@ -439,7 +439,7 @@ class AsyncHuaweiSolar:
             on_giveup=backoff_giveup,
         )
         async def _do_set():
-            response = await self.write_registers(reg.register, builder.to_registers(), slave)
+            response = await self._write_registers(reg.register, builder.to_registers(), slave)
 
             return response.address == reg.register and response.count == reg.length
 
@@ -449,7 +449,7 @@ class AsyncHuaweiSolar:
 
             return result
 
-    async def write_registers(self, register, value, slave=None):
+    async def _write_registers(self, register, value, slave=None):
         """
         Async write register to device.
         """
@@ -457,7 +457,7 @@ class AsyncHuaweiSolar:
         if not self._client.connected:
             message = "Modbus client is not connected to the inverter."
             LOGGER.exception(message)
-            raise ConnectionException(message)
+            raise ConnectionInterruptedException(message)
         try:
             LOGGER.debug("Writing to %s: %s", register, value)
 
@@ -480,7 +480,7 @@ class AsyncHuaweiSolar:
             return response
         except ModbusConnectionException as err:
             LOGGER.exception("Failed to connect to device, is the host correct?")
-            raise ConnectionException(err) from err
+            raise ConnectionInterruptedException(err) from err
 
     async def login(self, username: str, password: str, slave: t.Optional[int] = None):
         """Login into the inverter."""
