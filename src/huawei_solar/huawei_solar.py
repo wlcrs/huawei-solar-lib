@@ -439,9 +439,7 @@ class AsyncHuaweiSolar:
             on_giveup=backoff_giveup,
         )
         async def _do_set():
-            response = await self._write_registers(reg.register, builder.to_registers(), slave)
-
-            return response.address == reg.register and response.count == reg.length
+            return await self._write_registers(reg.register, builder.to_registers(), slave)
 
         async with self._communication_lock:
             result = await _do_set()
@@ -449,7 +447,7 @@ class AsyncHuaweiSolar:
 
             return result
 
-    async def _write_registers(self, register, value, slave=None):
+    async def _write_registers(self, register, value, slave=None) -> bool:
         """
         Async write register to device.
         """
@@ -461,14 +459,17 @@ class AsyncHuaweiSolar:
         try:
             LOGGER.debug("Writing to %s: %s", register, value)
 
-            if len(value) == 1:
+            single_register = len(value) == 1
+            if single_register:
                 response = await self._client.write_register(
                     register,
                     value[0],
                     slave=slave or self.slave,
                 )
+
             else:
                 response = await self._client.write_registers(register, value, slave=slave or self.slave)
+
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
@@ -477,7 +478,11 @@ class AsyncHuaweiSolar:
                     f"{ModbusExceptions.decode(response.exception_code)}",
                     modbus_exception_code=response.exception_code,
                 )
-            return response
+
+            if single_register:
+                return response.address == register and response.value == value[0]
+            else:
+                return response.address == register and response.count == len(value)
         except ModbusConnectionException as err:
             LOGGER.exception("Failed to connect to device, is the host correct?")
             raise ConnectionInterruptedException(err) from err
