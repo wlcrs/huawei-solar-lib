@@ -89,7 +89,7 @@ class OptimizerRealTimeDataFile:
     HEADER = "<4s8x"
     OPTIMIZER_DATA_UNIT = "<i4xhh"
 
-    OPTIMIZER_DATA = "<3HI6HI"
+    OPTIMIZER_DATA = "<3hI6hI"
 
     def __init__(self, file_data: bytes):  # pylint: disable=too-many-locals
 
