@@ -31,7 +31,6 @@ class HuaweiSolarBridge:
         primary: bool,
         slave_id: t.Optional[int] = None,
     ):
-
         self.client = client
         self.update_lock = update_lock
 

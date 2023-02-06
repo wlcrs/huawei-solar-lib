@@ -96,7 +96,6 @@ class NumberRegister(RegisterDefinition):
         return result
 
     def encode(self, data, builder: BinaryPayloadBuilder):
-
         if self.unit == bool:
             data = int(data)
         elif isclass(self.unit):
@@ -515,7 +514,6 @@ class PeakSettingPeriodRegisters(RegisterDefinition):
 
         periods = []
         for _ in range(number_of_periods):
-
             start_time, end_time, peak_value, week_value = (
                 decoder.decode_16bit_uint(),
                 decoder.decode_16bit_uint(),
@@ -529,7 +527,6 @@ class PeakSettingPeriodRegisters(RegisterDefinition):
         return periods[:number_of_periods]
 
     def _validate(self, data: list[PeakSettingPeriod]):
-
         for day_idx in range(0, 7):
             # find all ranges that are valid for the given day
             active_periods: list[PeakSettingPeriod] = list(filter(lambda period: period.days_effective[day_idx], data))

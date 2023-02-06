@@ -92,7 +92,6 @@ class OptimizerRealTimeDataFile:
     OPTIMIZER_DATA = "<3hI6hI"
 
     def __init__(self, file_data: bytes):  # pylint: disable=too-many-locals
-
         self.data_units: list[OptimizerHistoryRealTimeDataUnit] = []
 
         offset = 0
@@ -106,7 +105,6 @@ class OptimizerRealTimeDataFile:
 
         has_next_optimizer_data_unit = True
         while has_next_optimizer_data_unit:
-
             (
                 time,
                 length,  # pylint: disable=unused-variable
@@ -226,7 +224,6 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
     V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s2sHHH"
 
     def __init__(self, file_data):  # pylint: disable=too-many-locals
-
         self.optimizers: list[OptimizerSystemInformation] = []
 
         offset = 0

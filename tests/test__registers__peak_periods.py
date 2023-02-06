@@ -8,7 +8,6 @@ ppr = REGISTERS[rn.STORAGE_CAPACITY_CONTROL_PERIODS]
 
 
 def test_simple():
-
     pp_valid = [
         PeakSettingPeriod(
             start_time=0, end_time=1440, power=2.5, days_effective=[True, True, True, True, True, True, True]

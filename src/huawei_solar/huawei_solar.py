@@ -179,7 +179,6 @@ class AsyncHuaweiSolar:
 
     @classmethod
     async def __get_tcp_client(cls, host, port, timeout) -> AsyncModbusTcpClient:
-
         client = AsyncModbusTcpClient(
             host,
             port,
@@ -279,7 +278,6 @@ class AsyncHuaweiSolar:
             on_giveup=backoff_giveup,
         )
         async def _do_read():
-
             if not self._client.connected:
                 message = "Modbus client is not connected to the inverter."
                 LOGGER.exception(message)
@@ -506,7 +504,6 @@ class AsyncHuaweiSolar:
             on_giveup=backoff_giveup,
         )
         async def _do_login():
-
             # Get challenge
             challenge_request = PrivateHuaweiModbusRequest(36, bytes([1, 0]), unit=slave or self.slave)
 
@@ -535,7 +532,6 @@ class AsyncHuaweiSolar:
             login_response = await self._client.protocol.execute(login_request)
 
             if login_response.content[1] == 0:
-
                 # check if inverter returned the right hash of the password as well
                 inverter_mac_response_lengths = login_response.content[2]
 

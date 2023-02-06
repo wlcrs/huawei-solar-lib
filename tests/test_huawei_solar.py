@@ -12,7 +12,6 @@ from huawei_solar.register_values import GridCode
 
 @pytest.mark.asyncio
 async def test_get_model_name(huawei_solar):
-
     result = await huawei_solar.get(rn.MODEL_NAME)
     assert result.value == "SUN2000-3KTL-L1"
     assert result.unit is None
@@ -43,7 +42,6 @@ async def test_get_invalid_model_name(huawei_solar):
             ]
         ),
     ):
-
         with pytest.raises(DecodeError):
             await huawei_solar.get("model_name")
             # invalid utf-8 sequence from here:
