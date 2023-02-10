@@ -92,7 +92,7 @@ class AsyncHuaweiSolar:
 
     async def _determine_battery_type(self, slave_id: t.Optional[int] = None):
         # Skip if the battery type was already determined via another slave
-        if self.battery_type is not None:
+        if self.battery_type is not None and self.battery_type != rv.StorageProductModel.NONE:
             return
 
         try:
