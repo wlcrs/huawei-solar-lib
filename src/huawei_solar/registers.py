@@ -267,7 +267,7 @@ class TimeOfUseRegisters(RegisterDefinition):
             return self.decode_lg_resu(decoder)
         elif inverter.battery_type == rv.StorageProductModel.HUAWEI_LUNA2000:
             return self.decode_huawei_luna2000(decoder)
-        return DecodeError(f"Invalid model to decode TOU Registers for: {inverter.battery_type}")
+        raise DecodeError(f"Invalid model to decode TOU Registers for: {inverter.battery_type}")
 
     def decode_lg_resu(self, decoder: BinaryPayloadDecoder) -> list[LG_RESU_TimeOfUsePeriod]:
         number_of_periods = decoder.decode_16bit_uint()

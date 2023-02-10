@@ -87,6 +87,8 @@ class HuaweiSolarBridge:
         """Creates a HuaweiSolarBridge instance for extra slaves accessible via the given AsyncHuaweiSolar instance."""
         assert primary_bridge.slave_id != slave_id
 
+        await primary_bridge.client._determine_battery_type(slave_id)
+
         bridge = cls(
             primary_bridge.client,
             primary_bridge.update_lock,

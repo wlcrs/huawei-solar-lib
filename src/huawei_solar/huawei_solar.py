@@ -20,6 +20,7 @@ from pymodbus.utilities import checkCRC, computeCRC
 
 import huawei_solar.register_names as rn
 
+from . import register_values as rv
 from .exceptions import (
     ConnectionException,
     ConnectionInterruptedException,
@@ -87,10 +88,19 @@ class AsyncHuaweiSolar:
         # get some registers which are needed to correctly decode all values
 
         self.time_zone = (await self.get(rn.TIME_ZONE)).value
+        await self._determine_battery_type()
+
+    async def _determine_battery_type(self, slave_id: t.Optional[int] = None):
+        # Skip if the battery type was already determined via another slave
+        if self.battery_type is not None:
+            return
+
         try:
-            # we assume that when at least one battery is present, it will
-            # always be put in storage_unit_1 first
-            self.battery_type = (await self.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)).value
+            self.battery_type = (await self.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL, slave_id or self.slave)).value
+
+            if self.battery_type == rv.StorageProductModel.NONE:
+                self.battery_type = (await self.get(rn.STORAGE_UNIT_2_PRODUCT_MODEL, slave_id or self.slave)).value
+
         except ReadException as rerr:
             if "IllegalAddress" in str(rerr):
                 LOGGER.info(
