@@ -16,6 +16,7 @@ DEVICE_STATUS_DEFINITIONS = {
     0x0200: "On-grid",
     0x0201: "Grid Connection: power limited",
     0x0202: "Grid Connection: self-derating",
+    0x0203: "Off-grid mode: running",
     0x0300: "Shutdown: fault",
     0x0301: "Shutdown: command",
     0x0302: "Shutdown: OVGR",
