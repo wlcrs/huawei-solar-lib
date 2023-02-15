@@ -121,13 +121,6 @@ class HuaweiSolarBridge:
             pass
 
         try:
-            has_power_meter = (await bridge.client.get(rn.METER_STATUS, bridge.slave_id)).value == rv.MeterStatus.NORMAL
-            if has_power_meter:
-                bridge.power_meter_type = (await bridge.client.get(rn.METER_TYPE, bridge.slave_id)).value
-        except ReadException:
-            pass
-
-        try:
             bridge.battery_1_type = (await bridge.client.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL, bridge.slave_id)).value
         except ReadException:
             pass
@@ -149,6 +142,19 @@ class HuaweiSolarBridge:
                 bridge.supports_capacity_control = True
             except ReadException:
                 pass
+
+        power_meter_online = False
+        try:
+            power_meter_online = (
+                await bridge.client.get(rn.METER_STATUS, bridge.slave_id)
+            ).value == rv.MeterStatus.NORMAL
+        except ReadException:
+            pass
+
+        # When in off-grid mode,the power meter will report as being offline, but we
+        # know that one must be present as there is a battery present
+        if power_meter_online or bridge.battery_type != rv.StorageProductModel.NONE:
+            bridge.power_meter_type = (await bridge.client.get(rn.METER_TYPE, bridge.slave_id)).value
 
     async def _get_multiple_to_dict(self, names: list[str]) -> dict[str, Result]:
         return dict(zip(names, await self.client.get_multiple(names, self.slave_id)))
