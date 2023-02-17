@@ -47,6 +47,7 @@ class HuaweiSolarBridge:
         self.battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
         self.battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
         self.supports_capacity_control = False
+        self.power_meter_online = False
         self.power_meter_type: t.Optional[rv.MeterType] = None
 
         self._pv_registers = None
@@ -56,6 +57,8 @@ class HuaweiSolarBridge:
 
         self.__username: t.Optional[str] = None
         self.__password: t.Optional[str] = None
+
+        self.previous_update_result: t.Optional[t.Dict[str, Result]] = None
 
     @classmethod
     async def create(cls, host: str, port: int = DEFAULT_TCP_PORT, slave_id: int = DEFAULT_SLAVE):
@@ -143,9 +146,8 @@ class HuaweiSolarBridge:
             except ReadException:
                 pass
 
-        power_meter_online = False
         try:
-            power_meter_online = (
+            bridge.power_meter_online = (
                 await bridge.client.get(rn.METER_STATUS, bridge.slave_id)
             ).value == rv.MeterStatus.NORMAL
         except ReadException:
@@ -153,7 +155,7 @@ class HuaweiSolarBridge:
 
         # When in off-grid mode,the power meter will report as being offline, but we
         # know that one must be present as there is a battery present
-        if power_meter_online or bridge.battery_type != rv.StorageProductModel.NONE:
+        if bridge.power_meter_online or bridge.battery_type != rv.StorageProductModel.NONE:
             bridge.power_meter_type = (await bridge.client.get(rn.METER_TYPE, bridge.slave_id)).value
 
     async def _get_multiple_to_dict(self, names: list[str]) -> dict[str, Result]:
@@ -173,11 +175,33 @@ class HuaweiSolarBridge:
                 result.update(await self._get_multiple_to_dict(OPTIMIZER_REGISTERS))
 
             if self.power_meter_type is not None:
-                result.update(await self._get_multiple_to_dict(POWER_METER_REGISTERS))
+                # If the 'device status' has changed, force a recheck of the power meter online status
+                # cfr. https://gitlab.com/Emilv2/huawei-solar/-/merge_requests/9#note_1281471842
+                if self.previous_update_result:
+                    if result[rn.DEVICE_STATUS].value != self.previous_update_result[rn.DEVICE_STATUS].value:
+                        self.power_meter_online = False
+
+                if not self.power_meter_online:
+                    power_meter_online_register = await self.client.get(rn.METER_STATUS, self.slave_id)
+                    result[rn.METER_STATUS] = power_meter_online_register
+                    self.power_meter_online = power_meter_online_register.value
+
+                if self.power_meter_online:
+                    try:
+                        result.update(await self._get_multiple_to_dict(POWER_METER_REGISTERS))
+                    except HuaweiSolarException as exc:
+                        _LOGGER.info(
+                            "Fetching power meter registers failed. "
+                            "We'll assume that this is due to the power meter going offline and the registers "
+                            "becoming invalid as a result.",
+                            exc_info=exc,
+                        )
+                        self.power_meter_online = False
 
             if self.battery_type != rv.StorageProductModel.NONE:
                 result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
 
+        self.previous_update_result = result
         return result
 
     async def update_configuration_registers(self):
@@ -400,6 +424,7 @@ OPTIMIZER_REGISTERS = [rn.NB_ONLINE_OPTIMIZERS]
 
 # Registers that should be read if a power meter is present
 POWER_METER_REGISTERS = [
+    rn.METER_STATUS,
     rn.GRID_A_VOLTAGE,
     rn.GRID_B_VOLTAGE,
     rn.GRID_C_VOLTAGE,
