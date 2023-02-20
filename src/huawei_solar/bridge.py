@@ -4,6 +4,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import typing as t
+# for Python 3.11 and mypy 1.0 we can use t.Self
+from typing_extensions import Self
+
 
 from . import register_names as rn, register_values as rv
 from .exceptions import HuaweiSolarException, InvalidCredentials, PermissionDenied, ReadException
@@ -29,13 +32,13 @@ class HuaweiSolarBridge:
         client: AsyncHuaweiSolar,
         update_lock: asyncio.Lock,
         primary: bool,
-        slave_id: t.Optional[int] = None,
+        slave_id: int = 0,
     ):
         self.client = client
         self.update_lock = update_lock
 
         self._primary = primary
-        self.slave_id = slave_id or 0
+        self.slave_id = slave_id
 
         self.model_name: t.Optional[str] = None
         self.serial_number: t.Optional[str] = None
@@ -49,7 +52,7 @@ class HuaweiSolarBridge:
         self.supports_capacity_control = False
         self.power_meter_type: t.Optional[rv.MeterType] = None
 
-        self._pv_registers = None
+        self._pv_registers = []
 
         self.__heartbeat_enabled = False
         self.__heartbeat_task: t.Optional[asyncio.Task] = None
@@ -58,7 +61,7 @@ class HuaweiSolarBridge:
         self.__password: t.Optional[str] = None
 
     @classmethod
-    async def create(cls, host: str, port: int = DEFAULT_TCP_PORT, slave_id: int = DEFAULT_SLAVE):
+    async def create(cls, host: str, port: int = DEFAULT_TCP_PORT, slave_id: int = DEFAULT_SLAVE) -> Self:
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
         client = await AsyncHuaweiSolar.create(host, port, slave_id)
         update_lock = asyncio.Lock()
@@ -70,10 +73,10 @@ class HuaweiSolarBridge:
     @classmethod
     async def create_rtu(
         cls,
-        port: str,
+        port: int,
         baudrate: int = DEFAULT_BAUDRATE,
         slave_id: int = DEFAULT_SLAVE,
-    ):
+    ) -> Self:
         """Creates a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
         client = await AsyncHuaweiSolar.create_rtu(port, baudrate, slave_id)
         update_lock = asyncio.Lock()
@@ -83,7 +86,7 @@ class HuaweiSolarBridge:
         return bridge
 
     @classmethod
-    async def create_extra_slave(cls, primary_bridge: "HuaweiSolarBridge", slave_id: int):
+    async def create_extra_slave(cls, primary_bridge: "HuaweiSolarBridge", slave_id: int) -> Self:
         """Creates a HuaweiSolarBridge instance for extra slaves accessible via the given AsyncHuaweiSolar instance."""
         assert primary_bridge.slave_id != slave_id
 
@@ -97,9 +100,8 @@ class HuaweiSolarBridge:
         return bridge
 
     @staticmethod
-    async def __populate_fields(bridge: "HuaweiSolarBridge"):
+    async def __populate_fields(bridge: "HuaweiSolarBridge") -> None:
         """Computes all the fields that should be returned on each update-call."""
-
         (
             model_name_result,
             serial_number_result,
@@ -172,7 +174,7 @@ class HuaweiSolarBridge:
 
         return result
 
-    async def update_configuration_registers(self):
+    async def update_configuration_registers(self) -> dict[str, Result]:
         """Receive an update for all configurable registers"""
 
         result = {}
@@ -190,7 +192,7 @@ class HuaweiSolarBridge:
         Wraps `get_file` from `AsyncHuaweiSolar` in a retry-logic for when
         the login-sequence needs to be repeated.
         """
-        if self.__username and not self.__heartbeat_enabled:  # we must login again before trying to read the file
+        if self.__username and self.__password and not self.__heartbeat_enabled:  # we must login again before trying to read the file
             logged_in = await self.login(self.__username, self.__password)
 
             if not logged_in:
@@ -199,7 +201,7 @@ class HuaweiSolarBridge:
         try:
             return await self.client.get_file(file_type, customized_data, self.slave_id)
         except PermissionDenied as err:
-            if self.__username:
+            if self.__username and self.__password:
                 logged_in = await self.login(self.__username, self.__password)
 
                 if not logged_in:
@@ -217,7 +219,9 @@ class HuaweiSolarBridge:
         """Reads the latest Optimizer History Data File from the inverter"""
 
         # emulates behavior from FusionSolar app when current status of optimizers is queried
-        end_time = (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
+        sys_time = await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)
+        assert sys_time is not None
+        end_time = sys_time.value
         start_time = end_time - 600
 
         file_data = await self._read_file(
@@ -240,11 +244,12 @@ class HuaweiSolarBridge:
     ) -> dict[int, OptimizerSystemInformation]:
         """Reads the Optimizer System Information Data File from the inverter"""
         file_data = await self._read_file(OptimizerSystemInformationDataFile.FILE_TYPE)
+        assert file_data is not None
         system_information_data = OptimizerSystemInformationDataFile(file_data)
 
         return {opt.optimizer_address: opt for opt in system_information_data.optimizers}
 
-    def _compute_pv_registers(self):
+    def _compute_pv_registers(self) -> None:
         """Get the registers for the PV strings which were detected from the inverter"""
         assert 1 <= self.pv_string_count <= 24
 
@@ -257,7 +262,7 @@ class HuaweiSolarBridge:
                 ]
             )
 
-    async def stop(self):
+    async def stop(self) -> bool:
         """Stop the bridge."""
         self.__heartbeat_enabled = False
 
@@ -300,12 +305,12 @@ class HuaweiSolarBridge:
 
         return True
 
-    def start_heartbeat(self):
+    def start_heartbeat(self) -> None:
         """Start the heartbeat thread to stay logged in."""
         if self.__heartbeat_task is not None and not self.__heartbeat_task.done():
             raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
 
-        async def heartbeat():
+        async def heartbeat() -> None:
             while self.__heartbeat_enabled:
                 try:
                     self.__heartbeat_enabled = await self.client.heartbeat(self.slave_id)
@@ -317,10 +322,10 @@ class HuaweiSolarBridge:
         self.__heartbeat_enabled = True
         self.__heartbeat_task = asyncio.create_task(heartbeat())
 
-    async def set(self, name: str, value):
+    async def set(self, name: str, value: str) -> t.Optional[Result]:
         """Sets a register to a certain value."""
 
-        if self.__username and not self.__heartbeat_enabled:  # we must login again before trying to set the value
+        if self.__username and self.__password and not self.__heartbeat_enabled:  # we must login again before trying to set the value
             logged_in = await self.login(self.__username, self.__password)
 
             if not logged_in:
@@ -329,7 +334,7 @@ class HuaweiSolarBridge:
         try:
             return await self.client.set(name, value, slave=self.slave_id)
         except PermissionDenied as err:
-            if self.__username:
+            if self.__username and self.__password:
                 logged_in = await self.login(self.__username, self.__password)
 
                 if not logged_in:

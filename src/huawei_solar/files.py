@@ -160,7 +160,7 @@ class OptimizerRealTimeDataFile:
         return f"OptimizerHistoryDataFile(file_version=f{self.file_version}, data_units=f{self.data_units})"
 
     @staticmethod
-    def query_within_timespan(start_time: int, end_time: int):
+    def query_within_timespan(start_time: int, end_time: int) -> bytes:
         """Creates a query for values within a given timeframe"""
 
         # the values below were deduced from observing network traffic and reverse-engineering the app
@@ -223,7 +223,7 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
 
     V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s2sHHH"
 
-    def __init__(self, file_data):  # pylint: disable=too-many-locals
+    def __init__(self, file_data: bytes):  # pylint: disable=too-many-locals
         self.optimizers: list[OptimizerSystemInformation] = []
 
         offset = 0
@@ -311,9 +311,9 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
             raise HuaweiSolarException(f"Unsupported OptimizerSystemInformation file version: {self.file_version}")
 
 
-def _to_string(data: bytes):
+def _to_string(data: bytes) -> str:
     try:
         return data.decode("ascii").rstrip("\x00")
     except ValueError:
         _LOGGER.exception("Could not decode '%s'. Ignoring.", binascii.hexlify(data))
-        return None
+        return ""

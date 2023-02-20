@@ -28,23 +28,23 @@ if t.TYPE_CHECKING:
 class RegisterDefinition:
     """Base class for register definitions."""
 
-    def __init__(self, register, length, writeable=False, readable=True):
+    def __init__(self, register: int, length: int, writeable: bool=False, readable: bool=True):
         self.register = register
         self.length = length
         self.writeable = writeable
         self.readable = readable
 
-    def encode(self, data, builder: BinaryPayloadBuilder):
+    def encode(self, data: list[t.Union[PeakSettingPeriod, ChargeDischargePeriod]], builder: BinaryPayloadBuilder) -> t.Optional[str]:
         raise NotImplementedError()
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar") -> t.Union[t.Optional[int], t.Optional[str]]:
         raise NotImplementedError()
 
 
 class StringRegister(RegisterDefinition):
     """A string register."""
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar") -> t.Optional[str]:
         try:
             return decoder.decode_string(self.length * 2).decode("utf-8").strip("\0")
         except UnicodeDecodeError as err:
@@ -56,15 +56,15 @@ class NumberRegister(RegisterDefinition):
 
     def __init__(
         self,
-        unit,
-        gain,
-        register,
-        length,
-        decode_function_name,
-        encode_function_name,
-        writeable=False,
-        readable=True,
-        invalid_value=None,
+        unit: t.Optional[str],
+        gain: int,
+        register: int,
+        length: int,
+        decode_function_name: str,
+        encode_function_name: str,
+        writeable: bool=False,
+        readable: bool=True,
+        invalid_value: t.Optional[int]=None,
     ):
         super().__init__(register, length, writeable, readable)
         self.unit = unit
@@ -74,7 +74,7 @@ class NumberRegister(RegisterDefinition):
         self._encode_function_name = encode_function_name
         self._invalid_value = invalid_value
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar") -> t.Optional[int]:
         result = getattr(decoder, self._decode_function_name)()
 
         if self._invalid_value is not None and result == self._invalid_value:
@@ -95,7 +95,7 @@ class NumberRegister(RegisterDefinition):
 
         return result
 
-    def encode(self, data, builder: BinaryPayloadBuilder):
+    def encode(self, data: list[t.Union[PeakSettingPeriod, ChargeDischargePeriod]], builder: BinaryPayloadBuilder) -> t.Optional[str]:
         if self.unit == bool:
             data = int(data)
         elif isclass(self.unit):
@@ -118,7 +118,16 @@ class NumberRegister(RegisterDefinition):
 class U16Register(NumberRegister):
     """Unsigned 16-bit register"""
 
-    def __init__(self, unit, gain, register, length, writeable=False, readable=True, ignore_invalid=False):
+    def __init__(
+        self,
+        unit: t.Optional[str],
+        gain: int,
+        register: int,
+        length: int,
+        writeable: bool=False,
+        readable: bool=True,
+        ignore_invalid: bool=False
+    ):
         super().__init__(
             unit,
             gain,
@@ -135,7 +144,14 @@ class U16Register(NumberRegister):
 class U32Register(NumberRegister):
     """Unsigned 32-bit register"""
 
-    def __init__(self, unit, gain, register, length, writeable=False):
+    def __init__(
+        self,
+        unit: t.Optional[str],
+        gain: int,
+        register: int,
+        length: int,        
+        writeable: bool=False
+    ):
         super().__init__(
             unit,
             gain,
@@ -151,7 +167,14 @@ class U32Register(NumberRegister):
 class I16Register(NumberRegister):
     """Signed 16-bit register"""
 
-    def __init__(self, unit, gain, register, length, writeable=False):
+    def __init__(
+        self,
+        unit: t.Optional[str],
+        gain: int,
+        register: int,
+        length: int,        
+        writeable: bool=False
+    ):
         super().__init__(
             unit,
             gain,
@@ -167,7 +190,14 @@ class I16Register(NumberRegister):
 class I32Register(NumberRegister):
     """Signed 32-bit register."""
 
-    def __init__(self, unit, gain, register, length, writeable=False):
+    def __init__(
+        self,
+        unit: t.Optional[str],
+        gain: int,
+        register: int,
+        length: int,        
+        writeable: bool=False
+    ):
         super().__init__(
             unit,
             gain,
@@ -191,7 +221,14 @@ class I32AbsoluteValueRegister(NumberRegister):
 
     """
 
-    def __init__(self, unit, gain, register, length, writeable=False):
+    def __init__(
+        self,
+        unit: t.Optional[str],
+        gain: int,
+        register: int,
+        length: int,        
+        writeable: bool=False
+    ):
         super().__init__(
             unit,
             gain,
@@ -203,11 +240,13 @@ class I32AbsoluteValueRegister(NumberRegister):
             invalid_value=2**31 - 1,
         )
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
-        return abs(super().decode(decoder, inverter))
+    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar") -> t.Optional[int]:
+        dec_res = super().decode(decoder, inverter)
+        assert  dec_res is not None
+        return abs(dec_res)
 
 
-def bitfield_decoder(definition, bitfield):
+def bitfield_decoder(definition: dict, bitfield: int) -> list[int]:
     """Decodes a bitfield into a list of statuses."""
     result = []
     for key, value in definition.items():
@@ -222,10 +261,10 @@ def bitfield_decoder(definition, bitfield):
 class TimestampRegister(U32Register):
     """Timestamp register."""
 
-    def __init__(self, register, length, writeable=False):
+    def __init__(self, register: int, length: int, writeable: bool=False):
         super().__init__(None, 1, register, length, writeable=writeable)
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar") -> t.Optional[int]:
         value = super().decode(decoder, inverter)
 
         if value is None:
@@ -310,7 +349,7 @@ class TimeOfUseRegisters(RegisterDefinition):
         else:
             raise TimeOfUsePeriodsException("TOU period is of an unexpected type")
 
-    def _validate_huawei_luna2000(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod]):
+    def _validate_huawei_luna2000(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod]) -> None:
         # Sanity checks between periods
 
         for day_idx in range(0, 7):
@@ -330,7 +369,7 @@ class TimeOfUseRegisters(RegisterDefinition):
                 ):
                     raise TimeOfUsePeriodsException("TOU periods are overlapping")
 
-    def _validate_lg_resu(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod]):
+    def _validate_lg_resu(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod]) -> None:
         # Sanity checks between periods
 
         # make a copy of the data to sort
@@ -351,7 +390,7 @@ class TimeOfUseRegisters(RegisterDefinition):
         self,
         data: t.Union[list[HUAWEI_LUNA2000_TimeOfUsePeriod], list[LG_RESU_TimeOfUsePeriod]],
         builder: BinaryPayloadBuilder,
-    ):
+    ) -> t.Optional[str]:
         self._validate(data)
 
         if len(data) == 0 or isinstance(data[0], HUAWEI_LUNA2000_TimeOfUsePeriod):
@@ -361,7 +400,7 @@ class TimeOfUseRegisters(RegisterDefinition):
         else:
             raise EncodeError(f"Invalid dataclass to encode for TOU Registers: {type(data[0])}")
 
-    def encode_lg_resu(self, data: list[LG_RESU_TimeOfUsePeriod], builder: BinaryPayloadBuilder):
+    def encode_lg_resu(self, data: list[LG_RESU_TimeOfUsePeriod], builder: BinaryPayloadBuilder) -> None:
         assert len(data) <= LG_RESU_TOU_PERIODS
         builder.add_16bit_uint(len(data))
 
@@ -402,7 +441,7 @@ class TimeOfUseRegisters(RegisterDefinition):
 
         return periods[:number_of_periods]
 
-    def encode_huawei_luna2000(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod], builder: BinaryPayloadBuilder):
+    def encode_huawei_luna2000(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod], builder: BinaryPayloadBuilder) -> None:
         assert len(data) <= HUAWEI_LUNA2000_TOU_PERIODS
         builder.add_16bit_uint(len(data))
 
@@ -456,7 +495,7 @@ class ChargeDischargePeriodRegisters(RegisterDefinition):
 
         return periods[:number_of_periods]
 
-    def encode(self, data: list[ChargeDischargePeriod], builder: BinaryPayloadBuilder):
+    def encode(self, data: list[ChargeDischargePeriod], builder: BinaryPayloadBuilder) -> None:
         assert len(data) <= CHARGE_DISCHARGE_PERIODS
         builder.add_16bit_uint(len(data))
 
