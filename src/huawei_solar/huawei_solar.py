@@ -9,6 +9,8 @@ import logging
 import secrets
 import struct
 import typing as t
+# for Python 3.11 and mypy 1.0 we can use t.Self
+from typing_extensions import Self
 
 import backoff
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
@@ -53,7 +55,7 @@ FILE_UPLOAD_RETRY_TIMEOUT = 10
 PERMISSION_DENIED_EXCEPTION_CODE = 0x80
 
 
-def _compute_digest(password, seed):
+def _compute_digest(password: bytes, seed: bytes) -> bytes:
     hashed_password = sha256(password).digest()
 
     return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
@@ -67,7 +69,7 @@ class AsyncHuaweiSolar:
         client: t.Union[AsyncModbusTcpClient, AsyncModbusSerialClient],
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
-        cooldown_time: int = DEFAULT_COOLDOWN_TIME,
+        cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ):
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use AsyncHuaweiSolar.create() instead"""
         self._client = client
@@ -83,14 +85,18 @@ class AsyncHuaweiSolar:
         self.time_zone = None
         self.battery_type = None
 
-    async def _initialize(self):
+    async def _initialize(self) -> None:
         # get some registers which are needed to correctly decode all values
 
-        self.time_zone = (await self.get(rn.TIME_ZONE)).value
+        tz_helper = await self.get(rn.TIME_ZONE)
+        assert tz_helper is not None
+        self.time_zone = tz_helper.value
         try:
             # we assume that when at least one battery is present, it will
             # always be put in storage_unit_1 first
-            self.battery_type = (await self.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)).value
+            bt_helper = await self.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)
+            assert bt_helper is not None
+            self.battery_type = bt_helper.value
         except ReadException as rerr:
             if "IllegalAddress" in str(rerr):
                 LOGGER.info(
@@ -106,12 +112,12 @@ class AsyncHuaweiSolar:
     @classmethod
     async def create(
         cls,
-        host,
+        host: str,
         port: int = DEFAULT_TCP_PORT,
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
-        cooldown_time: int = DEFAULT_COOLDOWN_TIME,
-    ):  # pylint: disable=too-many-arguments
+        cooldown_time: float = DEFAULT_COOLDOWN_TIME,
+    ) -> Self:  # pylint: disable=too-many-arguments
         """Creates an AsyncHuaweiSolar instance."""
 
         client = None
@@ -139,13 +145,13 @@ class AsyncHuaweiSolar:
     @classmethod
     async def create_rtu(
         cls,
-        port,
+        port: int,
         baudrate: int = DEFAULT_BAUDRATE,
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
-        cooldown_time: int = DEFAULT_COOLDOWN_TIME,
-        **serial_kwargs,
-    ):
+        cooldown_time: float = DEFAULT_COOLDOWN_TIME,
+        **serial_kwargs: t.Any,
+    ) -> Self:
         """Create a serial client"""
         client = None
         try:
@@ -166,7 +172,7 @@ class AsyncHuaweiSolar:
             raise ConnectionException from err
 
     @classmethod
-    async def __get_rtu_client(cls, port, baudrate, timeout: int, **serial_kwargs):
+    async def __get_rtu_client(cls, port: int, baudrate: int, timeout: int, **serial_kwargs: t.Any) -> AsyncModbusSerialClient:
         client = AsyncModbusSerialClient(
             port,
             **serial_kwargs,
@@ -178,7 +184,7 @@ class AsyncHuaweiSolar:
         return client
 
     @classmethod
-    async def __get_tcp_client(cls, host, port, timeout) -> AsyncModbusTcpClient:
+    async def __get_tcp_client(cls, host: str, port: int, timeout: float) -> AsyncModbusTcpClient:
         client = AsyncModbusTcpClient(
             host,
             port,
@@ -188,11 +194,11 @@ class AsyncHuaweiSolar:
         client.register(PrivateHuaweiModbusResponse)
         return client
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the modbus client."""
         await self._client.close()
 
-    async def _decode_response(self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder):
+    async def _decode_response(self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder) -> Result:
         """Decodes a modbus register and puts it into a Result object."""
         result = reg.decode(decoder, self)
 
@@ -200,11 +206,13 @@ class AsyncHuaweiSolar:
             return Result(result, None)
         return Result(result, reg.unit)
 
-    async def get(self, name, slave=None):
+    async def get(self, name: str, slave: t.Optional[int]=None) -> t.Optional[Result]:
         """get named register from device"""
-        return (await self.get_multiple([name], slave))[0]
+        ret_val = await self.get_multiple([name], slave)
+        assert ret_val is not None
+        return ret_val[0]
 
-    async def get_multiple(self, names: list[str], slave=None):
+    async def get_multiple(self, names: list[str], slave: t.Optional[int]=None) -> list[Result]:
         """Read multiple registers at the same time.
 
         This is only possible if the registers are consecutively available in the
@@ -220,7 +228,7 @@ class AsyncHuaweiSolar:
             raise ValueError("Did not recognize all register names")
 
         for register, register_name in zip(registers, names):
-            if not register.readable:
+            if register and not register.readable:
                 raise ValueError(f"Trying to read unreadable register {register_name}")
 
         for idx in range(1, len(names)):
@@ -247,7 +255,7 @@ class AsyncHuaweiSolar:
             decoder.skip_bytes(skip_registers * 2)  # registers are 16-bit, so we need to multiply by two
             result.append(await self._decode_response(registers[idx], decoder))
 
-        return result
+        return [] if result is None else result
 
     async def _read_registers(self, register: RegisterDefinition, length: int, slave: t.Optional[int]):
         """
@@ -404,7 +412,7 @@ class AsyncHuaweiSolar:
 
             return result
 
-    async def set(self, name, value, slave=None):
+    async def set(self, name: str, value: str, slave:t.Optional[int]=None) -> t.Optional[Result]:
         """set named register from device"""
         try:
             reg = REGISTERS[name]
