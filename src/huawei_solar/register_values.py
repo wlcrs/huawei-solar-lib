@@ -61,6 +61,9 @@ class StorageWorkingModesA(IntEnum):
     GRID_CONNECTION_WITH_ZERO_POWER = 1
     GRID_CONNECTION_WITH_LIMITED_POWER = 2
 
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").capitalize()
+
 
 class StorageWorkingModesB(IntEnum):
     """Working mode of the Connected Energy Storage."""
@@ -77,6 +80,9 @@ class StorageWorkingModesB(IntEnum):
     REMOTE_SCHEDULING_TOU = 9
     AI_ENERGY_MANAGEMENT_AND_SCHEDULING = 10
 
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").capitalize()
+
 
 class StorageWorkingModesC(IntEnum):
     """Working mode of the Connected Energy Storage."""
@@ -87,6 +93,9 @@ class StorageWorkingModesC(IntEnum):
     TIME_OF_USE_LG = 3
     FULLY_FED_TO_GRID = 4
     TIME_OF_USE_LUNA2000 = 5
+
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").capitalize()
 
 
 class StorageProductModel(IntEnum):
@@ -127,6 +136,9 @@ class MeterStatus(IntEnum):
 
     OFFLINE = 0
     NORMAL = 1
+
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").capitalize()
 
 
 class MeterType(IntEnum):
