@@ -204,7 +204,11 @@ class I32AbsoluteValueRegister(NumberRegister):
         )
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
-        return abs(super().decode(decoder, inverter))
+        value = super().decode(decoder, inverter)
+        if value is not None:
+            return abs(value)
+        else:
+            return None
 
 
 def bitfield_decoder(definition, bitfield):
