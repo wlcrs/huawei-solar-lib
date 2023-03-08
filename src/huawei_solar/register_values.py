@@ -80,6 +80,7 @@ class StorageWorkingModesB(IntEnum):
     REMOTE_SCHEDULING_FULL_INTERNET_ACCESS = 8
     REMOTE_SCHEDULING_TOU = 9
     AI_ENERGY_MANAGEMENT_AND_SCHEDULING = 10
+    REMOTE_SCHEDULING_AI_CONTROL = 11
 
     def __str__(self) -> str:
         return self.name.replace("_", " ").capitalize()
@@ -514,6 +515,13 @@ ALARM_CODES_3 = {
     0b0000_0000_0100_0000: Alarm("PV String Loss", 2015, "Warning"),
     0b0000_0000_1000_0000: Alarm("Internal Fan Abnormal", 2087, "Major"),
     0b0000_0001_0000_0000: Alarm("DC Protection Unit Abnormal", 2088, "Major"),
+    0b0000_0010_0000_0000: Alarm("EL Unit Abnormal", 2089, "Minor"),
+    0b0000_0100_0000_0000: Alarm("Active Adjustment Instruction Abnormal", 2090, "Major"),
+    0b0000_1000_0000_0000: Alarm("Reactive Adjustment Instruction Abnormal", 2091, "Major"),
+    0b0001_0000_0000_0000: Alarm("CT Wiring Abnormal", 2092, "Major"),
+    0b0010_0000_0000_0000: Alarm("DC Arc Fault(ADMC Alarm to be clear manually)", 2003, "Major"),
+    0b0100_0000_0000_0000: Alarm("DC Switch Abnormal", 2093, "Minor"),
+    0b1000_0000_0000_0000: Alarm("Allowable discharge capacity of the battery is low", 2094, "Warning"),
 }
 
 
@@ -522,3 +530,19 @@ class StorageCapacityControlMode(IntEnum):
 
     DISABLE = 0
     ACTIVE_CAPACITY_CONTROL = 1
+    APPARENT_POWER_LIMIT = 2
+
+
+class WlanWakeup(IntEnum):
+    """WLAN Wakeup"""
+
+    WAKEN_UP = 0
+    DISABLED = 1
+
+
+class RemoteChargeDischargeControlMode(IntEnum):
+    LOCAL_CONTROL = 0
+    REMOTE_CONTROL_MAXIMUM_SELF_CONSUMPTION = 1
+    REMOTE_CONTROL_FULLY_FED_TO_GRID = 2
+    REMOTE_CONTROL_TOU = 3
+    REMOTE_CONTROL_AI_CONTROL = 4

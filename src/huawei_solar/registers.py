@@ -588,6 +588,17 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.S_MAX: U32Register("VA", 1, 30077, 2),
     rn.Q_MAX_OUT: I32Register("VAr", 1, 30079, 2),
     rn.Q_MAX_IN: I32Register("VAr", 1, 30081, 2),
+    rn.OFFERING_NAME_OF_SOUTHBOUND_DEVICE_1: StringRegister(30561, 15),
+    rn.OFFERING_NAME_OF_SOUTHBOUND_DEVICE_2: StringRegister(30576, 15),
+    rn.OFFERING_NAME_OF_SOUTHBOUND_DEVICE_3: StringRegister(30591, 15),
+    rn.HARDWARE_VERSION: StringRegister(31000, 15),
+    rn.MONITORING_BOARD_SN: StringRegister(31015, 10),
+    rn.MONITORING_SOFTWARE_VERSION: StringRegister(31015, 15),
+    rn.MASTER_DSP_VERSION: StringRegister(31040, 15),
+    rn.CPLD_VERSION: StringRegister(31070, 15),
+    rn.AFCI_VERSION: StringRegister(31085, 15),
+    rn.DC_MBUS_VERSION: StringRegister(31115, 15),
+    rn.REGKEY: StringRegister(31200, 10),
     rn.STATE_1: U16Register(partial(bitfield_decoder, rv.STATE_CODES_1), 1, 32000, 1),
     rn.STATE_2: U16Register(partial(bitfield_decoder, rv.STATE_CODES_2), 1, 32002, 1),
     rn.STATE_3: U32Register(partial(bitfield_decoder, rv.STATE_CODES_3), 1, 32003, 2),
@@ -619,24 +630,16 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.STARTUP_TIME: TimestampRegister(32091, 2),
     rn.SHUTDOWN_TIME: TimestampRegister(32093, 2),
     rn.ACCUMULATED_YIELD_ENERGY: U32Register("kWh", 100, 32106, 2),
-    # last contact with server?
-    rn.UNKNOWN_TIME_1: TimestampRegister(32110, 2),
     rn.DAILY_YIELD_ENERGY: U32Register("kWh", 100, 32114, 2),
-    # something todo with startup time?
-    rn.UNKNOWN_TIME_2: TimestampRegister(32156, 2),
-    # something todo with shutdown time?
-    rn.UNKNOWN_TIME_3: TimestampRegister(32160, 2),
-    rn.UNKNOWN_TIME_4: TimestampRegister(35113, 2),  # installation time?
     rn.NB_OPTIMIZERS: U16Register(None, 1, 37200, 1),
     rn.NB_ONLINE_OPTIMIZERS: U16Register(None, 1, 37201, 1),
     rn.SYSTEM_TIME: TimestampRegister(40000, 2),
     rn.SYSTEM_TIME_RAW: U32Register("seconds", 1, 40000, 2),
-    # seems to be the same as unknown_time_4
-    rn.UNKNOWN_TIME_5: TimestampRegister(40500, 2),
     rn.STARTUP: U16Register(None, 1, 40200, 1, writeable=True, readable=False),
     rn.SHUTDOWN: U16Register(None, 1, 40201, 1, writeable=True, readable=False),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000, 1),
     rn.TIME_ZONE: I16Register("min", 1, 43006, 1, writeable=True),
+    rn.WLAN_WAKEUP: I16Register(rv.WlanWakeup, 1, 45052, 1, writeable=True),
 }
 
 
@@ -842,6 +845,11 @@ BATTERY_REGISTERS = {
     rn.BACKUP_VOLTAGE_INDEPENDEND_OPERATION: U16Register(
         rv.BackupVoltageIndependentOperation, 1, 47604, 1, writeable=True
     ),
+    rn.REMOTE_CHARGE_DISCHARGE_CONTROL_MODE: I16Register(
+        rv.RemoteChargeDischargeControlMode, 1, 47589, 1, writeable=True
+    ),
+    rn.DEFAULT_MAXIMUM_FEED_IN_POWER: I32Register("W", 1, 47675, 2, writeable=True),
+    rn.DEFAULT_ACTIVE_POWER_CHANGE_GRADIENT: U32Register("%/s", 1000, 47677, 2),
     rn.STORAGE_UNIT_1_PACK_1_NO: U16Register(None, 1, 47750, 1),
     rn.STORAGE_UNIT_1_PACK_2_NO: U16Register(None, 1, 47751, 1),
     rn.STORAGE_UNIT_1_PACK_3_NO: U16Register(None, 1, 47752, 1),
@@ -860,6 +868,13 @@ CAPACITY_CONTROL_REGISTERS = {
 }
 
 REGISTERS.update(CAPACITY_CONTROL_REGISTERS)
+
+EMMA_REGISTERS = {
+    rn.EMMA: U16Register(bool, 1, 48020, 1, writeable=True),
+}
+
+REGISTERS.update(EMMA_REGISTERS)
+
 
 METER_REGISTERS = {
     rn.METER_STATUS: U16Register(rv.MeterStatus, 1, 37100, 1),
