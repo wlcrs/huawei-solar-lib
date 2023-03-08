@@ -253,27 +253,27 @@ async def test_get_alarm_3_some(huawei_solar):
 
 
 @pytest.mark.asyncio
-async def test_get_alarm_3_all(huawei_solar):
+async def test_get_alarm_3_almost_all(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b0000_0001_1111_1111]),
+        return_value=ReadHoldingRegistersResponse([0b0111_1111_1111_1111]),
     ):
         result = await huawei_solar.get(rn.ALARM_3)
-        expected_result = list(rv.ALARM_CODES_3.values())
+        expected_result = list(rv.ALARM_CODES_3.values())[:-1]
         assert result.value == expected_result
         assert result.unit is None
 
 
 @pytest.mark.asyncio
-async def test_get_alarm_3_extra_bits_set(huawei_solar):
+async def test_get_alarm_3_3rd_octet_bits_set(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
         return_value=ReadHoldingRegistersResponse([0b0000_1110_0000_0000]),
     ):
         result = await huawei_solar.get(rn.ALARM_3)
-        expected_result = []
+        expected_result = list(rv.ALARM_CODES_3.values())[9:12]
         assert result.value == expected_result
         assert result.unit is None
 
