@@ -153,9 +153,9 @@ class HuaweiSolarBridge:
         except ReadException:
             pass
 
-        # When in off-grid mode,the power meter will report as being offline, but we
-        # know that one must be present as there is a battery present
-        if bridge.power_meter_online or bridge.battery_type != rv.StorageProductModel.NONE:
+        # Caveat: if the inverter is in offline mode, and the power meter is thus offline,
+        # we will incorrectly detect that no power meter is present.
+        if bridge.power_meter_online:
             bridge.power_meter_type = (await bridge.client.get(rn.METER_TYPE, bridge.slave_id)).value
 
     async def _get_multiple_to_dict(self, names: list[str]) -> dict[str, Result]:
