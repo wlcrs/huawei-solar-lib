@@ -8,6 +8,7 @@ import hmac
 import logging
 import secrets
 import struct
+import sys
 import typing as t
 
 import backoff
@@ -28,6 +29,7 @@ from .exceptions import (
     PermissionDenied,
     ReadException,
     SlaveBusyException,
+    SlaveFailureException,
     WriteException,
 )
 from .registers import REGISTERS, RegisterDefinition
@@ -259,7 +261,7 @@ class AsyncHuaweiSolar:
 
         return result
 
-    async def _read_registers(self, register: RegisterDefinition, length: int, slave: t.Optional[int]):
+    async def _read_registers(self, register: int, length: int, slave: t.Optional[int]):
         """
         Async read register from device.
 
@@ -277,11 +279,12 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.expo,
-            (asyncio.TimeoutError, SlaveBusyException, ConnectionInterruptedException),
+            (asyncio.TimeoutError, SlaveBusyException, SlaveFailureException, ConnectionInterruptedException),
             max_tries=6,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
-                "Backing off reading for %0.1f seconds after %d tries",
+                "Received %s: backing off reading for %0.1f seconds after %d tries",
+                sys.exc_info()[0],
                 details["wait"],
                 details["tries"],
             ),
@@ -302,9 +305,24 @@ class AsyncHuaweiSolar:
                 # trigger a backoff if we get a SlaveBusy-exception
                 if isinstance(response, ExceptionResponse):
                     if response.exception_code == ModbusExceptions.SlaveBusy:
+                        LOGGER.debug(
+                            "Got a SlaveBusy Modbus Exception while reading %d (length %d) from slave %d",
+                            register,
+                            length,
+                            slave or self.slave,
+                        )
                         raise SlaveBusyException()
 
-                    # Not a slavebusy-exception
+                    if response.exception_code == ModbusExceptions.SlaveFailure:
+                        LOGGER.debug(
+                            "Got a SlaveFailure Modbus Exception while reading %d (length %d) from slave %d",
+                            register,
+                            length,
+                            slave or self.slave,
+                        )
+                        raise SlaveFailureException()
+
+                    # Not a SlaveBusy or SlaveFailure exception
                     raise ReadException(
                         f"Got error while reading from register {register} with length {length}: {response}",
                         modbus_exception_code=response.exception_code,
@@ -324,7 +342,7 @@ class AsyncHuaweiSolar:
                 raise ConnectionInterruptedException(message) from err
 
         async with self._communication_lock:
-            LOGGER.debug("Reading register %s", register)
+            LOGGER.debug("Reading register %d with length %d from slave %s", register, length, slave or self.slave)
             result = await _do_read()
             await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
             return result
@@ -339,12 +357,13 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.constant,
-            (asyncio.TimeoutError, SlaveBusyException),
+            (asyncio.TimeoutError, SlaveBusyException, SlaveFailureException),
             interval=FILE_UPLOAD_RETRY_TIMEOUT,
             max_tries=FILE_UPLOAD_MAX_RETRIES,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
-                "Backing off file upload for %0.1f seconds after %d tries",
+                "Received %s: backing off file upload for %0.1f seconds after %d tries",
+                sys.exc_info()[0],
                 details["wait"],
                 details["tries"],
             ),
@@ -358,6 +377,8 @@ class AsyncHuaweiSolar:
                     raise PermissionDenied("Permission denied")
                 if response.exception_code == ModbusExceptions.SlaveBusy:
                     raise SlaveBusyException()
+                if response.exception_code == ModbusExceptions.SlaveFailure:
+                    raise SlaveFailureException()
                 raise ReadException(
                     f"Exception occured while trying to read file {hex(file_type)}: {hex(response.exception_code)}",
                     modbus_exception_code=response.exception_code,
@@ -408,7 +429,7 @@ class AsyncHuaweiSolar:
             return file_data
 
         async with self._communication_lock:
-            LOGGER.debug("Reading file %#x", file_type)
+            LOGGER.debug("Reading file %#x from slave %d", file_type, slave or self.slave)
             result = await _do_read_file()
             await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
 
@@ -440,7 +461,8 @@ class AsyncHuaweiSolar:
             max_tries=3,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
-                "Backing off writing for %0.1f seconds after %d tries",
+                "Received %s: backing off writing for %0.1f seconds after %d tries",
+                sys.exc_info()[0],
                 details["wait"],
                 details["tries"],
             ),
@@ -455,7 +477,7 @@ class AsyncHuaweiSolar:
 
             return result
 
-    async def _write_registers(self, register, value, slave=None) -> bool:
+    async def _write_registers(self, register: int, value: list[int], slave=None) -> bool:
         """
         Async write register to device.
         """
@@ -465,7 +487,7 @@ class AsyncHuaweiSolar:
             LOGGER.exception(message)
             raise ConnectionInterruptedException(message)
         try:
-            LOGGER.debug("Writing to %s: %s", register, value)
+            LOGGER.debug("Writing to %d: %s on slave %d", register, value, slave or self.slave)
 
             single_register = len(value) == 1
             if single_register:
@@ -503,11 +525,12 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.expo,
-            (asyncio.TimeoutError, SlaveBusyException),
+            (asyncio.TimeoutError, SlaveBusyException, SlaveFailureException, SlaveFailureException),
             max_tries=4,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
-                "Backing off login for %0.1f seconds after %d tries",
+                "Received %s: backing off login for %0.1f seconds after %d tries",
+                sys.exc_info()[0],
                 details["wait"],
                 details["tries"],
             ),

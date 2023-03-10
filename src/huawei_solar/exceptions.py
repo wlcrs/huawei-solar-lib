@@ -43,6 +43,10 @@ class SlaveBusyException(HuaweiSolarException):
     """Non-fatal exception while trying to read from device"""
 
 
+class SlaveFailureException(HuaweiSolarException):
+    """Possibly fatal exception while trying to read from device"""
+
+
 class WriteException(HuaweiSolarException):
     """Exception writing register to device"""
 
