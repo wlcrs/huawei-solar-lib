@@ -1,3 +1,5 @@
+import asyncio
+
 from pymodbus.register_read_message import ReadHoldingRegistersResponse
 import pytest
 
@@ -107,6 +109,8 @@ MOCK_REGISTERS = {
 class MockModbusClient:
     def __init__(self) -> None:
         self.connected = True
+        self.connected_event = asyncio.Event()
+        self.connected_event.set()
 
     async def read_holding_registers(self, register, length, *args, **kwargs):
         return ReadHoldingRegistersResponse(MOCK_REGISTERS[(register, length)])

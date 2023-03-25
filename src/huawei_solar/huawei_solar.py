@@ -3,20 +3,19 @@ Get production and status information from the Huawei Inverter using Modbus over
 """
 import asyncio
 from collections import namedtuple
+from contextlib import asynccontextmanager
 from hashlib import sha256
 import hmac
 import logging
 import secrets
-import struct
 import sys
 import typing as t
 
 import backoff
-from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
-from pymodbus.pdu import ExceptionResponse, ModbusExceptions, ModbusRequest, ModbusResponse
+from pymodbus.pdu import ExceptionResponse, ModbusExceptions, ModbusRequest
 from pymodbus.utilities import checkCRC, computeCRC
 
 import huawei_solar.register_names as rn
@@ -32,13 +31,23 @@ from .exceptions import (
     SlaveFailureException,
     WriteException,
 )
+from .modbus import (
+    AsyncHuaweiSolarModbusSerialClient,
+    AsyncHuaweiSolarModbusTcpClient,
+    CompleteUploadModbusRequest,
+    CompleteUploadModbusResponse,
+    PrivateHuaweiModbusRequest,
+    StartUploadModbusRequest,
+    StartUploadModbusResponse,
+    UploadModbusRequest,
+    UploadModbusResponse,
+)
 from .registers import REGISTERS, RegisterDefinition
 
 LOGGER = logging.getLogger(__name__)
 
 Result = namedtuple("Result", "value unit")
 
-RECONNECT_DELAY = 1000  # in milliseconds
 
 DEFAULT_TCP_PORT = 502
 DEFAULT_BAUDRATE = 9600
@@ -67,10 +76,10 @@ class AsyncHuaweiSolar:
 
     def __init__(
         self,
-        client: t.Union[AsyncModbusTcpClient, AsyncModbusSerialClient],
+        client: t.Union[AsyncHuaweiSolarModbusSerialClient, AsyncHuaweiSolarModbusTcpClient],
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
-        cooldown_time: int = DEFAULT_COOLDOWN_TIME,
+        cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ):
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use AsyncHuaweiSolar.create() instead"""
         self._client = client
@@ -80,7 +89,10 @@ class AsyncHuaweiSolar:
 
         # use this lock to prevent concurrent requests, as the
         # Huawei inverters can't cope with those
-        self._communication_lock = asyncio.Lock()
+        self.__communication_lock = asyncio.Lock()
+
+        self.__cooled_down = asyncio.Event()
+        self.__cooled_down.set()
 
         # These values are set by the `initialize()` method
         self.time_zone = None
@@ -115,6 +127,24 @@ class AsyncHuaweiSolar:
                 LOGGER.exception("Got error %s while trying to determine battery.", rerr)
                 raise rerr
 
+    @asynccontextmanager
+    async def _communication_lock(self):
+        async with self.__communication_lock:
+            if not self._client.connected_event.is_set():
+                LOGGER.info("Waiting for connection ...")
+            await self._client.connected_event.wait()
+
+            await self.__cooled_down.wait()
+            self.__cooled_down.clear()
+
+            yield
+
+            async def _perform_cooldown():
+                await asyncio.sleep(self._cooldown_time)
+                self.__cooled_down.set()
+
+            asyncio.create_task(_perform_cooldown())
+
     @classmethod
     async def create(
         cls,
@@ -128,11 +158,8 @@ class AsyncHuaweiSolar:
 
         client = None
         try:
-            client = await cls.__get_tcp_client(host, port, timeout)
+            client = AsyncHuaweiSolarModbusTcpClient(host, port, timeout)
             await client.connect()
-
-            # wait a little bit to prevent a timeout on the first request
-            await asyncio.sleep(1)
 
             huawei_solar = cls(client, slave, timeout, cooldown_time)
 
@@ -161,7 +188,7 @@ class AsyncHuaweiSolar:
         """Create a serial client"""
         client = None
         try:
-            client = await cls.__get_rtu_client(port, baudrate, timeout, **serial_kwargs)
+            client = AsyncHuaweiSolarModbusSerialClient(port, baudrate, timeout, **serial_kwargs)
             await client.connect()
 
             # wait a little bit to prevent a timeout on the first request
@@ -176,29 +203,6 @@ class AsyncHuaweiSolar:
             # otherwise it can stay active and cause even more problems ...
             LOGGER.exception("Aborting client creation due to error.")
             raise ConnectionException from err
-
-    @classmethod
-    async def __get_rtu_client(cls, port, baudrate, timeout: int, **serial_kwargs):
-        client = AsyncModbusSerialClient(
-            port,
-            **serial_kwargs,
-            baudrate=baudrate,
-            reconnect_delay=RECONNECT_DELAY,
-            timeout=timeout,
-        )
-        client.register(PrivateHuaweiModbusResponse)
-        return client
-
-    @classmethod
-    async def __get_tcp_client(cls, host, port, timeout) -> AsyncModbusTcpClient:
-        client = AsyncModbusTcpClient(
-            host,
-            port,
-            timeout=timeout,
-            reconnect_delay=RECONNECT_DELAY,
-        )
-        client.register(PrivateHuaweiModbusResponse)
-        return client
 
     async def stop(self):
         """Stop the modbus client."""
@@ -341,11 +345,9 @@ class AsyncHuaweiSolar:
                 LOGGER.error(message)
                 raise ConnectionInterruptedException(message) from err
 
-        async with self._communication_lock:
+        async with self._communication_lock():
             LOGGER.debug("Reading register %d with length %d from slave %s", register, length, slave or self.slave)
-            result = await _do_read()
-            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
-            return result
+            return await _do_read()
 
     async def get_file(self, file_type, customized_data=None, slave: t.Optional[int] = None) -> bytes:
         """Reads a 'file' as defined by the 'Uploading Files'
@@ -428,12 +430,9 @@ class AsyncHuaweiSolar:
 
             return file_data
 
-        async with self._communication_lock:
+        async with self._communication_lock():
             LOGGER.debug("Reading file %#x from slave %d", file_type, slave or self.slave)
-            result = await _do_read_file()
-            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
-
-            return result
+            return await _do_read_file()
 
     async def set(self, name, value, slave=None):
         """set named register from device"""
@@ -471,11 +470,9 @@ class AsyncHuaweiSolar:
         async def _do_set():
             return await self._write_registers(reg.register, builder.to_registers(), slave)
 
-        async with self._communication_lock:
-            result = await _do_set()
-            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
-
-            return result
+        async with self._communication_lock():
+            LOGGER.debug("Writing to register %s value %s on slave %s", name, value, slave or self.slave)
+            return await _do_set()
 
     async def _write_registers(self, register: int, value: list[int], slave=None) -> bool:
         """
@@ -578,12 +575,9 @@ class AsyncHuaweiSolar:
                 return True
             return False
 
-        async with self._communication_lock:
+        async with self._communication_lock():
             LOGGER.debug("Logging in")
-            result = await _do_login()
-            await asyncio.sleep(self._cooldown_time)  # throttle requests to prevent errors
-
-            return result
+            return await _do_login()
 
     async def heartbeat(self, slave_id):
         """Performs the heartbeat command. Only useful when maintaining a session."""
@@ -603,183 +597,3 @@ class AsyncHuaweiSolar:
         except HuaweiSolarException as err:
             LOGGER.exception("Exception during heartbeat: %s", err)
             return False
-
-
-class PrivateHuaweiModbusResponse(ModbusResponse):
-    """Response with the private Huawei Solar function code"""
-
-    function_code = 0x41
-    _rtu_byte_count_pos = 3
-
-    def __init__(self, **kwargs):
-        ModbusResponse.__init__(self, **kwargs)
-
-        self.sub_command = None
-        self.content = b""
-
-    def decode(self, data):
-        self.sub_command = int(data[0])
-        self.content = data[1:]
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.sub_command})"
-
-
-class PrivateHuaweiModbusRequest(ModbusRequest):
-    """Request with the private Huawei Solar function code"""
-
-    function_code = 0x41
-    _rtu_byte_count_pos = 3
-
-    def __init__(self, sub_command, content: bytes, **kwargs):
-        ModbusRequest.__init__(self, **kwargs)
-        self.sub_command = sub_command
-        self.content = content
-
-    def encode(self):
-        return bytes([self.sub_command, *self.content])
-
-    def decode(self, data):
-        self.sub_command = int(data[0])
-        self.content = data[1:]
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.sub_command})"
-
-
-class StartUploadModbusRequest(ModbusRequest):
-    """
-    Modbus file upload request
-    """
-
-    function_code = 0x41
-    sub_function_code = 0x05
-
-    def __init__(self, file_type, customized_data: t.Optional[bytes] = None, **kwargs):
-        ModbusRequest.__init__(self, **kwargs)
-        self.file_type = file_type
-
-        if customized_data is None:
-            self.customised_data = b""
-        else:
-            self.customised_data = customized_data
-
-    def encode(self):
-        data_length = 1 + len(self.customised_data)
-        return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type) + self.customised_data
-
-    def decode(self, data):
-        sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
-        self.customised_data = data[3:]
-
-        assert sub_function_code == self.sub_function_code
-        assert len(self.customised_data) == data_length - 1
-
-
-class StartUploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-public-methods
-    """
-    Modbus Response to a file upload request
-    """
-
-    function_code = 0x41
-    sub_function_code = 0x05
-
-    def __init__(self, data):
-        ModbusResponse.__init__(self)
-
-        (
-            data_length,
-            self.file_type,
-            self.file_length,
-            self.data_frame_length,
-        ) = struct.unpack_from(">BBLB", data, 0)
-        self.customised_data = data[7:]
-
-        assert len(self.customised_data) == data_length - 6
-
-
-class UploadModbusRequest(ModbusRequest):
-    """
-    Modbus Request for (a part of) a file
-    """
-
-    function_code = 0x41
-    sub_function_code = 0x06
-
-    def __init__(self, file_type, frame_no, **kwargs):
-        ModbusRequest.__init__(self, **kwargs)
-        self.file_type = file_type
-        self.frame_no = frame_no
-
-    def encode(self):
-        data_length = 3
-        return struct.pack(">BBBH", self.sub_function_code, data_length, self.file_type, self.frame_no)
-
-    def decode(self, data):
-        sub_function_code, data_length, self.file_type, self.frame_no = struct.unpack(">BBBH", data)
-
-        assert sub_function_code == self.sub_function_code
-        assert data_length == 3
-
-
-class UploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-public-methods
-    """
-    Modbus Response with (a part of) a file
-    """
-
-    function_code = 0x41
-    sub_function_code = 0x06
-
-    def __init__(self, data):
-        ModbusResponse.__init__(self)
-
-        (
-            data_length,
-            self.file_type,
-            self.frame_no,
-        ) = struct.unpack_from(">BBH", data, 0)
-        self.frame_data = data[4:]
-
-        assert len(self.frame_data) == data_length - 3
-
-
-class CompleteUploadModbusRequest(ModbusRequest):
-    """
-    Modbus Request to complete a file upload
-    """
-
-    function_code = 0x41
-    sub_function_code = 0x0C
-
-    def __init__(self, file_type, **kwargs):
-        ModbusRequest.__init__(self, **kwargs)
-        self.file_type = file_type
-
-    def encode(self):
-        data_length = 1
-        return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type)
-
-    def decode(self, data):
-        sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
-
-        assert sub_function_code == self.sub_function_code
-        assert data_length == 1
-
-
-class CompleteUploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-public-methods
-    """
-    Modbus Response when a file upload has been completed
-    """
-
-    function_code = 0x41
-    sub_function_code = 0x0C
-
-    def __init__(self, data):
-        ModbusResponse.__init__(self)
-        (
-            data_length,
-            self.file_type,
-            self.file_crc,
-        ) = struct.unpack_from(">BBH", data, 0)
-
-        assert data_length == 3
