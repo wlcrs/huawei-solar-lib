@@ -137,13 +137,15 @@ class AsyncHuaweiSolar:
             await self.__cooled_down.wait()
             self.__cooled_down.clear()
 
-            yield
+            try:
+                yield
+            finally:
 
-            async def _perform_cooldown():
-                await asyncio.sleep(self._cooldown_time)
-                self.__cooled_down.set()
+                async def _perform_cooldown():
+                    await asyncio.sleep(self._cooldown_time)
+                    self.__cooled_down.set()
 
-            asyncio.create_task(_perform_cooldown())
+                asyncio.create_task(_perform_cooldown())
 
     @classmethod
     async def create(
@@ -537,7 +539,7 @@ class AsyncHuaweiSolar:
             # Get challenge
             challenge_request = PrivateHuaweiModbusRequest(36, bytes([1, 0]), unit=slave or self.slave)
 
-            challenge_response = await self._client.protocol.execute(challenge_request)
+            challenge_response = await self._client.execute(challenge_request)
 
             assert challenge_response.content[0] == 0x11
             inverter_challenge = challenge_response.content[1:17]
@@ -559,7 +561,7 @@ class AsyncHuaweiSolar:
             )
             await asyncio.sleep(0.05)
             login_request = PrivateHuaweiModbusRequest(37, login_bytes, unit=slave or self.slave)
-            login_response = await self._client.protocol.execute(login_request)
+            login_response = await self._client.execute(login_request)
 
             if login_response.content[1] == 0:
                 # check if inverter returned the right hash of the password as well
