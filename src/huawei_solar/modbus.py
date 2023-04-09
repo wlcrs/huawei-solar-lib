@@ -1,3 +1,5 @@
+"""Custom classes for pyModbus"""
+
 import asyncio
 import logging
 import struct
@@ -13,12 +15,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 class AsyncHuaweiSolarModbusSerialClient(AsyncModbusSerialClient):
+    """Custom SerialClient with support for custom Huawei modbus messages"""
+
     def __init__(self, port, baudrate, timeout: int, **serial_kwargs):
         super().__init__(port, **serial_kwargs, baudrate=baudrate, reconnect_delay=RECONNECT_DELAY, timeout=timeout)
         self.register(PrivateHuaweiModbusResponse)
 
 
 class AsyncHuaweiSolarModbusTcpClient(AsyncModbusTcpClient):
+    """Custom TcpClient that supports wait after connect and custom Huawei modbus messages"""
+
     connected_event = asyncio.Event()
 
     def __init__(self, host, port, timeout) -> AsyncModbusTcpClient:

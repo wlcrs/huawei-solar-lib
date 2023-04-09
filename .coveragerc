@@ -1,11 +1,11 @@
 
 [run]
 branch = true
-source = 
+source =
     src
     tests
 
-omit = 
+omit =
     src/huawei_solar/__init__.py
     src/huawei_solar/version.py
     src/huawei_solar/exceptions.py

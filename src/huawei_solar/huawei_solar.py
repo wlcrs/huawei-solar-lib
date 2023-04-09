@@ -102,9 +102,10 @@ class AsyncHuaweiSolar:
         # get some registers which are needed to correctly decode all values
 
         self.time_zone = (await self.get(rn.TIME_ZONE)).value
-        await self._determine_battery_type()
+        await self.determine_battery_type()
 
-    async def _determine_battery_type(self, slave_id: t.Optional[int] = None):
+    async def determine_battery_type(self, slave_id: t.Optional[int] = None):
+        """Determine the battery type connected to this inverter"""
         # Skip if the battery type was already determined via another slave
         if self.battery_type is not None and self.battery_type != rv.StorageProductModel.NONE:
             return
@@ -210,6 +211,11 @@ class AsyncHuaweiSolar:
         """Stop the modbus client."""
         await self._client.close()
 
+    async def _reconnect(self):
+        """Reconnect to the inverter"""
+        await self._client.close()
+        await self._client.connect()
+
     async def _decode_response(self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder):
         """Decodes a modbus register and puts it into a Result object."""
         result = reg.decode(decoder, self)
@@ -280,20 +286,48 @@ class AsyncHuaweiSolar:
         It seems to only support connections from one device at the same time.
         """
 
+        def on_backoff(details):
+            LOGGER.debug(
+                "Received %s: backing off reading for %0.1f seconds after %d tries",
+                sys.exc_info()[0],
+                details["wait"],
+                details["tries"],
+            )
+
+        def on_backoff_with_reconnect(details):
+            if details.tries % 2 == 0:
+                asyncio.create_task(self._reconnect())
+                LOGGER.debug(
+                    "Received %s: reconnecting and backing off reading for %0.1f seconds after %d tries",
+                    sys.exc_info()[0],
+                    details["wait"],
+                    details["tries"],
+                )
+            else:
+                LOGGER.debug(
+                    "Received %s: backing off reading for %0.1f seconds after %d tries",
+                    sys.exc_info()[0],
+                    details["wait"],
+                    details["tries"],
+                )
+
         def backoff_giveup(details):
             raise ReadException(f"Failed to read register {register} after {details['tries']} tries")
 
         @backoff.on_exception(
             backoff.expo,
-            (asyncio.TimeoutError, SlaveBusyException, SlaveFailureException, ConnectionInterruptedException),
+            (asyncio.TimeoutError),
             max_tries=6,
             jitter=None,
-            on_backoff=lambda details: LOGGER.debug(
-                "Received %s: backing off reading for %0.1f seconds after %d tries",
-                sys.exc_info()[0],
-                details["wait"],
-                details["tries"],
-            ),
+            on_backoff=on_backoff_with_reconnect,
+            on_giveup=backoff_giveup,
+        )
+        @backoff.on_exception(
+            backoff.expo,
+            (SlaveBusyException, SlaveFailureException, ConnectionInterruptedException),
+            max_tries=6,
+            jitter=None,
+            on_backoff=on_backoff,
             on_giveup=backoff_giveup,
         )
         async def _do_read():
@@ -510,8 +544,7 @@ class AsyncHuaweiSolar:
 
             if single_register:
                 return response.address == register and response.value == value[0]
-            else:
-                return response.address == register and response.count == len(value)
+            return response.address == register and response.count == len(value)
         except ModbusConnectionException as err:
             LOGGER.exception("Failed to connect to device, is the host correct?")
             raise ConnectionInterruptedException(err) from err
