@@ -654,6 +654,7 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.SYSTEM_TIME_RAW: U32Register("seconds", 1, 40000, 2),
     rn.STARTUP: U16Register(None, 1, 40200, 1, writeable=True, readable=False),
     rn.SHUTDOWN: U16Register(None, 1, 40201, 1, writeable=True, readable=False),
+    rn.ACTIVE_POWER_DERATING_FIXED_VALUE: I32Register("W", 1, 40126, 2, writeable=True),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000, 1),
     rn.TIME_ZONE: I16Register("min", 1, 43006, 1, writeable=True),
     rn.WLAN_WAKEUP: I16Register(rv.WlanWakeup, 1, 45052, 1, writeable=True),

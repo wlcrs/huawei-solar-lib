@@ -257,6 +257,7 @@ SYSTEM_TIME_RAW = "system_time_raw"
 UNKNOWN_TIME_5 = "unknown_time_5"
 STARTUP = "startup"
 SHUTDOWN = "shutdown"
+ACTIVE_POWER_DERATING_FIXED_VALUE = "active_power_derating_fixed_value"
 GRID_CODE = "grid_code"
 TIME_ZONE = "time_zone"
 
