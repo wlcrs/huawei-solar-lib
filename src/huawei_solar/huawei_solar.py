@@ -194,9 +194,10 @@ class AsyncHuaweiSolar:
         client.register(PrivateHuaweiModbusResponse)
         return client
 
-    async def stop(self) -> None:
+    async def stop(self) -> bool:
         """Stop the modbus client."""
         await self._client.close()
+        return True
 
     async def _decode_response(self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder) -> Result:
         """Decodes a modbus register and puts it into a Result object."""
@@ -224,15 +225,15 @@ class AsyncHuaweiSolar:
 
         registers = list(map(REGISTERS.get, names))
 
-        if None in registers:
-            raise ValueError("Did not recognize all register names")
+        assert registers is not None, "Register names is empty"
+        assert None not in registers, "Did not recognize all register names"
 
         for register, register_name in zip(registers, names):
             if register and not register.readable:
                 raise ValueError(f"Trying to read unreadable register {register_name}")
 
         for idx in range(1, len(names)):
-            if registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:
+            if registers[idx] is None or registers[idx - 1] is None or registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:
                 raise ValueError(
                     f"Requested registers must be in monotonically increasing order, "
                     f"but {registers[idx-1].register} + {registers[idx-1].length} > {registers[idx].register}!"
@@ -560,7 +561,7 @@ class AsyncHuaweiSolar:
 
             return result
 
-    async def heartbeat(self, slave_id):
+    async def heartbeat(self, slave_id: int):
         """Performs the heartbeat command. Only useful when maintaining a session."""
         if not self._client.connected:
             return False
@@ -592,7 +593,7 @@ class PrivateHuaweiModbusResponse(ModbusResponse):
         self.sub_command = None
         self.content = b""
 
-    def decode(self, data):
+    def decode(self, data: bytes):
         self.sub_command = int(data[0])
         self.content = data[1:]
 
@@ -606,7 +607,7 @@ class PrivateHuaweiModbusRequest(ModbusRequest):
     function_code = 0x41
     _rtu_byte_count_pos = 3
 
-    def __init__(self, sub_command, content: bytes, **kwargs):
+    def __init__(self, sub_command: int, content: bytes, **kwargs):
         ModbusRequest.__init__(self, **kwargs)
         self.sub_command = sub_command
         self.content = content
@@ -630,7 +631,7 @@ class StartUploadModbusRequest(ModbusRequest):
     function_code = 0x41
     sub_function_code = 0x05
 
-    def __init__(self, file_type, customized_data: t.Optional[bytes] = None, **kwargs):
+    def __init__(self, file_type: int, customized_data: t.Optional[bytes] = None, **kwargs):
         ModbusRequest.__init__(self, **kwargs)
         self.file_type = file_type
 
@@ -643,7 +644,7 @@ class StartUploadModbusRequest(ModbusRequest):
         data_length = 1 + len(self.customised_data)
         return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type) + self.customised_data
 
-    def decode(self, data):
+    def decode(self, data: bytes):
         sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
         self.customised_data = data[3:]
 
@@ -659,7 +660,7 @@ class StartUploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-publ
     function_code = 0x41
     sub_function_code = 0x05
 
-    def __init__(self, data):
+    def __init__(self, data: bytes):
         ModbusResponse.__init__(self)
 
         (
@@ -681,7 +682,7 @@ class UploadModbusRequest(ModbusRequest):
     function_code = 0x41
     sub_function_code = 0x06
 
-    def __init__(self, file_type, frame_no, **kwargs):
+    def __init__(self, file_type: int, frame_no: int, **kwargs):
         ModbusRequest.__init__(self, **kwargs)
         self.file_type = file_type
         self.frame_no = frame_no
@@ -690,7 +691,7 @@ class UploadModbusRequest(ModbusRequest):
         data_length = 3
         return struct.pack(">BBBH", self.sub_function_code, data_length, self.file_type, self.frame_no)
 
-    def decode(self, data):
+    def decode(self, data: bytes):
         sub_function_code, data_length, self.file_type, self.frame_no = struct.unpack(">BBBH", data)
 
         assert sub_function_code == self.sub_function_code
@@ -705,7 +706,7 @@ class UploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-public-me
     function_code = 0x41
     sub_function_code = 0x06
 
-    def __init__(self, data):
+    def __init__(self, data: bytes):
         ModbusResponse.__init__(self)
 
         (
@@ -726,7 +727,7 @@ class CompleteUploadModbusRequest(ModbusRequest):
     function_code = 0x41
     sub_function_code = 0x0C
 
-    def __init__(self, file_type, **kwargs):
+    def __init__(self, file_type: int, **kwargs):
         ModbusRequest.__init__(self, **kwargs)
         self.file_type = file_type
 
@@ -734,7 +735,7 @@ class CompleteUploadModbusRequest(ModbusRequest):
         data_length = 1
         return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type)
 
-    def decode(self, data):
+    def decode(self, data: bytes):
         sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
 
         assert sub_function_code == self.sub_function_code
@@ -749,7 +750,7 @@ class CompleteUploadModbusResponse(ModbusResponse):  # pylint: disable=too-few-p
     function_code = 0x41
     sub_function_code = 0x0C
 
-    def __init__(self, data):
+    def __init__(self, data: bytes):
         ModbusResponse.__init__(self)
         (
             data_length,

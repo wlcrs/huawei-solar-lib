@@ -52,7 +52,7 @@ class HuaweiSolarBridge:
         self.supports_capacity_control = False
         self.power_meter_type: t.Optional[rv.MeterType] = None
 
-        self._pv_registers = []
+        self._pv_registers: list[str] = []
 
         self.__heartbeat_enabled = False
         self.__heartbeat_task: t.Optional[asyncio.Task] = None
@@ -112,27 +112,33 @@ class HuaweiSolarBridge:
         bridge.serial_number = serial_number_result.value
         bridge.firmware_version = pn_result.value
 
-        bridge.pv_string_count = (await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)).value
+        pv_string_count = await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)
+        bridge.pv_string_count = 0 if pv_string_count is None else pv_string_count.value
         bridge._compute_pv_registers()  # pylint: disable=protected-access
 
         try:
-            bridge.has_optimizers = (await bridge.client.get(rn.NB_OPTIMIZERS, bridge.slave_id)).value
+            has_optimizers = await bridge.client.get(rn.NB_OPTIMIZERS, bridge.slave_id)
+            bridge.has_optimizers = False if has_optimizers is None else has_optimizers.value
         except ReadException:  # some inverters throw an IllegalAddress exception when accessing this address
             pass
 
         try:
-            has_power_meter = (await bridge.client.get(rn.METER_STATUS, bridge.slave_id)).value == rv.MeterStatus.NORMAL
+            meter_status = await bridge.client.get(rn.METER_STATUS, bridge.slave_id)
+            has_power_meter = False if meter_status is None else meter_status.value == rv.MeterStatus.NORMAL
             if has_power_meter:
-                bridge.power_meter_type = (await bridge.client.get(rn.METER_TYPE, bridge.slave_id)).value
+                power_meter_type = await bridge.client.get(rn.METER_TYPE, bridge.slave_id)
+                bridge.power_meter_type = None if power_meter_type is None else power_meter_type.value
         except ReadException:
             pass
 
         try:
-            bridge.battery_1_type = (await bridge.client.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL, bridge.slave_id)).value
+            battery_1_type = await bridge.client.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL, bridge.slave_id)
+            bridge.battery_1_type = rv.StorageProductModel.NONE if battery_1_type is None else battery_1_type.value
         except ReadException:
             pass
         try:
-            bridge.battery_2_type = (await bridge.client.get(rn.STORAGE_UNIT_2_PRODUCT_MODEL, bridge.slave_id)).value
+            battery_2_type = await bridge.client.get(rn.STORAGE_UNIT_2_PRODUCT_MODEL, bridge.slave_id)
+            bridge.battery_2_type = rv.StorageProductModel.NONE if battery_2_type is None else battery_2_type.value
         except ReadException:
             pass
 
@@ -187,7 +193,7 @@ class HuaweiSolarBridge:
                 result.update(await self._get_multiple_to_dict(CAPACITY_CONTROL_REGISTERS))
         return result
 
-    async def _read_file(self, file_type, customized_data=None) -> bytes:
+    async def _read_file(self, file_type: int, customized_data: t.Optional[bytes] = None) -> bytes:
         """
         Wraps `get_file` from `AsyncHuaweiSolar` in a retry-logic for when
         the login-sequence needs to be repeated.
@@ -270,7 +276,8 @@ class HuaweiSolarBridge:
             self.__heartbeat_task.cancel()
 
         if self._primary:
-            return await self.client.stop()
+            ret_val = await self.client.stop()
+            return False if ret_val is None else ret_val
 
         return True
 
@@ -283,7 +290,7 @@ class HuaweiSolarBridge:
 
         try:
             time_zone = await self.client.get(rn.TIME_ZONE, self.slave_id)
-
+            assert time_zone is not None
             await self.client.set(rn.TIME_ZONE, time_zone.value, self.slave_id)
             return True
         except ReadException:
