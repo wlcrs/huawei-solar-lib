@@ -593,7 +593,7 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.OFFERING_NAME_OF_SOUTHBOUND_DEVICE_3: StringRegister(30591, 15),
     rn.HARDWARE_VERSION: StringRegister(31000, 15),
     rn.MONITORING_BOARD_SN: StringRegister(31015, 10),
-    rn.MONITORING_SOFTWARE_VERSION: StringRegister(31015, 15),
+    rn.MONITORING_SOFTWARE_VERSION: StringRegister(31025, 15),
     rn.MASTER_DSP_VERSION: StringRegister(31040, 15),
     rn.CPLD_VERSION: StringRegister(31070, 15),
     rn.AFCI_VERSION: StringRegister(31085, 15),
