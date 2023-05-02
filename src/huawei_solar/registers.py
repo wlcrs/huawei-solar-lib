@@ -860,7 +860,7 @@ BATTERY_REGISTERS = {
     rn.DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER: U32Register("W", 1, 47590, 2, writeable=True),
     rn.BACKUP_SWITCH_TO_OFF_GRID: U16Register(None, 1, 47604, 1, writeable=True),
     rn.BACKUP_VOLTAGE_INDEPENDEND_OPERATION: U16Register(
-        rv.BackupVoltageIndependentOperation, 1, 47604, 1, writeable=True
+        rv.BackupVoltageIndependentOperation, 1, 47605, 1, writeable=True
     ),
     rn.REMOTE_CHARGE_DISCHARGE_CONTROL_MODE: I16Register(
         rv.RemoteChargeDischargeControlMode, 1, 47589, 1, writeable=True
