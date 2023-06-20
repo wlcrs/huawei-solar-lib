@@ -14,24 +14,18 @@ WAIT_ON_CONNECT = 1500  # in milliseconds
 LOGGER = logging.getLogger(__name__)
 
 
-class AsyncHuaweiSolarModbusSerialClient(AsyncModbusSerialClient):
-    """Custom SerialClient with support for custom Huawei modbus messages"""
-
-    def __init__(self, port, baudrate, timeout: int, **serial_kwargs):
-        super().__init__(port, **serial_kwargs, baudrate=baudrate, reconnect_delay=RECONNECT_DELAY, timeout=timeout)
-        self.register(PrivateHuaweiModbusResponse)
-
-
-class AsyncHuaweiSolarModbusTcpClient(AsyncModbusTcpClient):
-    """Custom TcpClient that supports wait after connect and custom Huawei modbus messages"""
+class ModbusConnectionMixin:
+    """Mixin that adds support for custom Huawei modbus messages and delays upon reconnect"""
 
     connected_event = asyncio.Event()
 
-    def __init__(self, host, port, timeout) -> AsyncModbusTcpClient:
-        super().__init__(host, port, timeout=timeout, reconnect_delay=RECONNECT_DELAY)
-        self.register(PrivateHuaweiModbusResponse)
+    def __init__(self, *args, **kwargs) -> None:
+        """Add support for the custom Huawei modbus messages"""
+        super().__init__(*args, **kwargs)
+        super().register(PrivateHuaweiModbusResponse)
 
     def client_made_connection(self, protocol):
+        """Register that a connection has been made in an asyncio Event"""
         super().client_made_connection(protocol)
 
         async def _made_connection_task():
@@ -42,8 +36,23 @@ class AsyncHuaweiSolarModbusTcpClient(AsyncModbusTcpClient):
         asyncio.create_task(_made_connection_task())
 
     def client_lost_connection(self, protocol):
+        """Register that a connection has been lost in an asyncio Event"""
         super().client_lost_connection(protocol)
         self.connected_event.clear()
+
+
+class AsyncHuaweiSolarModbusSerialClient(ModbusConnectionMixin, AsyncModbusSerialClient):
+    """Custom SerialClient with support for custom Huawei modbus messages"""
+
+    def __init__(self, port, baudrate, timeout: int, **serial_kwargs):
+        super().__init__(port, **serial_kwargs, baudrate=baudrate, reconnect_delay=RECONNECT_DELAY, timeout=timeout)
+
+
+class AsyncHuaweiSolarModbusTcpClient(ModbusConnectionMixin, AsyncModbusTcpClient):
+    """Custom TcpClient that supports wait after connect and custom Huawei modbus messages"""
+
+    def __init__(self, host, port, timeout) -> AsyncModbusTcpClient:
+        super().__init__(host, port, timeout=timeout, reconnect_delay=RECONNECT_DELAY)
 
 
 class PrivateHuaweiModbusResponse(ModbusResponse):
