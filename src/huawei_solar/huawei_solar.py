@@ -295,7 +295,7 @@ class AsyncHuaweiSolar:
             )
 
         def on_backoff_with_reconnect(details):
-            if details.tries % 2 == 0:
+            if details["tries"] % 3 == 0:
                 asyncio.create_task(self._reconnect())
                 LOGGER.debug(
                     "Received %s: reconnecting and backing off reading for %0.1f seconds after %d tries",
