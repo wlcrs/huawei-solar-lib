@@ -834,7 +834,7 @@ BATTERY_REGISTERS = {
     rn.STORAGE_CHARGING_CUTOFF_CAPACITY: U16Register("%", 10, 47081, 1, writeable=True),
     rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY: U16Register("%", 10, 47082, 1, writeable=True),
     rn.STORAGE_FORCED_CHARGING_AND_DISCHARGING_PERIOD: U16Register("min", 1, 47083, 1, writeable=True),
-    rn.STORAGE_FORCED_CHARGING_AND_DISCHARGING_POWER: I32Register("min", 1, 47084, 2),
+    rn.STORAGE_FORCED_CHARGING_AND_DISCHARGING_POWER: I32Register("W", 1, 47084, 2),
     rn.STORAGE_WORKING_MODE_SETTINGS: U16Register(rv.StorageWorkingModesC, 1, 47086, 1, writeable=True),
     rn.STORAGE_CHARGE_FROM_GRID_FUNCTION: U16Register(bool, 1, 47087, 1, writeable=True),
     rn.STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE: U16Register("%", 10, 47088, 1, writeable=True),
