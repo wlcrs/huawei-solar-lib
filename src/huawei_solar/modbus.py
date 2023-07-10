@@ -24,9 +24,9 @@ class ModbusConnectionMixin:
         super().__init__(*args, **kwargs)
         super().register(PrivateHuaweiModbusResponse)
 
-    def client_made_connection(self, protocol):
+    def connection_made(self, transport):
         """Register that a connection has been made in an asyncio Event"""
-        super().client_made_connection(protocol)
+        super().connection_made(transport)
 
         async def _made_connection_task():
             LOGGER.debug("Waiting for %d milliseconds after connection before performing operations", WAIT_ON_CONNECT)
@@ -35,9 +35,9 @@ class ModbusConnectionMixin:
 
         asyncio.create_task(_made_connection_task())
 
-    def client_lost_connection(self, protocol):
+    def connection_lost(self, exc):
         """Register that a connection has been lost in an asyncio Event"""
-        super().client_lost_connection(protocol)
+        super().connection_lost(exc)
         self.connected_event.clear()
 
 
