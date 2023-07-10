@@ -56,6 +56,7 @@ DEFAULT_SLAVE = 0
 DEFAULT_TIMEOUT = 10  # especially the SDongle can react quite slowly
 DEFAULT_WAIT = 1
 DEFAULT_COOLDOWN_TIME = 0.05
+WAIT_FOR_CONNECTION_TIMEOUT = 5
 
 HEARTBEAT_REGISTER = 49999
 
@@ -133,7 +134,7 @@ class AsyncHuaweiSolar:
         async with self.__communication_lock:
             if not self._client.connected_event.is_set():
                 LOGGER.info("Waiting for connection ...")
-            await self._client.connected_event.wait()
+            await asyncio.wait_for(self._client.connected_event.wait(), WAIT_FOR_CONNECTION_TIMEOUT)
 
             await self.__cooled_down.wait()
             self.__cooled_down.clear()
