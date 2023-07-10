@@ -210,11 +210,11 @@ class AsyncHuaweiSolar:
 
     async def stop(self):
         """Stop the modbus client."""
-        await self._client.close()
+        self._client.close()
 
     async def _reconnect(self):
         """Reconnect to the inverter"""
-        await self._client.close()
+        self._client.close()
         await self._client.connect()
 
     async def _decode_response(self, reg: RegisterDefinition, decoder: BinaryPayloadDecoder):
