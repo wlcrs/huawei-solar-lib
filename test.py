@@ -1,5 +1,6 @@
-from huawei_solar import AsyncHuaweiSolar
 import asyncio
+
+from huawei_solar import AsyncHuaweiSolar
 
 loop = asyncio.new_event_loop()
 

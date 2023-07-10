@@ -7,18 +7,18 @@
 
 # Python library for connecting to Huawei SUN2000 Inverters over Modbus
 
-This library implements an easy to use interface to locally connect to Huawei SUN2000 inverters over 
+This library implements an easy to use interface to locally connect to Huawei SUN2000 inverters over
 Modbus-TCP or Modbus-RTU following the 'Solar Inverter Modbus Interface Definitions' provided by Huawei.
 
 It was primarily developed to add support for Huawei Solar inverters to Home Assistant, resulting
-in the following integration: [wlcrs/huawei_solar](https://github.com/wlcrs/huawei_solar). 
+in the following integration: [wlcrs/huawei_solar](https://github.com/wlcrs/huawei_solar).
 
 **Features:**
-- Modbus-TCP support: connecting to the inverter via the SDongle, or over the WiFi-AP (`SUN2000-<serial_no>`) 
+- Modbus-TCP support: connecting to the inverter via the SDongle, or over the WiFi-AP (`SUN2000-<serial_no>`)
   broadcasted by the inverter
 - Modbus-RTU support: connecting to the inverter via the RS485A1 and RS485B1 pins on the COM port
 - Batched reading of Modbus registers and converting them into the correct units
-- Reading Optimizer data via the specialized 'file' Modbus extension  
+- Reading Optimizer data via the specialized 'file' Modbus extension
 - Writing to Modbus registers (mostly useful for setting battery parameters)
 - Performing the login sequence to gain 'installer'-level access rights
 
@@ -34,7 +34,7 @@ pip3 install huawei-solar
 
 ## Basic usage
 
-The library consists out of a low level interface implemented in [huwei_solar.py](src/huawei_solar/huawei_solar.py) which implements all the Modbus-operations, and a high level interface in [bridge.py](src/huawei_solar/bridge.py) which facilitates easy usage (primarily meant for the HA integration). 
+The library consists out of a low level interface implemented in [huwei_solar.py](src/huawei_solar/huawei_solar.py) which implements all the Modbus-operations, and a high level interface in [bridge.py](src/huawei_solar/bridge.py) which facilitates easy usage (primarily meant for the HA integration).
 
 ### Using the high level interface
 
@@ -75,7 +75,7 @@ print("B-C voltage: ", results[1].value)
 print("C-A voltage: ", results[2].value)
 ```
 
-A good starting point to learn how to use the low level interface is to look at how the high level interface in 
+A good starting point to learn how to use the low level interface is to look at how the high level interface in
 [bridge.py](src/huawei_solar/bridge.py) uses it.
 
 # Acknowledgements

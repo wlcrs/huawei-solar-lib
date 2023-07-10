@@ -90,7 +90,7 @@ class HuaweiSolarBridge:
         """Creates a HuaweiSolarBridge instance for extra slaves accessible via the given AsyncHuaweiSolar instance."""
         assert primary_bridge.slave_id != slave_id
 
-        await primary_bridge.client._determine_battery_type(slave_id)
+        await primary_bridge.client.determine_battery_type(slave_id)
 
         bridge = cls(
             primary_bridge.client,
@@ -375,10 +375,10 @@ class HuaweiSolarBridge:
 
     @property
     def battery_type(self) -> rv.StorageProductModel:
+        """The battery type present on this inverter"""
         if self.battery_1_type != rv.StorageProductModel.NONE:
             return self.battery_1_type
-        else:
-            return self.battery_2_type
+        return self.battery_2_type
 
 
 # Registers which should always be read

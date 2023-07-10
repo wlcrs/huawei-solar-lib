@@ -541,6 +541,8 @@ class WlanWakeup(IntEnum):
 
 
 class RemoteChargeDischargeControlMode(IntEnum):
+    """Remote Charge/Discharge Control Mode"""
+
     LOCAL_CONTROL = 0
     REMOTE_CONTROL_MAXIMUM_SELF_CONSUMPTION = 1
     REMOTE_CONTROL_FULLY_FED_TO_GRID = 2
