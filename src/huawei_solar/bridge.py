@@ -213,6 +213,9 @@ class HuaweiSolarBridge:
                 result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_1))
                 result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_2))
                 result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_3))
+
+                # We have no way of knowing if a backup box is installed, so always fetch these registers
+                result.update(await self._get_multiple_to_dict(BACKUP_POWER_REGISTERS))
             if self.supports_capacity_control:
                 result.update(await self._get_multiple_to_dict(CAPACITY_CONTROL_REGISTERS))
         return result
@@ -488,4 +491,8 @@ CAPACITY_CONTROL_REGISTERS = [
     rn.STORAGE_CAPACITY_CONTROL_MODE,
     rn.STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING,
     rn.STORAGE_CAPACITY_CONTROL_PERIODS,
+]
+
+BACKUP_POWER_REGISTERS = [
+    rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE,
 ]
