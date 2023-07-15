@@ -75,6 +75,8 @@ def _compute_digest(password, seed):
 class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter"""
 
+    _reconnect_task: asyncio.Task | None = None
+
     def __init__(
         self,
         client: t.Union[AsyncHuaweiSolarModbusSerialClient, AsyncHuaweiSolarModbusTcpClient],
@@ -134,7 +136,13 @@ class AsyncHuaweiSolar:
         async with self.__communication_lock:
             if not self._client.connected_event.is_set():
                 LOGGER.info("Waiting for connection ...")
-            await asyncio.wait_for(self._client.connected_event.wait(), WAIT_FOR_CONNECTION_TIMEOUT)
+
+            try:
+                await asyncio.wait_for(self._client.connected_event.wait(), WAIT_FOR_CONNECTION_TIMEOUT)
+            except asyncio.TimeoutError as err:
+                LOGGER.exception("Timeout while waiting for connection. Reconnecting...")
+                self._reconnect_task = asyncio.create_task(self._reconnect())
+                raise err
 
             await self.__cooled_down.wait()
             self.__cooled_down.clear()
@@ -210,6 +218,9 @@ class AsyncHuaweiSolar:
 
     async def stop(self):
         """Stop the modbus client."""
+        if self._reconnect_task:
+            self._reconnect_task.cancel()
+
         self._client.close()
 
     async def _reconnect(self):
@@ -297,7 +308,7 @@ class AsyncHuaweiSolar:
 
         def on_backoff_with_reconnect(details):
             if details["tries"] % 3 == 0:
-                asyncio.create_task(self._reconnect())
+                self._reconnect_task = asyncio.create_task(self._reconnect())
                 LOGGER.debug(
                     "Received %s: reconnecting and backing off reading for %0.1f seconds after %d tries",
                     sys.exc_info()[0],
@@ -317,7 +328,7 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.expo,
-            (asyncio.TimeoutError),
+            (asyncio.TimeoutError, ConnectionInterruptedException),
             max_tries=6,
             jitter=None,
             on_backoff=on_backoff_with_reconnect,
@@ -325,7 +336,7 @@ class AsyncHuaweiSolar:
         )
         @backoff.on_exception(
             backoff.expo,
-            (SlaveBusyException, SlaveFailureException, ConnectionInterruptedException),
+            (SlaveBusyException, SlaveFailureException),
             max_tries=6,
             jitter=None,
             on_backoff=on_backoff,
