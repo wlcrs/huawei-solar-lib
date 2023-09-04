@@ -14,12 +14,12 @@ def test_capacity_control_register():
 
     pspr = REGISTERS[rn.STORAGE_CAPACITY_CONTROL_PERIODS]
 
-    builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
+    builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.BIG)
     pspr.encode(value, builder)
 
     payload = builder.to_registers()
 
-    decoder = BinaryPayloadDecoder.fromRegisters(payload, byteorder=Endian.Big, wordorder=Endian.Big)
+    decoder = BinaryPayloadDecoder.fromRegisters(payload, byteorder=Endian.BIG, wordorder=Endian.BIG)
 
     decoded_result = pspr.decode(decoder, None)
 

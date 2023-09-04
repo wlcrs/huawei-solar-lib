@@ -275,7 +275,7 @@ class AsyncHuaweiSolar:
 
         response = await self._read_registers(registers[0].register, total_length, slave)
 
-        decoder = BinaryPayloadDecoder.fromRegisters(response.registers, byteorder=Endian.Big, wordorder=Endian.Big)
+        decoder = BinaryPayloadDecoder.fromRegisters(response.registers, byteorder=Endian.BIG, wordorder=Endian.BIG)
 
         result = [await self._decode_response(registers[0], decoder)]
         for idx in range(1, len(registers)):
@@ -492,7 +492,7 @@ class AsyncHuaweiSolar:
         if not reg.writeable:
             raise WriteException("Register is not writable")
 
-        builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
+        builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.BIG)
         reg.encode(value, builder)
         value = builder.to_registers()
 
