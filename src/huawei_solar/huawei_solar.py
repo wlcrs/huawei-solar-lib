@@ -183,8 +183,8 @@ class AsyncHuaweiSolar:
             # otherwise it can stay active and cause even more problems ...
             LOGGER.exception("Aborting client creation due to error.")
 
-            if client is not None:
-                await client.close()
+            if client:
+                client.close()
             raise ConnectionException from err
 
     @classmethod
