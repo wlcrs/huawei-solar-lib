@@ -664,17 +664,17 @@ REGISTERS: dict[str, RegisterDefinition] = {
 
 
 PV_REGISTERS = {
-    rn.PV_01_VOLTAGE: I16Register("V", 10, 32016, 1),
+    rn.PV_01_VOLTAGE: I16Register("V", 10, 32260, 1),
     rn.PV_01_CURRENT: I16Register("A", 100, 32017, 1),
-    rn.PV_02_VOLTAGE: I16Register("V", 10, 32018, 1),
+    rn.PV_02_VOLTAGE: I16Register("V", 10, 32262, 1),
     rn.PV_02_CURRENT: I16Register("A", 100, 32019, 1),
-    rn.PV_03_VOLTAGE: I16Register("V", 10, 32020, 1),
+    rn.PV_03_VOLTAGE: I16Register("V", 10, 32264, 1),
     rn.PV_03_CURRENT: I16Register("A", 100, 32021, 1),
-    rn.PV_04_VOLTAGE: I16Register("V", 10, 32022, 1),
+    rn.PV_04_VOLTAGE: I16Register("V", 10, 32266, 1),
     rn.PV_04_CURRENT: I16Register("A", 100, 32023, 1),
-    rn.PV_05_VOLTAGE: I16Register("V", 10, 32024, 1),
+    rn.PV_05_VOLTAGE: I16Register("V", 10, 32268, 1),
     rn.PV_05_CURRENT: I16Register("A", 100, 32025, 1),
-    rn.PV_06_VOLTAGE: I16Register("V", 10, 32026, 1),
+    rn.PV_06_VOLTAGE: I16Register("V", 10, 32266, 1),
     rn.PV_06_CURRENT: I16Register("A", 100, 32027, 1),
     rn.PV_07_VOLTAGE: I16Register("V", 10, 32028, 1),
     rn.PV_07_CURRENT: I16Register("A", 100, 32029, 1),
