@@ -445,7 +445,7 @@ STATE_CODES_1 = {
     0b0000_0000_0000_0010: "Grid-Connected",
     0b0000_0000_0000_0100: "Grid-Connected normally",
     0b0000_0000_0000_1000: "Grid connection with derating due to power rationing",
-    0b0000_0000_0001_0000: "Grid connection with derating due to internalcauses of the solar inverter",
+    0b0000_0000_0001_0000: "Grid connection with derating due to internal causes of the solar inverter",
     0b0000_0000_0010_0000: "Normal stop",
     0b0000_0000_0100_0000: "Stop due to faults",
     0b0000_0000_1000_0000: "Stop due to power rationing",
