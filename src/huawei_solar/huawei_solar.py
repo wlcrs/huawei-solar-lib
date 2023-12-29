@@ -254,6 +254,7 @@ class AsyncHuaweiSolar:
 
         if None in registers:
             raise ValueError("Did not recognize all register names")
+        registers = t.cast(list[RegisterDefinition], registers)
 
         for register, register_name in zip(registers, names):
             if not register.readable:

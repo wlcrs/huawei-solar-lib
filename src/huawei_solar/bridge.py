@@ -24,6 +24,29 @@ class HuaweiSolarBridge:
     """The HuaweiSolarBridge exposes a higher-level interface than AsyncHuaweiSolar,
     making it easier to interact with a Huawei Solar inverter."""
 
+    model_name: str
+    serial_number: str
+    product_number: str
+
+    pv_string_count: int = 0
+    has_optimizers: bool = False
+
+    battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
+    battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
+    supports_capacity_control = False
+    power_meter_online = False
+    power_meter_type: t.Optional[rv.MeterType] = None
+
+    _pv_registers: list[str]
+
+    __heartbeat_enabled = False
+    __heartbeat_task: t.Optional[asyncio.Task] = None
+
+    __username: t.Optional[str] = None
+    __password: t.Optional[str] = None
+
+    previous_update_result: t.Optional[t.Dict[str, Result]] = None
+
     def __init__(
         self,
         client: AsyncHuaweiSolar,
@@ -36,29 +59,6 @@ class HuaweiSolarBridge:
 
         self._primary = primary
         self.slave_id = slave_id or 0
-
-        self.model_name: t.Optional[str] = None
-        self.serial_number: t.Optional[str] = None
-        self.firmware_version: t.Optional[str] = None
-
-        self.pv_string_count: int = 0
-
-        self.has_optimizers = False
-        self.battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
-        self.battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
-        self.supports_capacity_control = False
-        self.power_meter_online = False
-        self.power_meter_type: t.Optional[rv.MeterType] = None
-
-        self._pv_registers = None
-
-        self.__heartbeat_enabled = False
-        self.__heartbeat_task: t.Optional[asyncio.Task] = None
-
-        self.__username: t.Optional[str] = None
-        self.__password: t.Optional[str] = None
-
-        self.previous_update_result: t.Optional[t.Dict[str, Result]] = None
 
     @classmethod
     async def create(cls, host: str, port: int = DEFAULT_TCP_PORT, slave_id: int = DEFAULT_SLAVE):
@@ -113,7 +113,7 @@ class HuaweiSolarBridge:
 
         bridge.model_name = model_name_result.value
         bridge.serial_number = serial_number_result.value
-        bridge.firmware_version = pn_result.value
+        bridge.product_number = pn_result.value
 
         bridge.pv_string_count = (await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)).value
         bridge._compute_pv_registers()  # pylint: disable=protected-access
@@ -226,6 +226,7 @@ class HuaweiSolarBridge:
         the login-sequence needs to be repeated.
         """
         if self.__username and not self.__heartbeat_enabled:  # we must login again before trying to read the file
+            assert self.__password
             logged_in = await self.login(self.__username, self.__password)
 
             if not logged_in:
@@ -235,6 +236,7 @@ class HuaweiSolarBridge:
             return await self.client.get_file(file_type, customized_data, self.slave_id)
         except PermissionDenied as err:
             if self.__username:
+                assert self.__password
                 logged_in = await self.login(self.__username, self.__password)
 
                 if not logged_in:
@@ -356,6 +358,7 @@ class HuaweiSolarBridge:
         """Sets a register to a certain value."""
 
         if self.__username and not self.__heartbeat_enabled:  # we must login again before trying to set the value
+            assert self.__password
             logged_in = await self.login(self.__username, self.__password)
 
             if not logged_in:
@@ -365,6 +368,7 @@ class HuaweiSolarBridge:
             return await self.client.set(name, value, slave=self.slave_id)
         except PermissionDenied as err:
             if self.__username:
+                assert self.__password
                 logged_in = await self.login(self.__username, self.__password)
 
                 if not logged_in:

@@ -46,9 +46,15 @@ class StringRegister(RegisterDefinition):
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
         try:
-            return decoder.decode_string(self.length * 2).decode("utf-8").strip("\0")
+            result = decoder.decode_string(self.length * 2).decode("utf-8")
         except UnicodeDecodeError as err:
             raise DecodeError from err
+        else:
+            end_str_pos = result.find("\0")
+            if end_str_pos > -1:
+                result = result[0:end_str_pos]
+
+            return result
 
 
 class NumberRegister(RegisterDefinition):
