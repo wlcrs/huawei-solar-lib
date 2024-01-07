@@ -364,6 +364,12 @@ class HuaweiSolarBridge:
             if not logged_in:
                 _LOGGER.warning("Could not login, setting, %s will probably fail.", name)
 
+        if self.__heartbeat_enabled:
+            try:
+                await self.client.heartbeat(self.slave_id)
+            except HuaweiSolarException:
+                _LOGGER.warning("Failed to perform heartbeat before write")
+
         try:
             return await self.client.set(name, value, slave=self.slave_id)
         except PermissionDenied as err:
@@ -375,6 +381,7 @@ class HuaweiSolarBridge:
                     _LOGGER.error("Could not login to set %s .", name)
                     raise err
 
+                await self.client.heartbeat(self.slave_id)
                 return await self.client.set(name, value, slave=self.slave_id)
 
             # we have no login-credentials available, pass on permission error
