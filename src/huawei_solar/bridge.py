@@ -1,4 +1,5 @@
 """Higher-level access to Huawei Solar inverters."""
+
 from __future__ import annotations
 
 import asyncio
@@ -39,6 +40,7 @@ class HuaweiSolarBridge:
 
     _pv_registers: list[str]
 
+    __login_lock = asyncio.Lock()
     __heartbeat_enabled = False
     __heartbeat_task: t.Optional[asyncio.Task] = None
 
@@ -225,19 +227,16 @@ class HuaweiSolarBridge:
         Wraps `get_file` from `AsyncHuaweiSolar` in a retry-logic for when
         the login-sequence needs to be repeated.
         """
-        if self.__username and not self.__heartbeat_enabled:  # we must login again before trying to read the file
-            assert self.__password
-            logged_in = await self.login(self.__username, self.__password)
+        logged_in = await self.ensure_logged_in()
 
-            if not logged_in:
-                _LOGGER.warning("Could not login, reading file %x will probably fail.", file_type)
+        if not logged_in:
+            _LOGGER.warning("Could not login, reading file %x will probably fail.", file_type)
 
         try:
             return await self.client.get_file(file_type, customized_data, self.slave_id)
         except PermissionDenied as err:
             if self.__username:
-                assert self.__password
-                logged_in = await self.login(self.__username, self.__password)
+                logged_in = self.ensure_logged_in(force=True)
 
                 if not logged_in:
                     _LOGGER.error("Could not login to read file %x .", file_type)
@@ -325,20 +324,45 @@ class HuaweiSolarBridge:
         except PermissionDenied:
             return False
 
+    async def ensure_logged_in(self, *, force=False):
+        """
+        Checks if it is necessary to login and performs the necessary login sequence if needed.
+        """
+        async with self.__login_lock:
+            if force:
+                _LOGGER.debug("Forcefully stopping any heartbeat task (if any is still running)")
+                self.__heartbeat_enabled = False
+
+                if self.__heartbeat_task:
+                    self.__heartbeat_task.cancel()
+
+            if self.__username and not self.__heartbeat_enabled:
+                _LOGGER.debug("Currently not logged in: logging in now and starting heartbeat")
+                assert self.__password
+                if not await self.client.login(self.__username, self.__password):
+                    raise InvalidCredentials()
+
+                self.start_heartbeat()
+
+        return True
+
     async def login(self, username: str, password: str) -> bool:
         """Performs the login-sequence with the provided username/password."""
-        if not await self.client.login(username, password, self.slave_id):
-            raise InvalidCredentials()
+        async with self.__login_lock:
+            if not await self.client.login(username, password, self.slave_id):
+                raise InvalidCredentials()
 
-        # save the correct login credentials
-        self.__username = username
-        self.__password = password
-        self.start_heartbeat()
+            # save the correct login credentials
+            self.__username = username
+            self.__password = password
+            self.start_heartbeat()
 
         return True
 
     def start_heartbeat(self):
         """Start the heartbeat thread to stay logged in."""
+        assert self.__login_lock.locked, "Should only be called from within the login_lock!"
+
         if self.__heartbeat_task is not None and not self.__heartbeat_task.done():
             raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
 
@@ -357,12 +381,10 @@ class HuaweiSolarBridge:
     async def set(self, name: str, value):
         """Sets a register to a certain value."""
 
-        if self.__username and not self.__heartbeat_enabled:  # we must login again before trying to set the value
-            assert self.__password
-            logged_in = await self.login(self.__username, self.__password)
+        logged_in = await self.ensure_logged_in()  # we must login again before trying to set the value
 
-            if not logged_in:
-                _LOGGER.warning("Could not login, setting, %s will probably fail.", name)
+        if not logged_in:
+            _LOGGER.warning("Could not login, setting, %s will probably fail.", name)
 
         if self.__heartbeat_enabled:
             try:
@@ -374,14 +396,15 @@ class HuaweiSolarBridge:
             return await self.client.set(name, value, slave=self.slave_id)
         except PermissionDenied as err:
             if self.__username:
-                assert self.__password
-                logged_in = await self.login(self.__username, self.__password)
+                logged_in = await self.ensure_logged_in(force=True)
 
                 if not logged_in:
                     _LOGGER.error("Could not login to set %s .", name)
                     raise err
 
+                # Force a heartbeat first when connected with username/password credentials
                 await self.client.heartbeat(self.slave_id)
+
                 return await self.client.set(name, value, slave=self.slave_id)
 
             # we have no login-credentials available, pass on permission error
