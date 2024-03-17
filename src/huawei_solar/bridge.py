@@ -361,7 +361,7 @@ class HuaweiSolarBridge:
 
     def start_heartbeat(self):
         """Start the heartbeat thread to stay logged in."""
-        assert self.__login_lock.locked, "Should only be called from within the login_lock!"
+        assert self.__login_lock.locked(), "Should only be called from within the login_lock!"
 
         if self.__heartbeat_task is not None and not self.__heartbeat_task.done():
             raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
