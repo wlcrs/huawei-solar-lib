@@ -1,4 +1,5 @@
 """File definitions from the Huawei inverter"""
+
 import binascii
 from dataclasses import dataclass
 from datetime import datetime

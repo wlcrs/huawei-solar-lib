@@ -1,6 +1,7 @@
 """
 Get production and status information from the Huawei Inverter using Modbus over TCP
 """
+
 import asyncio
 from collections import namedtuple
 from contextlib import asynccontextmanager
