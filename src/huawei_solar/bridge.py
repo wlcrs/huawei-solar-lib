@@ -48,6 +48,7 @@ class HuaweiSolarBridge:
     __password: t.Optional[str] = None
 
     previous_update_result: t.Optional[t.Dict[str, Result]] = None
+    previous_inverter_update_result: t.Optional[t.Dict[str, Result]] = None
 
     def __init__(
         self,
@@ -164,9 +165,14 @@ class HuaweiSolarBridge:
         return dict(zip(names, await self.client.get_multiple(names, self.slave_id)))
 
     async def update(self) -> dict[str, Result]:
-        """Receive an update for all (interesting) available registers"""
+        """Receive an update for all (interesting) available registers
 
-        # Only update one slave at a time
+        WARNING: Deprecated in favor of 3 separate functions: update_inverter,
+        update_power_meter, update_energy_storage that allow for finer grained management
+        of what registers must be read by the client
+        """
+
+        # Only allow one update at a time
         async with self.update_lock:
             result = await self._get_multiple_to_dict(INVERTER_REGISTERS)
 
@@ -206,10 +212,73 @@ class HuaweiSolarBridge:
         self.previous_update_result = result
         return result
 
+    async def update_inverter(self) -> dict[str, Result]:
+        """Receive an update for all (interesting) available registers of the inverter"""
+
+        # Only allow one update at a time
+        async with self.update_lock:
+            result = await self._get_multiple_to_dict(INVERTER_REGISTERS)
+
+            # State and Alarm registers can be combined with PV registers due to close proximity
+            result.update(await self._get_multiple_to_dict(STATE_AND_ALARM_REGISTERS + self._pv_registers))
+
+            if self.has_optimizers:
+                result.update(await self._get_multiple_to_dict(OPTIMIZER_REGISTERS))
+
+            if self.power_meter_type is not None:
+                # If the 'device status' has changed, force a recheck of the power meter online status
+                # cfr. https://gitlab.com/Emilv2/huawei-solar/-/merge_requests/9#note_1281471842
+                if self.previous_inverter_update_result:
+                    if result[rn.DEVICE_STATUS].value != self.previous_inverter_update_result[rn.DEVICE_STATUS].value:
+                        self.power_meter_online = False
+
+        self.previous_inverter_update_result = result
+        return result
+
+    async def update_power_meter(self) -> dict[str, Result]:
+        """Receive an update for all (interesting) available registers of the power meter"""
+
+        result = {}
+
+        # Only allow one update at a time
+        async with self.update_lock:
+            if self.power_meter_type is not None:
+                if not self.power_meter_online:
+                    power_meter_online_register = await self.client.get(rn.METER_STATUS, self.slave_id)
+                    result[rn.METER_STATUS] = power_meter_online_register
+                    self.power_meter_online = power_meter_online_register.value
+
+                if self.power_meter_online:
+                    try:
+                        result.update(await self._get_multiple_to_dict(POWER_METER_REGISTERS))
+                    except HuaweiSolarException as exc:
+                        _LOGGER.info(
+                            "Fetching power meter registers failed. "
+                            "We'll assume that this is due to the power meter going offline and the registers "
+                            "becoming invalid as a result.",
+                            exc_info=exc,
+                        )
+                        self.power_meter_online = False
+
+        self.previous_update_result = result
+        return result
+
+    async def update_energy_storage(self) -> dict[str, Result]:
+        """Receive an update for all (interesting) available energy storage registers"""
+
+        result = {}
+        # Only allow one update at a time
+        async with self.update_lock:
+            if self.battery_type != rv.StorageProductModel.NONE:
+                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
+
+        return result
+
     async def update_configuration_registers(self):
         """Receive an update for all configurable registers"""
 
         result = {}
+        # Only allow one update at a time
         async with self.update_lock:
             if self.battery_type != rv.StorageProductModel.NONE:
                 result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_1))
@@ -295,10 +364,7 @@ class HuaweiSolarBridge:
 
     async def stop(self):
         """Stop the bridge."""
-        self.__heartbeat_enabled = False
-
-        if self.__heartbeat_task is not None:
-            self.__heartbeat_task.cancel()
+        self.stop_heartbeat()
 
         if self._primary:
             return await self.client.stop()
@@ -331,10 +397,7 @@ class HuaweiSolarBridge:
         async with self.__login_lock:
             if force:
                 _LOGGER.debug("Forcefully stopping any heartbeat task (if any is still running)")
-                self.__heartbeat_enabled = False
-
-                if self.__heartbeat_task:
-                    self.__heartbeat_task.cancel()
+                self.stop_heartbeat()
 
             if self.__username and not self.__heartbeat_enabled:
                 _LOGGER.debug("Currently not logged in: logging in now and starting heartbeat")
@@ -359,12 +422,19 @@ class HuaweiSolarBridge:
 
         return True
 
+    def stop_heartbeat(self):
+        """Stop the running heartbeat task (if any)"""
+        self.__heartbeat_enabled = False
+
+        if self.__heartbeat_task:
+            self.__heartbeat_task.cancel()
+
     def start_heartbeat(self):
         """Start the heartbeat thread to stay logged in."""
         assert self.__login_lock.locked(), "Should only be called from within the login_lock!"
 
-        if self.__heartbeat_task is not None and not self.__heartbeat_task.done():
-            raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
+        if self.__heartbeat_task:
+            self.stop_heartbeat()
 
         async def heartbeat():
             while self.__heartbeat_enabled:
@@ -442,7 +512,11 @@ INVERTER_REGISTERS = [
     rn.FAULT_CODE,
     rn.STARTUP_TIME,
     rn.SHUTDOWN_TIME,
+    rn.ACTIVE_POWER_FAST,
     rn.ACCUMULATED_YIELD_ENERGY,
+    rn.TOTAL_DC_INPUT_POWER,
+    rn.CURRENT_ELECTRICITY_GENERATION_STATISTICS_TIME,
+    rn.HOURLY_YIELD_ENERGY,
     rn.DAILY_YIELD_ENERGY,
 ]
 
