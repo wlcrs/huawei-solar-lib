@@ -295,10 +295,7 @@ class HuaweiSolarBridge:
 
     async def stop(self):
         """Stop the bridge."""
-        self.__heartbeat_enabled = False
-
-        if self.__heartbeat_task is not None:
-            self.__heartbeat_task.cancel()
+        self.stop_heartbeat()
 
         if self._primary:
             return await self.client.stop()
@@ -331,10 +328,7 @@ class HuaweiSolarBridge:
         async with self.__login_lock:
             if force:
                 _LOGGER.debug("Forcefully stopping any heartbeat task (if any is still running)")
-                self.__heartbeat_enabled = False
-
-                if self.__heartbeat_task:
-                    self.__heartbeat_task.cancel()
+                self.stop_heartbeat()
 
             if self.__username and not self.__heartbeat_enabled:
                 _LOGGER.debug("Currently not logged in: logging in now and starting heartbeat")
@@ -359,12 +353,19 @@ class HuaweiSolarBridge:
 
         return True
 
+    def stop_heartbeat(self):
+        """Stop the running heartbeat task (if any)"""
+        self.__heartbeat_enabled = False
+
+        if self.__heartbeat_task:
+            self.__heartbeat_task.cancel()
+
     def start_heartbeat(self):
         """Start the heartbeat thread to stay logged in."""
         assert self.__login_lock.locked(), "Should only be called from within the login_lock!"
 
-        if self.__heartbeat_task is not None and not self.__heartbeat_task.done():
-            raise HuaweiSolarException("Cannot start heartbeat as it's still running!")
+        if self.__heartbeat_task:
+            self.stop_heartbeat()
 
         async def heartbeat():
             while self.__heartbeat_enabled:
