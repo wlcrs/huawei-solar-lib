@@ -550,7 +550,7 @@ class AsyncHuaweiSolar:
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
-                elif response.exception_code == ModbusExceptions.IllegalAddress:
+                if response.exception_code == ModbusExceptions.IllegalAddress:
                     # cfr. https://github.com/wlcrs/huawei_solar/issues/587
                     raise PermissionDenied(
                         f"Failed to write value {value} to register {register} due to IllegalAddress. "
