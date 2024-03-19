@@ -15,9 +15,9 @@ import typing as t
 import backoff
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
+from pymodbus.message.rtu import MessageRTU
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse, ModbusExceptions, ModbusRequest
-from pymodbus.utilities import checkCRC, computeCRC
 
 import huawei_solar.register_names as rn
 
@@ -472,9 +472,9 @@ class AsyncHuaweiSolar:
             # swap upper and lower two bytes to match how computeCRC works
             swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
 
-            if not checkCRC(file_data, swapped_crc):
+            if not MessageRTU.check_CRC(file_data, swapped_crc):
                 raise ReadException(
-                    f"Computed CRC {computeCRC(file_data):x} for file {file_type} "
+                    f"Computed CRC {MessageRTU.compute_CRC(file_data):x} for file {file_type} "
                     f"does not match expected value {swapped_crc}"
                 )
 
