@@ -37,6 +37,7 @@ ignore = [
 
 [tool.pylint.messages_control]
 max-line-length = 120
+max-parents = 8
 disable = "too-many-instance-attributes, too-many-arguments"
 
 [pycodestyle]

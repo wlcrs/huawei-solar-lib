@@ -15,6 +15,7 @@ from .files import (
     OptimizerSystemInformationDataFile,
 )
 from .huawei_solar import DEFAULT_BAUDRATE, DEFAULT_SLAVE, DEFAULT_TCP_PORT, AsyncHuaweiSolar, Result
+from .registers import METER_REGISTERS, REGISTERS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +29,8 @@ class HuaweiSolarBridge:
     model_name: str
     serial_number: str
     product_number: str
+    firmware_version: str
+    software_version: str
 
     pv_string_count: int = 0
     has_optimizers: bool = False
@@ -47,8 +50,7 @@ class HuaweiSolarBridge:
     __username: t.Optional[str] = None
     __password: t.Optional[str] = None
 
-    previous_update_result: t.Optional[t.Dict[str, Result]] = None
-    previous_inverter_update_result: t.Optional[t.Dict[str, Result]] = None
+    _previous_device_status: t.Optional[int] = None
 
     def __init__(
         self,
@@ -112,11 +114,17 @@ class HuaweiSolarBridge:
             model_name_result,
             serial_number_result,
             pn_result,
-        ) = await bridge.client.get_multiple([rn.MODEL_NAME, rn.SERIAL_NUMBER, rn.PN], bridge.slave_id)
+            firmware_version_result,
+            software_version_result,
+        ) = await bridge.client.get_multiple(
+            [rn.MODEL_NAME, rn.SERIAL_NUMBER, rn.PN, rn.FIRMWARE_VERSION, rn.SOFTWARE_VERSION], bridge.slave_id
+        )
 
         bridge.model_name = model_name_result.value
         bridge.serial_number = serial_number_result.value
         bridge.product_number = pn_result.value
+        bridge.firmware_version = firmware_version_result.value
+        bridge.software_version = software_version_result.value
 
         bridge.pv_string_count = (await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)).value
         bridge._compute_pv_registers()  # pylint: disable=protected-access
@@ -164,40 +172,101 @@ class HuaweiSolarBridge:
     async def _get_multiple_to_dict(self, names: list[str]) -> dict[str, Result]:
         return dict(zip(names, await self.client.get_multiple(names, self.slave_id)))
 
-    async def update(self) -> dict[str, Result]:
-        """Receive an update for all (interesting) available registers
+    def _detect_state_changes(self, new_values: dict[str, Result]):
 
-        WARNING: Deprecated in favor of 3 separate functions: update_inverter,
-        update_power_meter, update_energy_storage that allow for finer grained management
-        of what registers must be read by the client
-        """
+        # When there is a power outage, but the installation stays online with a backup box installed,
+        # then the power meter goes offline. If we still try to query it, the inverter will close the connection.
+        # To prevent this, we always check if the power meter is still online when the device status changes.
+        #
+        # cfr. https://gitlab.com/Emilv2/huawei-solar/-/merge_requests/9#note_1281471842
 
-        # Only allow one update at a time
+        if rn.DEVICE_STATUS in new_values.keys():
+            new_device_status = new_values[rn.DEVICE_STATUS].value
+            if self._previous_device_status != new_device_status:
+                _LOGGER.debug(
+                    "Detected a device state change from %s to %s : resetting power meter online status",
+                    self._previous_device_status,
+                    new_device_status,
+                )
+                self.power_meter_online = False
+
+            self._previous_device_status = new_device_status
+
+    async def _filter_registers(self, register_names: list[str]):
+
+        result = register_names
+
+        # Filter out power meter registers if the power meter is offline
+        power_meter_register_names = {rn for rn in register_names if rn in METER_REGISTERS}
+        if len(power_meter_register_names):
+
+            # Do a check of the METER_STATUS register only if the power meter is marked offline
+            if not self.power_meter_online:
+                power_meter_online_register = await self.client.get(rn.METER_STATUS, self.slave_id)
+                self.power_meter_online = power_meter_online_register.value
+
+                _LOGGER.debug("Power meter online: %s", self.power_meter_online)
+
+            # If it is still offline after the check then filter out all power meter registers
+            if not self.power_meter_online:
+                _LOGGER.debug("Removing power meter registers as the power meter is offline.")
+                result = list(
+                    filter(
+                        lambda regname: regname == rn.METER_STATUS or rn not in power_meter_register_names,
+                        register_names,
+                    )
+                )
+
+        return result
+
+    async def batch_update(self, register_names: list[str]):
+        """Efficiently retrieve the values of all the registers passed in register_names."""
+
+        class _Register:  # pylint: disable=too-few-public-methods
+            name: str
+            register_start: int
+            register_end: int
+
+            def __init__(self, regname: str):
+                self.name = regname
+
+                reg = REGISTERS[regname]
+                self.register_start = reg.register
+                self.register_end = reg.register + reg.length - 1
+
+        registers = [_Register(rn) for rn in register_names]
+
+        if None in registers:
+            _LOGGER.warning("Unknown register name passed to batch_update")
+
+        registers.sort(key=lambda rd: rd.register_start)
+
         async with self.update_lock:
-            result = await self._get_multiple_to_dict(INVERTER_REGISTERS)
+            result = {}
+            first_idx = 0
+            last_idx = 0
 
-            # State and Alarm registers can be combined with PV registers due to close proximity
-            result.update(await self._get_multiple_to_dict(STATE_AND_ALARM_REGISTERS + self._pv_registers))
+            while first_idx < len(registers):
 
-            if self.has_optimizers:
-                result.update(await self._get_multiple_to_dict(OPTIMIZER_REGISTERS))
+                # Batch together registers:
+                # - as long as the total amount of registers doesn't exceed 64
+                # - as long as the gap between registers is not more than 16
 
-            if self.power_meter_type is not None:
-                # If the 'device status' has changed, force a recheck of the power meter online status
-                # cfr. https://gitlab.com/Emilv2/huawei-solar/-/merge_requests/9#note_1281471842
-                if self.previous_update_result:
-                    if result[rn.DEVICE_STATUS].value != self.previous_update_result[rn.DEVICE_STATUS].value:
-                        self.power_meter_online = False
+                while (
+                    last_idx + 1 < len(registers)
+                    and registers[last_idx + 1].register_end - registers[first_idx].register_start <= 64
+                    and registers[last_idx + 1].register_start - registers[last_idx].register_end < 16
+                ):
+                    last_idx += 1
 
-                if not self.power_meter_online:
-                    power_meter_online_register = await self.client.get(rn.METER_STATUS, self.slave_id)
-                    result[rn.METER_STATUS] = power_meter_online_register
-                    self.power_meter_online = power_meter_online_register.value
+                register_names_to_query = [reg.name for reg in registers[first_idx : last_idx + 1]]
+                register_names_to_query = await self._filter_registers(register_names_to_query)
+                _LOGGER.debug("Batch update of the following registers: %s", ", ".join(register_names_to_query))
 
-                if self.power_meter_online:
-                    try:
-                        result.update(await self._get_multiple_to_dict(POWER_METER_REGISTERS))
-                    except HuaweiSolarException as exc:
+                try:
+                    values = await self._get_multiple_to_dict(register_names_to_query)
+                except HuaweiSolarException as exc:
+                    if any(regname in METER_REGISTERS for regname in register_names_to_query):
                         _LOGGER.info(
                             "Fetching power meter registers failed. "
                             "We'll assume that this is due to the power meter going offline and the registers "
@@ -205,91 +274,15 @@ class HuaweiSolarBridge:
                             exc_info=exc,
                         )
                         self.power_meter_online = False
+                    raise exc
 
-            if self.battery_type != rv.StorageProductModel.NONE:
-                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
+                self._detect_state_changes(values)
+                result.update(values)
 
-        self.previous_update_result = result
-        return result
+                first_idx = last_idx + 1
+                last_idx = first_idx
 
-    async def update_inverter(self) -> dict[str, Result]:
-        """Receive an update for all (interesting) available registers of the inverter"""
-
-        # Only allow one update at a time
-        async with self.update_lock:
-            result = await self._get_multiple_to_dict(INVERTER_REGISTERS)
-
-            # State and Alarm registers can be combined with PV registers due to close proximity
-            result.update(await self._get_multiple_to_dict(STATE_AND_ALARM_REGISTERS + self._pv_registers))
-
-            if self.has_optimizers:
-                result.update(await self._get_multiple_to_dict(OPTIMIZER_REGISTERS))
-
-            if self.power_meter_type is not None:
-                # If the 'device status' has changed, force a recheck of the power meter online status
-                # cfr. https://gitlab.com/Emilv2/huawei-solar/-/merge_requests/9#note_1281471842
-                if self.previous_inverter_update_result:
-                    if result[rn.DEVICE_STATUS].value != self.previous_inverter_update_result[rn.DEVICE_STATUS].value:
-                        self.power_meter_online = False
-
-        self.previous_inverter_update_result = result
-        return result
-
-    async def update_power_meter(self) -> dict[str, Result]:
-        """Receive an update for all (interesting) available registers of the power meter"""
-
-        result = {}
-
-        # Only allow one update at a time
-        async with self.update_lock:
-            if self.power_meter_type is not None:
-                if not self.power_meter_online:
-                    power_meter_online_register = await self.client.get(rn.METER_STATUS, self.slave_id)
-                    result[rn.METER_STATUS] = power_meter_online_register
-                    self.power_meter_online = power_meter_online_register.value
-
-                if self.power_meter_online:
-                    try:
-                        result.update(await self._get_multiple_to_dict(POWER_METER_REGISTERS))
-                    except HuaweiSolarException as exc:
-                        _LOGGER.info(
-                            "Fetching power meter registers failed. "
-                            "We'll assume that this is due to the power meter going offline and the registers "
-                            "becoming invalid as a result.",
-                            exc_info=exc,
-                        )
-                        self.power_meter_online = False
-
-        self.previous_update_result = result
-        return result
-
-    async def update_energy_storage(self) -> dict[str, Result]:
-        """Receive an update for all (interesting) available energy storage registers"""
-
-        result = {}
-        # Only allow one update at a time
-        async with self.update_lock:
-            if self.battery_type != rv.StorageProductModel.NONE:
-                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_REGISTERS))
-
-        return result
-
-    async def update_configuration_registers(self):
-        """Receive an update for all configurable registers"""
-
-        result = {}
-        # Only allow one update at a time
-        async with self.update_lock:
-            if self.battery_type != rv.StorageProductModel.NONE:
-                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_1))
-                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_2))
-                result.update(await self._get_multiple_to_dict(ENERGY_STORAGE_CONFIGURATION_PARAMETERS_3))
-
-                # We have no way of knowing if a backup box is installed, so always fetch these registers
-                result.update(await self._get_multiple_to_dict(BACKUP_POWER_REGISTERS))
-            if self.supports_capacity_control:
-                result.update(await self._get_multiple_to_dict(CAPACITY_CONTROL_REGISTERS))
-        return result
+            return result
 
     async def _read_file(self, file_type, customized_data=None) -> bytes:
         """
@@ -486,121 +479,3 @@ class HuaweiSolarBridge:
         if self.battery_1_type != rv.StorageProductModel.NONE:
             return self.battery_1_type
         return self.battery_2_type
-
-
-# Registers which should always be read
-INVERTER_REGISTERS = [
-    rn.INPUT_POWER,
-    rn.LINE_VOLTAGE_A_B,
-    rn.LINE_VOLTAGE_B_C,
-    rn.LINE_VOLTAGE_C_A,
-    rn.PHASE_A_VOLTAGE,
-    rn.PHASE_B_VOLTAGE,
-    rn.PHASE_C_VOLTAGE,
-    rn.PHASE_A_CURRENT,
-    rn.PHASE_B_CURRENT,
-    rn.PHASE_C_CURRENT,
-    rn.DAY_ACTIVE_POWER_PEAK,
-    rn.ACTIVE_POWER,
-    rn.REACTIVE_POWER,
-    rn.POWER_FACTOR,
-    rn.GRID_FREQUENCY,
-    rn.EFFICIENCY,
-    rn.INTERNAL_TEMPERATURE,
-    rn.INSULATION_RESISTANCE,
-    rn.DEVICE_STATUS,
-    rn.FAULT_CODE,
-    rn.STARTUP_TIME,
-    rn.SHUTDOWN_TIME,
-    rn.ACTIVE_POWER_FAST,
-    rn.ACCUMULATED_YIELD_ENERGY,
-    rn.TOTAL_DC_INPUT_POWER,
-    rn.CURRENT_ELECTRICITY_GENERATION_STATISTICS_TIME,
-    rn.HOURLY_YIELD_ENERGY,
-    rn.DAILY_YIELD_ENERGY,
-]
-
-# State and alarm registers can be combined with PV String readout
-STATE_AND_ALARM_REGISTERS = [
-    rn.STATE_1,
-    rn.STATE_2,
-    rn.STATE_3,
-    rn.ALARM_1,
-    rn.ALARM_2,
-    rn.ALARM_3,
-]
-
-# Registers that should be read if optimizers are present
-OPTIMIZER_REGISTERS = [rn.NB_ONLINE_OPTIMIZERS]
-
-# Registers that should be read if a power meter is present
-POWER_METER_REGISTERS = [
-    rn.METER_STATUS,
-    rn.GRID_A_VOLTAGE,
-    rn.GRID_B_VOLTAGE,
-    rn.GRID_C_VOLTAGE,
-    rn.ACTIVE_GRID_A_CURRENT,
-    rn.ACTIVE_GRID_B_CURRENT,
-    rn.ACTIVE_GRID_C_CURRENT,
-    rn.POWER_METER_ACTIVE_POWER,
-    rn.POWER_METER_REACTIVE_POWER,
-    rn.ACTIVE_GRID_POWER_FACTOR,
-    rn.ACTIVE_GRID_FREQUENCY,
-    rn.GRID_EXPORTED_ENERGY,
-    rn.GRID_ACCUMULATED_ENERGY,
-    rn.GRID_ACCUMULATED_REACTIVE_POWER,
-    rn.METER_TYPE,
-    rn.ACTIVE_GRID_A_B_VOLTAGE,
-    rn.ACTIVE_GRID_B_C_VOLTAGE,
-    rn.ACTIVE_GRID_C_A_VOLTAGE,
-    rn.ACTIVE_GRID_A_POWER,
-    rn.ACTIVE_GRID_B_POWER,
-    rn.ACTIVE_GRID_C_POWER,
-]
-
-# Registers that should be read if a battery is present
-ENERGY_STORAGE_REGISTERS = [
-    rn.STORAGE_STATE_OF_CAPACITY,
-    rn.STORAGE_RUNNING_STATUS,
-    rn.STORAGE_BUS_VOLTAGE,
-    rn.STORAGE_BUS_CURRENT,
-    rn.STORAGE_CHARGE_DISCHARGE_POWER,
-    rn.STORAGE_TOTAL_CHARGE,
-    rn.STORAGE_TOTAL_DISCHARGE,
-    rn.STORAGE_CURRENT_DAY_CHARGE_CAPACITY,
-    rn.STORAGE_CURRENT_DAY_DISCHARGE_CAPACITY,
-]
-
-# Covers registers 47075 - 47088 (maximum would be 47139)
-ENERGY_STORAGE_CONFIGURATION_PARAMETERS_1 = [
-    rn.STORAGE_MAXIMUM_CHARGING_POWER,
-    rn.STORAGE_MAXIMUM_DISCHARGING_POWER,
-    rn.STORAGE_CHARGING_CUTOFF_CAPACITY,
-    rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY,
-    rn.STORAGE_WORKING_MODE_SETTINGS,
-    rn.STORAGE_CHARGE_FROM_GRID_FUNCTION,
-    rn.STORAGE_GRID_CHARGE_CUTOFF_STATE_OF_CHARGE,
-]
-
-# Covers registers 47200 - 47244 (maximum would be 47264)
-ENERGY_STORAGE_CONFIGURATION_PARAMETERS_2 = [
-    rn.STORAGE_FIXED_CHARGING_AND_DISCHARGING_PERIODS,
-    rn.STORAGE_POWER_OF_CHARGE_FROM_GRID,
-    rn.STORAGE_MAXIMUM_POWER_OF_CHARGE_FROM_GRID,
-]
-
-# Covers register 47255 - 47299 (maximum would be 47319)
-ENERGY_STORAGE_CONFIGURATION_PARAMETERS_3 = [
-    rn.STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS,
-    rn.STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU,
-]
-
-CAPACITY_CONTROL_REGISTERS = [
-    rn.STORAGE_CAPACITY_CONTROL_MODE,
-    rn.STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING,
-    rn.STORAGE_CAPACITY_CONTROL_PERIODS,
-]
-
-BACKUP_POWER_REGISTERS = [
-    rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE,
-]

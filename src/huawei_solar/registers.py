@@ -378,7 +378,7 @@ class TimeOfUseRegisters(RegisterDefinition):
         for period in data:
             builder.add_16bit_uint(period.start_time),
             builder.add_16bit_uint(period.end_time),
-            builder.add_32bit_uint(period.electricity_price * 1000)
+            builder.add_32bit_uint(int(period.electricity_price * 1000))
 
         # pad with empty periods
         for _ in range(len(data), LG_RESU_TOU_PERIODS):
