@@ -518,6 +518,7 @@ INVERTER_REGISTERS = [
     rn.CURRENT_ELECTRICITY_GENERATION_STATISTICS_TIME,
     rn.HOURLY_YIELD_ENERGY,
     rn.DAILY_YIELD_ENERGY,
+    rn.ACTIVE_POWER_DERATING_FIXED_VALUE,
 ]
 
 # State and alarm registers can be combined with PV String readout
