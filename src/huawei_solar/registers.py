@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from enum import IntEnum
 from functools import partial
 from inspect import isclass
+import time
 import typing as t
 
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
@@ -241,8 +242,19 @@ class TimestampRegister(U32Register):
         if value is None:
             return None
 
+        if inverter.time_zone:
+            value = value - 60 * inverter.time_zone
+
+        # if DST is in effect, we need to shift another hour. However, the inverter
+        # does not expose a register to check that.
+        # Workaround: check the local time on the machine running the library if DST
+        # is in effect there. We assume that both inverter and client are in the same time zone.
+
+        if time.localtime(value).tm_isdst:
+            value = value - 60 * 60
+
         try:
-            return datetime.fromtimestamp(value - 60 * inverter.time_zone, timezone.utc)
+            return datetime.fromtimestamp(value, timezone.utc)
         except OverflowError as err:
             raise DecodeError(f"Received invalid timestamp {value}") from err
 
