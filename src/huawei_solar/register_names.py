@@ -306,7 +306,6 @@ STORAGE_UNIT_2_BATTERY_PACK_3_MAXIMUM_TEMPERATURE = "storage_unit_2_battery_pack
 STORAGE_UNIT_2_BATTERY_PACK_3_MINIMUM_TEMPERATURE = "storage_unit_2_battery_pack_3_minimum_temperature"
 SYSTEM_TIME = "system_time"
 SYSTEM_TIME_RAW = "system_time_raw"
-UNKNOWN_TIME_5 = "unknown_time_5"
 STARTUP = "startup"
 SHUTDOWN = "shutdown"
 GRID_CODE = "grid_code"
