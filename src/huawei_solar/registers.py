@@ -929,13 +929,13 @@ BATTERY_REGISTERS = {
     rn.ACTIVE_POWER_CONTROL_MODE: U16Register(rv.ActivePowerControlMode, 1, 47415, 1, writeable=True),
     rn.MAXIMUM_FEED_GRID_POWER_WATT: I32Register("W", 1, 47416, 2, writeable=True),
     rn.MAXIMUM_FEED_GRID_POWER_PERCENT: I16Register("%", 10, 47418, 1, writeable=True),
+    rn.REMOTE_CHARGE_DISCHARGE_CONTROL_MODE: I16Register(
+        rv.RemoteChargeDischargeControlMode, 1, 47589, 1, writeable=True
+    ),
     rn.DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER: U32Register("W", 1, 47590, 2, writeable=True),
     rn.BACKUP_SWITCH_TO_OFF_GRID: U16Register(None, 1, 47604, 1, writeable=True),
     rn.BACKUP_VOLTAGE_INDEPENDEND_OPERATION: U16Register(
         rv.BackupVoltageIndependentOperation, 1, 47605, 1, writeable=True
-    ),
-    rn.REMOTE_CHARGE_DISCHARGE_CONTROL_MODE: I16Register(
-        rv.RemoteChargeDischargeControlMode, 1, 47589, 1, writeable=True
     ),
     rn.DEFAULT_MAXIMUM_FEED_IN_POWER: I32Register("W", 1, 47675, 2, writeable=True),
     rn.DEFAULT_ACTIVE_POWER_CHANGE_GRADIENT: U32Register("%/s", 1000, 47677, 2),
@@ -988,7 +988,7 @@ METER_REGISTERS = {
     rn.ACTIVE_GRID_A_POWER: I32Register("W", 1, 37132, 2),
     rn.ACTIVE_GRID_B_POWER: I32Register("W", 1, 37134, 2),
     rn.ACTIVE_GRID_C_POWER: I32Register("W", 1, 37136, 2),
-    rn.METER_TYPE_CHECK: U16Register(rv.MeterTypeCheck, 1, 37125, 2),
+    rn.METER_TYPE_CHECK: U16Register(rv.MeterTypeCheck, 1, 37138, 1),
 }
 
 REGISTERS.update(METER_REGISTERS)
