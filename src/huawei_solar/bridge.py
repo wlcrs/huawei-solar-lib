@@ -59,6 +59,7 @@ class HuaweiSolarBridge:
         primary: bool,
         slave_id: t.Optional[int] = None,
     ):
+        """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use HuaweiSolarBridge.create() instead"""
         self.client = client
         self.update_lock = update_lock
 
