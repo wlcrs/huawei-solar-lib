@@ -64,4 +64,10 @@ python310:
 
 python311:
   stage: test
+  image: python:3.11
   script: tox -e py311
+
+python312:
+  stage: test
+  image: python:3.12
+  script: tox -e py312
