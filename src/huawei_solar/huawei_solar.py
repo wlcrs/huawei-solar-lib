@@ -432,7 +432,7 @@ class AsyncHuaweiSolar:
                 if response.exception_code == ModbusExceptions.SlaveFailure:
                     raise SlaveFailureException()
                 raise ReadException(
-                    f"Exception occured while trying to read file {hex(file_type)}: {hex(response.exception_code)}",
+                    f"Exception occurred while trying to read file {hex(file_type)}: {hex(response.exception_code)}",
                     modbus_exception_code=response.exception_code,
                 )
 

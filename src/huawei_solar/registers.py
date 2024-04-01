@@ -261,8 +261,8 @@ class TimestampRegister(U32Register):
 
 @dataclass
 class LG_RESU_TimeOfUsePeriod:  # pylint: disable=invalid-name
-    start_time: int  # minutes sinds midnight
-    end_time: int  # minutes sinds midnight
+    start_time: int  # minutes since midnight
+    end_time: int  # minutes since midnight
     electricity_price: float
 
 
@@ -453,8 +453,8 @@ class TimeOfUseRegisters(RegisterDefinition):
 
 @dataclass
 class ChargeDischargePeriod:
-    start_time: int  # minutes sinds midnight
-    end_time: int  # minutes sinds midnight
+    start_time: int  # minutes since midnight
+    end_time: int  # minutes since midnight
     power: int  # power in watts
 
 
@@ -496,8 +496,8 @@ class ChargeDischargePeriodRegisters(RegisterDefinition):
 
 @dataclass
 class PeakSettingPeriod:
-    start_time: int  # minutes sinds midnight
-    end_time: int  # minutes sinds midnight
+    start_time: int  # minutes since midnight
+    end_time: int  # minutes since midnight
     power: int  # power in watts
     days_effective: t.Tuple[bool, bool, bool, bool, bool, bool, bool]  # Valid on days Sunday to
 
@@ -931,7 +931,7 @@ BATTERY_REGISTERS = {
     rn.MAXIMUM_FEED_GRID_POWER_PERCENT: I16Register("%", 10, 47418, 1, writeable=True),
     rn.DONGLE_PLANT_MAXIMUM_CHARGE_FROM_GRID_POWER: U32Register("W", 1, 47590, 2, writeable=True),
     rn.BACKUP_SWITCH_TO_OFF_GRID: U16Register(None, 1, 47604, 1, writeable=True),
-    rn.BACKUP_VOLTAGE_INDEPENDEND_OPERATION: U16Register(
+    rn.BACKUP_VOLTAGE_INDEPENDENT_OPERATION: U16Register(
         rv.BackupVoltageIndependentOperation, 1, 47605, 1, writeable=True
     ),
     rn.REMOTE_CHARGE_DISCHARGE_CONTROL_MODE: I16Register(
