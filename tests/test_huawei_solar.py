@@ -94,28 +94,28 @@ async def test_get_rated_power(huawei_solar):
 
 
 @pytest.mark.asyncio
-async def test_get_P_max(huawei_solar):
+async def test_get_p_max(huawei_solar):
     result = await huawei_solar.get("P_max")
     assert result.value == 3300
     assert result.unit == "W"
 
 
 @pytest.mark.asyncio
-async def test_get_S_max(huawei_solar):
+async def test_get_s_max(huawei_solar):
     result = await huawei_solar.get("S_max")
     assert result.value == 3300
     assert result.unit == "VA"
 
 
 @pytest.mark.asyncio
-async def test_get_Q_max_out(huawei_solar):
+async def test_get_q_max_out(huawei_solar):
     result = await huawei_solar.get("Q_max_out")
     assert result.value == 1980
     assert result.unit == "VAr"
 
 
 @pytest.mark.asyncio
-async def test_get_Q_max_in(huawei_solar):
+async def test_get_q_max_in(huawei_solar):
     result = await huawei_solar.get("Q_max_in")
     assert result.value == -1980
     assert result.unit == "VAr"
@@ -156,7 +156,6 @@ async def test_get_state_2_extra_bits_set(huawei_solar):
     ):
         result = await huawei_solar.get(rn.STATE_2)
 
-        result.value == ["Locked", "PV disconnected", "No DSP data collection"]
         assert result.unit is None
 
 
@@ -356,42 +355,42 @@ async def test_get_grid_voltage(huawei_solar):
 
 
 @pytest.mark.asyncio
-async def test_get_line_voltage_A_B(huawei_solar):
+async def test_get_line_voltage_a_b(huawei_solar):
     result = await huawei_solar.get(rn.LINE_VOLTAGE_A_B)
     assert result.value == 0
     assert result.unit == "V"
 
 
 @pytest.mark.asyncio
-async def test_get_line_voltage_B_C(huawei_solar):
+async def test_get_line_voltage_b_c(huawei_solar):
     result = await huawei_solar.get(rn.LINE_VOLTAGE_B_C)
     assert result.value == 0
     assert result.unit == "V"
 
 
 @pytest.mark.asyncio
-async def test_get_line_voltage_C_A(huawei_solar):
+async def test_get_line_voltage_c_a(huawei_solar):
     result = await huawei_solar.get(rn.LINE_VOLTAGE_C_A)
     assert result.value == 0
     assert result.unit == "V"
 
 
 @pytest.mark.asyncio
-async def test_get_line_phase_A_voltage(huawei_solar):
+async def test_get_line_phase_a_voltage(huawei_solar):
     result = await huawei_solar.get(rn.PHASE_A_VOLTAGE)
     assert result.value == 0
     assert result.unit == "V"
 
 
 @pytest.mark.asyncio
-async def test_get_line_phase_B_voltage(huawei_solar):
+async def test_get_line_phase_b_voltage(huawei_solar):
     result = await huawei_solar.get(rn.PHASE_B_VOLTAGE)
     assert result.value == 0
     assert result.unit == "V"
 
 
 @pytest.mark.asyncio
-async def test_get_line_phase_C_voltage(huawei_solar):
+async def test_get_line_phase_c_voltage(huawei_solar):
     result = await huawei_solar.get(rn.PHASE_C_VOLTAGE)
     assert result.value == 0
     assert result.unit == "V"
@@ -405,21 +404,21 @@ async def test_get_grid_current(huawei_solar):
 
 
 @pytest.mark.asyncio
-async def test_get_phase_A_current(huawei_solar):
+async def test_get_phase_a_current(huawei_solar):
     result = await huawei_solar.get("phase_A_current")
     assert result.value == 0
     assert result.unit == "A"
 
 
 @pytest.mark.asyncio
-async def test_get_phase_B_current(huawei_solar):
+async def test_get_phase_b_current(huawei_solar):
     result = await huawei_solar.get("phase_B_current")
     assert result.value == 0
     assert result.unit == "A"
 
 
 @pytest.mark.asyncio
-async def test_get_phase_C_current(huawei_solar):
+async def test_get_phase_c_current(huawei_solar):
     result = await huawei_solar.get("phase_C_current")
     assert result.value == 0
     assert result.unit == "A"

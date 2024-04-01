@@ -34,7 +34,7 @@ pip3 install huawei-solar
 
 ## Basic usage
 
-The library consists out of a low level interface implemented in [huwei_solar.py](src/huawei_solar/huawei_solar.py) which implements all the Modbus-operations, and a high level interface in [bridge.py](src/huawei_solar/bridge.py) which facilitates easy usage (primarily meant for the HA integration).
+The library consists out of a low level interface implemented in [huawei_solar.py](src/huawei_solar/huawei_solar.py) which implements all the Modbus-operations, and a high level interface in [bridge.py](src/huawei_solar/bridge.py) which facilitates easy usage (primarily meant for the HA integration).
 
 ### Using the high level interface
 
@@ -82,4 +82,4 @@ A good starting point to learn how to use the low level interface is to look at 
 
 The initial implementation of v1 was done by [@Emilv2](https://gitlab.com/Emilv2/huawei-solar/-/tree/1.1.0).
 
-Subsequent developement on v2 was done by [@wlcrs](https://github.com/wlcrs/huawei_solar).
+Subsequent development on v2 was done by [@wlcrs](https://github.com/wlcrs/huawei_solar).
