@@ -5,6 +5,7 @@ import pytest
 
 from huawei_solar.huawei_solar import AsyncHuaweiSolar
 from huawei_solar.register_values import StorageProductModel
+from huawei_solar.bridge import HuaweiSolarBridge
 
 MOCK_REGISTERS = {
     (30000, 25): [
@@ -74,6 +75,7 @@ MOCK_REGISTERS = {
     (32021, 1): [0],
     (32022, 1): [0],
     (32023, 1): [0],
+    (32064, 5): [0, 0, 0, 0, 0],
     (32064, 2): [0, 0],
     (32066, 1): [0],
     (32067, 1): [0],
@@ -118,7 +120,16 @@ class MockModbusClient:
 
 @pytest.fixture
 def huawei_solar():
-    hs = AsyncHuaweiSolar(MockModbusClient(), cooldown_time=0)
+    hs = AsyncHuaweiSolar(client=MockModbusClient(), cooldown_time=0)
     hs.time_zone = 60
     hs.battery_type = StorageProductModel.HUAWEI_LUNA2000
     return hs
+
+
+@pytest.fixture
+def huawei_bridge():
+    hs = AsyncHuaweiSolar(client=MockModbusClient(), cooldown_time=0)
+    hs.time_zone = 60
+    hs.battery_type = StorageProductModel.HUAWEI_LUNA2000
+    hb = HuaweiSolarBridge(client=hs, update_lock=asyncio.Lock(), primary=True, slave_id=1)
+    return hb
