@@ -317,4 +317,4 @@ def _to_string(data: bytes):
         return data.decode("ascii").rstrip("\x00")
     except ValueError:
         _LOGGER.exception("Could not decode '%s'. Ignoring.", binascii.hexlify(data))
-        return None
+        return ""

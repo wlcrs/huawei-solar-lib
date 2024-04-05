@@ -13,8 +13,13 @@ WAIT_ON_CONNECT = 1500  # in milliseconds
 
 LOGGER = logging.getLogger(__name__)
 
+if t.TYPE_CHECKING:
+    _Base = AsyncModbusSerialClient | AsyncModbusTcpClient
+else:
+    _Base = object
 
-class ModbusConnectionMixin:
+
+class ModbusConnectionMixin(_Base):
     """Mixin that adds support for custom Huawei modbus messages and delays upon reconnect"""
 
     connected_event = asyncio.Event()
@@ -35,9 +40,9 @@ class ModbusConnectionMixin:
 
         asyncio.create_task(_made_connection_task())
 
-    def connection_lost(self, exc):
+    def connection_lost(self, reason):
         """Register that a connection has been lost in an asyncio Event"""
-        super().connection_lost(exc)
+        super().connection_lost(reason)
         self.connected_event.clear()
 
 
@@ -51,7 +56,7 @@ class AsyncHuaweiSolarModbusSerialClient(ModbusConnectionMixin, AsyncModbusSeria
 class AsyncHuaweiSolarModbusTcpClient(ModbusConnectionMixin, AsyncModbusTcpClient):
     """Custom TcpClient that supports wait after connect and custom Huawei modbus messages"""
 
-    def __init__(self, host, port, timeout) -> AsyncModbusTcpClient:
+    def __init__(self, host, port, timeout):
         super().__init__(host, port, timeout=timeout, reconnect_delay=RECONNECT_DELAY)
 
 

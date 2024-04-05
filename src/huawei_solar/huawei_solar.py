@@ -165,7 +165,7 @@ class AsyncHuaweiSolar:
         port: int = DEFAULT_TCP_PORT,
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
-        cooldown_time: int = DEFAULT_COOLDOWN_TIME,
+        cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ):  # pylint: disable=too-many-arguments
         """Creates an AsyncHuaweiSolar instance."""
 
@@ -195,7 +195,7 @@ class AsyncHuaweiSolar:
         baudrate: int = DEFAULT_BAUDRATE,
         slave: int = DEFAULT_SLAVE,
         timeout: int = DEFAULT_TIMEOUT,
-        cooldown_time: int = DEFAULT_COOLDOWN_TIME,
+        cooldown_time: float = DEFAULT_COOLDOWN_TIME,
         **serial_kwargs,
     ):
         """Create a serial client"""
