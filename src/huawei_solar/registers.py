@@ -727,7 +727,6 @@ REGISTERS: dict[str, RegisterDefinition] = {
         None, 1, 40037, writeable=True
     ),  # Documented as 'E16' instead of 'U16'
     rn.Q_U_SCHEDULING_TRIGGER_POWER_PERCENTAGE: I16Register(None, 1, 40038, writeable=True),
-    rn.ACTIVE_POWER_FIXED_VALUE_DERATING_LOW_PRECISION: U16Register("kW", 10, 40120, writeable=True),
     rn.POWER_FACTOR_2: I16Register(None, 1000, 40122, writeable=True),
     rn.REACTIVE_POWER_COMPENSATION: I16Register(None, 1000, 40123, writeable=True),
     rn.REACTIVE_POWER_ADJUSTMENT_TIME: U16Register("seconds", 1, 40124, writeable=True),
