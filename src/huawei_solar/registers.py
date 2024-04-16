@@ -723,6 +723,21 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.NB_ONLINE_OPTIMIZERS: U16Register(None, 1, 37201),
     rn.SYSTEM_TIME: TimestampRegister(40000),
     rn.SYSTEM_TIME_RAW: U32Register("seconds", 1, 40000),
+    rn.Q_U_CHARACTERISTIC_CURVE_MODEL: U16Register(
+        None, 1, 40037, writeable=True
+    ),  # Documented as 'E16' instead of 'U16'
+    rn.Q_U_SCHEDULING_TRIGGER_POWER_PERCENTAGE: I16Register(None, 1, 40038, writeable=True),
+    rn.ACTIVE_POWER_FIXED_VALUE_DERATING_LOW_PRECISION: U16Register("kW", 10, 40120, writeable=True),
+    rn.POWER_FACTOR_2: I16Register(None, 1000, 40122, writeable=True),
+    rn.REACTIVE_POWER_COMPENSATION: I16Register(None, 1000, 40123, writeable=True),
+    rn.REACTIVE_POWER_ADJUSTMENT_TIME: U16Register("seconds", 1, 40124, writeable=True),
+    rn.ACTIVE_POWER_PERCENTAGE_DERATING: I16Register("%", 10, 40125, writeable=True),
+    rn.ACTIVE_POWER_FIXED_VALUE_DERATING: U32Register("W", 1, 40126, writeable=True),
+    rn.REACTIVE_POWER_COMPENSATION_AT_NIGHT: I16Register(None, 1000, 40128, writeable=True),
+    rn.FIXED_REACTIVE_POWER_AT_NIGHT: I32Register("Var", 1000, 40129, writeable=True),
+    rn.CHARACTERISTIC_CURVE_REACTIVE_POWER_ADJUSTMENT_TIME: U16Register("seconds", 1, 40196, writeable=True),
+    rn.PERCENT_APPARENT_POWER: U16Register("%", 10, 40197, writeable=True),
+    rn.Q_U_SCHEDULING_EXIT_POWER_PERCENTAGE: I16Register("%", 1, 40198, writeable=True),
     rn.STARTUP: U16Register(None, 1, 40200, writeable=True, readable=False),
     rn.SHUTDOWN: U16Register(None, 1, 40201, writeable=True, readable=False),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000),
