@@ -667,7 +667,7 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.GRID_FREQUENCY: U16Register("Hz", 100, 32085),
     rn.EFFICIENCY: U16Register("%", 100, 32086),
     rn.INTERNAL_TEMPERATURE: I16Register("°C", 10, 32087),
-    rn.INSULATION_RESISTANCE: U16Register("MOhm", 100, 32088),
+    rn.INSULATION_RESISTANCE: U16Register("MOhm", 1000, 32088),
     rn.DEVICE_STATUS: U16Register(rv.DEVICE_STATUS_DEFINITIONS, 1, 32089),
     rn.FAULT_CODE: U16Register(None, 1, 32090),
     rn.STARTUP_TIME: TimestampRegister(32091),
