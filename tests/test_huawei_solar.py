@@ -476,7 +476,7 @@ async def test_get_internal_temperature(huawei_solar):
 @pytest.mark.asyncio
 async def test_get_insulation_resistance(huawei_solar):
     result = await huawei_solar.get(rn.INSULATION_RESISTANCE)
-    assert result.value == 30
+    assert result.value == 3.0
     assert result.unit == "MOhm"
 
 
