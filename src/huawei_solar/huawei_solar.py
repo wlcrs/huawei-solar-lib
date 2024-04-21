@@ -265,6 +265,9 @@ class AsyncHuaweiSolar:
         registers = list(map(REGISTERS.get, names))
 
         if None in registers:
+            missing_registers = set(names) - set(REGISTERS.keys())
+            if missing_registers:
+                raise ValueError(f"Did not recognize register names: {missing_registers}")
             raise ValueError("Did not recognize all register names")
         registers = t.cast(list[RegisterDefinition], registers)
 
