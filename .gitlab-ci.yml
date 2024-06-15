@@ -11,7 +11,7 @@ cache:
 
 before_script:
   - python -V # Print out python version for debugging
-  - pip install twine tox ruff codecov build
+  - pip install twine tox ruff codecov pytest build
 
 codecov:
   stage: test
