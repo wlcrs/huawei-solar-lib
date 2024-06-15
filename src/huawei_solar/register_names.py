@@ -1,4 +1,4 @@
-"""Register names from the Huawei inverter"""
+"""Register names from the Huawei inverter."""
 
 MODEL_NAME = "model_name"
 SERIAL_NUMBER = "serial_number"

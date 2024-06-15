@@ -1,7 +1,0 @@
-black
-pytest-cov
-flake8
-codecov
-mutmut
-pylint
-pytest-asyncio

@@ -1,12 +1,11 @@
-"""File definitions from the Huawei inverter"""
+"""File definitions from the Huawei inverter."""
 
 import binascii
+import logging
+import struct
 from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
-import logging
-import struct
-from typing import Optional
 
 from huawei_solar.exceptions import HuaweiSolarException
 from huawei_solar.utils import get_local_timezone
@@ -39,7 +38,7 @@ OPTIMIZER_ALARM_CODES = {
 
 
 class OptimizerRunningStatus(IntEnum):
-    """Optimizer Running Status"""
+    """Optimizer Running Status."""
 
     OFFLINE = 0
     STANDBY = 1
@@ -48,15 +47,13 @@ class OptimizerRunningStatus(IntEnum):
     POWER_OFF = 12
 
     def __str__(self) -> str:
+        """Optimizer Running Status."""
         return self.name.replace("_", " ").capitalize()
 
 
 @dataclass(frozen=True)
 class OptimizerRealTimeData:
-    """
-    Optimizer History Real Time Data, as specified in
-    the Huawei Modbus Solar Interface Definitions
-    """
+    """Optimizer History Real Time Data."""
 
     optimizer_address: int
     output_power: float  # W
@@ -73,17 +70,14 @@ class OptimizerRealTimeData:
 
 @dataclass(frozen=True)
 class OptimizerHistoryRealTimeDataUnit:
-    """
-    Optimizer History Real Time Data Unit, as specified in
-    the Huawei Modbus Solar Interface Definitions
-    """
+    """Optimizer History Real Time Data Unit."""
 
     time: datetime
     optimizers: list[OptimizerRealTimeData]
 
 
 class OptimizerRealTimeDataFile:
-    """Optimizer Real Time Data File, as specified in the Huawei Modbus Solar Interface Definitions"""
+    """Optimizer Real Time Data File."""
 
     FILE_TYPE = 0x44
 
@@ -92,7 +86,8 @@ class OptimizerRealTimeDataFile:
 
     OPTIMIZER_DATA = "<3hI6hI"
 
-    def __init__(self, file_data: bytes):  # pylint: disable=too-many-locals
+    def __init__(self, file_data: bytes):
+        """Create an OptimizerRealTimeDataFile from the byte-reprenstation."""
         self.data_units: list[OptimizerHistoryRealTimeDataUnit] = []
 
         offset = 0
@@ -101,16 +96,20 @@ class OptimizerRealTimeDataFile:
         if len(file_data) < struct.calcsize(OptimizerRealTimeDataFile.HEADER):
             return
 
-        self.file_version = struct.unpack_from(OptimizerRealTimeDataFile.HEADER, file_data, offset)
+        self.file_version = struct.unpack_from(
+            OptimizerRealTimeDataFile.HEADER,
+            file_data,
+            offset,
+        )
         offset += struct.calcsize(OptimizerRealTimeDataFile.HEADER)
 
         has_next_optimizer_data_unit = True
         while has_next_optimizer_data_unit:
-            (
-                time,
-                length,  # pylint: disable=unused-variable
-                number_of_optimizers,
-            ) = struct.unpack_from(OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT, file_data, offset)
+            (time, length, number_of_optimizers) = struct.unpack_from(
+                OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT,
+                file_data,
+                offset,
+            )
             offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT)
 
             optimizers = []
@@ -127,7 +126,11 @@ class OptimizerRealTimeDataFile:
                     temperature,
                     running_status,
                     accumulated_energy_yield,
-                ) = struct.unpack_from(OptimizerRealTimeDataFile.OPTIMIZER_DATA, file_data, offset)
+                ) = struct.unpack_from(
+                    OptimizerRealTimeDataFile.OPTIMIZER_DATA,
+                    file_data,
+                    offset,
+                )
                 offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA)
 
                 alarms = []
@@ -148,22 +151,25 @@ class OptimizerRealTimeDataFile:
                         temperature / 10,
                         OptimizerRunningStatus(running_status),
                         accumulated_energy_yield / 1000,
-                    )
+                    ),
                 )
 
             self.data_units.append(
-                OptimizerHistoryRealTimeDataUnit(datetime.fromtimestamp(time, tz=get_local_timezone()), optimizers)
+                OptimizerHistoryRealTimeDataUnit(
+                    datetime.fromtimestamp(time, tz=get_local_timezone()),
+                    optimizers,
+                ),
             )
 
             has_next_optimizer_data_unit = offset < len(file_data)
 
     def __str__(self) -> str:
+        """Return a string representation of a OptimizerHistoryDataFile."""
         return f"OptimizerHistoryDataFile(file_version=f{self.file_version}, data_units=f{self.data_units})"
 
     @staticmethod
     def query_within_timespan(start_time: int, end_time: int):
-        """Creates a query for values within a given timeframe"""
-
+        """Create a query for values within a given timeframe."""
         # the values below were deduced from observing network traffic and reverse-engineering the app
         tag = 0x10
         value_length = 12
@@ -173,44 +179,42 @@ class OptimizerRealTimeDataFile:
 
 
 class OptimizerOnlineStatus(IntEnum):
-    """Optimizer Running Status"""
+    """Optimizer Running Status."""
 
     OFFLINE = 0
     ONLINE = 1
     DISCONNECTED = 2
 
     def __str__(self) -> str:
+        """Return a string representation of an OptimizerOnlineStatus."""
         return self.name.replace("_", " ").capitalize()
 
 
 @dataclass(frozen=True)
 class OptimizerSystemInformation:
-    """
-    Optimizer System Information as specified in
-    the Huawei Modbus Solar Interface Definitions
-    """
+    """Optimizer System Information."""
 
     optimizer_address: int
     online_status: OptimizerOnlineStatus
     string_number: int
-    position_in_current_string: Optional[int]  # relative position connection starting point
-    sn: str  # pylint: disable=invalid-name
+    position_in_current_string: int | None  # relative position connection starting point
+    sn: str
     software_version: str
     alias: str
     model: str
 
     # following fields only available in V103, which is undocumented for the moment:
     # machine_id: Optional[str] = None # machine_id looks like gibberish?
-    rated_power: Optional[int] = None
-    one_to_more: Optional[bool] = None
-    cpu_type: Optional[int] = None
+    rated_power: int | None = None
+    one_to_more: bool | None = None
+    cpu_type: int | None = None
 
 
-class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-methods
-    """
-    Optimizer System Information Data File, as specified in the
-    Huawei Modbus Solar Interface Definitions
-    """
+INVALID_OPTIMIZER_POSITION = 0xFFFF
+
+
+class OptimizerSystemInformationDataFile:
+    """Optimizer System Information Data File."""
 
     FILE_TYPE = 0x45
 
@@ -224,19 +228,23 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
 
     V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s2sHHH"
 
-    def __init__(self, file_data):  # pylint: disable=too-many-locals
+    def __init__(self, file_data):
+        """Create Optimizer System Information Data File."""
         self.optimizers: list[OptimizerSystemInformation] = []
 
         offset = 0
 
-        # pylint: disable=unused-variable
         (
             self.file_version,
             feature_data_sequence_number,
             length,
             reserved,
             number_of_optimizers,
-        ) = struct.unpack_from(OptimizerSystemInformationDataFile.HEADER, file_data, offset)
+        ) = struct.unpack_from(
+            OptimizerSystemInformationDataFile.HEADER,
+            file_data,
+            offset,
+        )
         offset += struct.calcsize(OptimizerSystemInformationDataFile.HEADER)
 
         if self.file_version == b"V102":
@@ -246,7 +254,7 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
                     online_status,
                     string_number,
                     position_in_current_string,
-                    sn,  # pylint: disable=invalid-name
+                    sn,
                     software_version,
                     alias,
                     model,
@@ -255,19 +263,25 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
                     file_data,
                     offset,
                 )
-                offset += struct.calcsize(OptimizerSystemInformationDataFile.V102_OPTIMIZER_FEATURE_DATA)
+                offset += struct.calcsize(
+                    OptimizerSystemInformationDataFile.V102_OPTIMIZER_FEATURE_DATA,
+                )
 
                 self.optimizers.append(
                     OptimizerSystemInformation(
                         optimizer_address,
                         OptimizerOnlineStatus(online_status),
                         string_number,
-                        position_in_current_string if position_in_current_string != 0xFFFF else None,
+                        (
+                            position_in_current_string
+                            if position_in_current_string != INVALID_OPTIMIZER_POSITION
+                            else None
+                        ),
                         _to_string(sn),
                         _to_string(software_version),
                         _to_string(alias),
                         _to_string(model),
-                    )
+                    ),
                 )
 
         elif self.file_version == b"V103":
@@ -277,7 +291,7 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
                     online_status,
                     string_number,
                     position_in_current_string,
-                    sn,  # pylint: disable=invalid-name
+                    sn,
                     software_version,
                     alias,
                     model,
@@ -290,14 +304,20 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
                     file_data,
                     offset,
                 )
-                offset += struct.calcsize(OptimizerSystemInformationDataFile.V103_OPTIMIZER_FEATURE_DATA)
+                offset += struct.calcsize(
+                    OptimizerSystemInformationDataFile.V103_OPTIMIZER_FEATURE_DATA,
+                )
 
                 self.optimizers.append(
                     OptimizerSystemInformation(
                         optimizer_address,
                         OptimizerOnlineStatus(online_status),
                         string_number,
-                        position_in_current_string if position_in_current_string != 0xFFFF else None,
+                        (
+                            position_in_current_string
+                            if position_in_current_string != INVALID_OPTIMIZER_POSITION
+                            else None
+                        ),
                         _to_string(sn),
                         _to_string(software_version),
                         _to_string(alias),
@@ -306,10 +326,12 @@ class OptimizerSystemInformationDataFile:  # pylint: disable=too-few-public-meth
                         one_to_more=bool(one_to_more),
                         rated_power=rated_power,
                         cpu_type=cpu_type,
-                    )
+                    ),
                 )
         else:
-            raise HuaweiSolarException(f"Unsupported OptimizerSystemInformation file version: {self.file_version}")
+            raise HuaweiSolarException(
+                f"Unsupported OptimizerSystemInformation file version: {self.file_version}",
+            )
 
 
 def _to_string(data: bytes):

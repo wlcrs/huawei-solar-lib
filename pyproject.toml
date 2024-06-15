@@ -1,44 +1,124 @@
-[build-system]
-requires = [
-    "setuptools >= 48",
-    "setuptools_scm[toml] >= 4, <6",
-    "setuptools_scm_git_archive",
-    "wheel >= 0.29.0",
+[project]
+name = "huawei-solar"
+description = "A Python wrapper for the Huawei Inverter modbus TCP API"
+readme = "README.md"
+
+authors = [
+  { name = "Emil Vanherp", email = "emil@vanherp.me" },
+  { name = "Thijs Walcarius" },
 ]
-build-backend = 'setuptools.build_meta'
+license = { file="LICENSE.md" }
+keywords = ["huawei", "solar", "sun2000", "inverter", "battery", "modbus", "modbus-tcp", "modbus-rtu"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Topic :: Home Automation",
+    "Operating System :: OS Independent",
 
-[tool.setuptools_scm]
-write_to = "src/huawei_solar/version.py"
+]
+
+dynamic = ["version"]
+
+requires-python = ">= 3.10"
+
+dependencies = [
+    "pymodbus>=3.6.8,<3.7",
+    "pyserial-asyncio>=0.6",
+    "backoff",
+    "pytz",
+]
+
+[project.urls]
+Homepage = "https://gitlab.com/EmilV2/huawei-solar"
+
+[project.optional-dependencies]
+
+dev = [
+    "ruff", # Code linter and formatter
+    "tox>=4.15",
+    "codecov",
+]
+
+test = [
+    "pytest",
+    "pytest-asyncio"
+]
 
 
-[tool.black]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+path = "src/huawei_solar/version.py"
+
+
+[tool.ruff]
 line-length = 120
 
-[tool.isort]
-# https://github.com/PyCQA/isort/wiki/isort-Settings
-profile = "black"
-line_length = 120
-# will group `import x` and `from x import` of the same module.
-force_sort_within_sections = true
-known_first_party = [
-    "huawei_solar",
-    "tests",
+[tool.ruff.lint]
+select = [
+    "ARG", # flake8-unused-arguments
+    "ASYNC", # flake8-async
+    "B", # bugbear
+    "C", # complexity
+    "COM", # flake8-commas
+    "C4", # flake8-comprehensions
+    "D", # docstrings
+    "DTZ003", # Use datetime.now(tz=) instead of datetime.utcnow()
+    "DTZ004", # Use datetime.fromtimestamp(ts, tz=) instead of datetime.utcfromtimestamp(ts)
+    "E",  # pycodestyle
+    "F", # pyflakes/autoflake
+    "G", # flake8-logging-format
+    "I", # isort
+    "ICN", # flake8-import-conventions
+    "INP", # flake8-no-pep420
+    "INT", # flake8-gettext
+    "ISC", # flake8-implicit-str-concat
+    "LOG", # flake8-logging
+    "PERF", # perflint
+    "PIE", # flake8-pie
+    "PL", # pylint
+    "PYI", # flake8-pyi
+    "PT", # flake8-pytest-style
+    "PTH", # flake8-use-pathlib
+    "Q", # flake8-quotes
+    "RET", # flake8-return
+    "RSE", # flake8-raise
+    "S", # flake8-bandit
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "TID", # flake8-tidy-imports
+    "TRY", # tryceratops,
+    "T20", # flake8-print
+    "UP", # pyupgrade
+    "W", # pycodestyle
 ]
-forced_separate = [
-    "tests",
-]
-combine_as_imports = true
 
-[tool.pylint.master]
 ignore = [
-    "src/huawei_solar/__init__.py",
-    "version.py"
+    "D203", # 1 blank line required before class docstring
+    "D213", # Multi-line docstring summary should start at the second line
+
+    "S101", # allow asserts
+    "TRY003", # allow exceptions with longer messages.
 ]
 
-[tool.pylint.messages_control]
-max-line-length = 120
-max-parents = 8
-disable = "too-many-instance-attributes, too-many-arguments"
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "D",
+    "S101", # asserts allowed in tests...
+    "ARG", # Unused function args -> fixtures nevertheless are functionally relevant...
+    "FBT", # Don't care about booleans as positional arguments in tests, e.g. via @pytest.mark.parametrize()
+    # The below are debatable
+    "PLR2004", # Magic value used in comparison, ...
+]
 
-[pycodestyle]
-max_line_length = 120
+
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]

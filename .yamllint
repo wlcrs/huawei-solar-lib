@@ -1,4 +1,9 @@
 ---
 extends: default
+
+rules:
+  comments:
+    min-spaces-from-content: 1
+
 ignore: |
   .tox

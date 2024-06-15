@@ -1,11 +1,10 @@
 import asyncio
 
-from pymodbus.register_read_message import ReadHoldingRegistersResponse
 import pytest
-
+from huawei_solar.bridge import HuaweiSolarBridge
 from huawei_solar.huawei_solar import AsyncHuaweiSolar
 from huawei_solar.register_values import StorageProductModel
-from huawei_solar.bridge import HuaweiSolarBridge
+from pymodbus.register_read_message import ReadHoldingRegistersResponse
 
 MOCK_REGISTERS = {
     (30000, 25): [
@@ -118,7 +117,7 @@ class MockModbusClient:
         return ReadHoldingRegistersResponse(MOCK_REGISTERS[(register, length)])
 
 
-@pytest.fixture
+@pytest.fixture()
 def huawei_solar():
     hs = AsyncHuaweiSolar(client=MockModbusClient(), cooldown_time=0)
     hs.time_zone = 60
@@ -126,10 +125,14 @@ def huawei_solar():
     return hs
 
 
-@pytest.fixture
+@pytest.fixture()
 def huawei_bridge():
     hs = AsyncHuaweiSolar(client=MockModbusClient(), cooldown_time=0)
     hs.time_zone = 60
     hs.battery_type = StorageProductModel.HUAWEI_LUNA2000
-    hb = HuaweiSolarBridge(client=hs, update_lock=asyncio.Lock(), primary=True, slave_id=1)
-    return hb
+    return HuaweiSolarBridge(
+        client=hs,
+        update_lock=asyncio.Lock(),
+        primary=True,
+        slave_id=1,
+    )

@@ -1,11 +1,30 @@
-"""Definitions of register values returned by the Huawei inverter"""
+"""Definitions of register values returned by the Huawei inverter."""
 
-from collections import namedtuple
 from enum import IntEnum
+from typing import NamedTuple
 
-GridCode = namedtuple("GridCode", "standard country")
-Alarm = namedtuple("Alarm", "name id level")
-OnOffBit = namedtuple("OnOffBit", "off_value on_value")
+
+class GridCode(NamedTuple):
+    """GridCode."""
+
+    standard: str
+    country: str
+
+
+class Alarm(NamedTuple):
+    """Alarm."""
+
+    name: str
+    id: int
+    level: str
+
+
+class OnOffBit(NamedTuple):
+    """Bit with different meaning when on or off."""
+
+    off_value: str
+    on_value: str
+
 
 DEVICE_STATUS_DEFINITIONS = {
     0x0000: "Standby: initializing",
@@ -42,7 +61,13 @@ DEVICE_STATUS_DEFINITIONS = {
 }
 
 
-class StorageStatus(IntEnum):
+class _IntEnumWithPrettyString(IntEnum):
+    def __str__(self) -> str:
+        """Return pretty string representation."""
+        return self.name.replace("_", " ").capitalize()
+
+
+class StorageStatus(_IntEnumWithPrettyString):
     """Status of the attached energy storage."""
 
     OFFLINE = 0
@@ -51,22 +76,16 @@ class StorageStatus(IntEnum):
     FAULT = 3
     SLEEP_MODE = 4
 
-    def __str__(self) -> str:
-        return self.name.replace("_", " ").capitalize()
 
-
-class StorageWorkingModesA(IntEnum):
+class StorageWorkingModesA(_IntEnumWithPrettyString):
     """Working mode of the Connected Energy Storage."""
 
     UNLIMITED = 0
     GRID_CONNECTION_WITH_ZERO_POWER = 1
     GRID_CONNECTION_WITH_LIMITED_POWER = 2
 
-    def __str__(self) -> str:
-        return self.name.replace("_", " ").capitalize()
 
-
-class StorageWorkingModesB(IntEnum):
+class StorageWorkingModesB(_IntEnumWithPrettyString):
     """Working mode of the Connected Energy Storage."""
 
     NONE = 0
@@ -82,11 +101,8 @@ class StorageWorkingModesB(IntEnum):
     AI_ENERGY_MANAGEMENT_AND_SCHEDULING = 10
     REMOTE_SCHEDULING_AI_CONTROL = 11
 
-    def __str__(self) -> str:
-        return self.name.replace("_", " ").capitalize()
 
-
-class StorageWorkingModesC(IntEnum):
+class StorageWorkingModesC(_IntEnumWithPrettyString):
     """Working mode of the Connected Energy Storage."""
 
     ADAPTIVE = 0
@@ -95,9 +111,6 @@ class StorageWorkingModesC(IntEnum):
     TIME_OF_USE_LG = 3
     FULLY_FED_TO_GRID = 4
     TIME_OF_USE_LUNA2000 = 5
-
-    def __str__(self) -> str:
-        return self.name.replace("_", " ").capitalize()
 
 
 class StorageProductModel(IntEnum):
@@ -133,14 +146,11 @@ class ActivePowerControlMode(IntEnum):
     POWER_LIMITED_GRID_CONNECTION_PERCENT = 7
 
 
-class MeterStatus(IntEnum):
+class MeterStatus(_IntEnumWithPrettyString):
     """Power meter status."""
 
     OFFLINE = 0
     NORMAL = 1
-
-    def __str__(self) -> str:
-        return self.name.replace("_", " ").capitalize()
 
 
 class MeterType(IntEnum):
@@ -165,7 +175,6 @@ class BackupVoltageIndependentOperation(IntEnum):
     BV_202V = 1
 
 
-# pylint: disable=fixme
 GRID_CODES = {
     0: GridCode("VDE-AR-N-4105", "Germany"),
     1: GridCode("NB/T 32004", "China"),
@@ -516,17 +525,33 @@ ALARM_CODES_3 = {
     0b0000_0000_1000_0000: Alarm("Internal Fan Abnormal", 2087, "Major"),
     0b0000_0001_0000_0000: Alarm("DC Protection Unit Abnormal", 2088, "Major"),
     0b0000_0010_0000_0000: Alarm("EL Unit Abnormal", 2089, "Minor"),
-    0b0000_0100_0000_0000: Alarm("Active Adjustment Instruction Abnormal", 2090, "Major"),
-    0b0000_1000_0000_0000: Alarm("Reactive Adjustment Instruction Abnormal", 2091, "Major"),
+    0b0000_0100_0000_0000: Alarm(
+        "Active Adjustment Instruction Abnormal",
+        2090,
+        "Major",
+    ),
+    0b0000_1000_0000_0000: Alarm(
+        "Reactive Adjustment Instruction Abnormal",
+        2091,
+        "Major",
+    ),
     0b0001_0000_0000_0000: Alarm("CT Wiring Abnormal", 2092, "Major"),
-    0b0010_0000_0000_0000: Alarm("DC Arc Fault(ADMC Alarm to be clear manually)", 2003, "Major"),
+    0b0010_0000_0000_0000: Alarm(
+        "DC Arc Fault(ADMC Alarm to be clear manually)",
+        2003,
+        "Major",
+    ),
     0b0100_0000_0000_0000: Alarm("DC Switch Abnormal", 2093, "Minor"),
-    0b1000_0000_0000_0000: Alarm("Allowable discharge capacity of the battery is low", 2094, "Warning"),
+    0b1000_0000_0000_0000: Alarm(
+        "Allowable discharge capacity of the battery is low",
+        2094,
+        "Warning",
+    ),
 }
 
 
 class StorageCapacityControlMode(IntEnum):
-    """Storage Capacity Control Mode"""
+    """Storage Capacity Control Mode."""
 
     DISABLE = 0
     ACTIVE_CAPACITY_CONTROL = 1
@@ -534,14 +559,14 @@ class StorageCapacityControlMode(IntEnum):
 
 
 class WlanWakeup(IntEnum):
-    """WLAN Wakeup"""
+    """WLAN Wakeup."""
 
     WAKEN_UP = 0
     DISABLED = 1
 
 
 class RemoteChargeDischargeControlMode(IntEnum):
-    """Remote Charge/Discharge Control Mode"""
+    """Remote Charge/Discharge Control Mode."""
 
     LOCAL_CONTROL = 0
     REMOTE_CONTROL_MAXIMUM_SELF_CONSUMPTION = 1

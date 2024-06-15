@@ -1,7 +1,5 @@
 """Exceptions from the Huawei Solar library."""
 
-import typing as t
-
 
 class HuaweiSolarException(Exception):
     """Base class for Huawei Solar exceptions."""
@@ -24,33 +22,35 @@ class PeakPeriodsValidationError(Exception):
 
 
 class ConnectionException(HuaweiSolarException):
-    """Exception connecting to device"""
+    """Exception connecting to device."""
 
 
 class ReadException(HuaweiSolarException):
-    """Exception reading register from device"""
+    """Exception reading register from device."""
 
-    def __init__(self, *args, modbus_exception_code: t.Optional[int] = None, **kwargs):
+    def __init__(self, *args, modbus_exception_code: int | None = None, **kwargs):
+        """Create ReadException."""
         super().__init__(*args, **kwargs)
         self.modbus_exception_code = modbus_exception_code
 
 
 class ConnectionInterruptedException(HuaweiSolarException):
-    """Exception because the connection to the inverter was interrupted"""
+    """Connection to the inverter was interrupted."""
 
 
 class SlaveBusyException(HuaweiSolarException):
-    """Non-fatal exception while trying to read from device"""
+    """Non-fatal exception while trying to read from device."""
 
 
 class SlaveFailureException(HuaweiSolarException):
-    """Possibly fatal exception while trying to read from device"""
+    """Possibly fatal exception while trying to read from device."""
 
 
 class WriteException(HuaweiSolarException):
-    """Exception writing register to device"""
+    """Exception writing register to device."""
 
-    def __init__(self, *args, modbus_exception_code: t.Optional[int] = None, **kwargs):
+    def __init__(self, *args, modbus_exception_code: int | None = None, **kwargs):
+        """Create WriteException."""
         super().__init__(*args, **kwargs)
         self.modbus_exception_code = modbus_exception_code
 
@@ -60,4 +60,4 @@ class PermissionDenied(HuaweiSolarException):
 
 
 class InvalidCredentials(HuaweiSolarException):
-    """Logging in on the inverter failed"""
+    """Logging in on the inverter failed."""
