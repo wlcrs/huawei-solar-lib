@@ -121,22 +121,29 @@ class StorageProductModel(IntEnum):
     HUAWEI_LUNA2000 = 2
 
 
-class StorageForcibleChargeDischarge(IntEnum):
-    """Storage Product Model."""
+class StorageForcibleChargeDischarge(_IntEnumWithPrettyString):
+    """Storage Forcible charge/discharge mode."""
 
     STOP = 0
     CHARGE = 1
     DISCHARGE = 2
 
 
-class StorageExcessPvEnergyUseInTOU(IntEnum):
+class StorageForcibleChargeDischargeTargetMode(_IntEnumWithPrettyString):
+    """Storage Forcible charge/discharge target mode."""
+
+    TIME = 0
+    SOC = 1
+
+
+class StorageExcessPvEnergyUseInTOU(_IntEnumWithPrettyString):
     """Storage Excess PV Energy use in Time-of-Use."""
 
     FED_TO_GRID = 0
     CHARGE = 1
 
 
-class ActivePowerControlMode(IntEnum):
+class ActivePowerControlMode(_IntEnumWithPrettyString):
     """Active Power Control Mode."""
 
     UNLIMITED = 0  # default mode
@@ -153,14 +160,14 @@ class MeterStatus(_IntEnumWithPrettyString):
     NORMAL = 1
 
 
-class MeterType(IntEnum):
+class MeterType(_IntEnumWithPrettyString):
     """Power meter type."""
 
     SINGLE_PHASE = 0
     THREE_PHASE = 1
 
 
-class MeterTypeCheck(IntEnum):
+class MeterTypeCheck(_IntEnumWithPrettyString):
     """Power meter type check."""
 
     RECOGNIZING = 0
