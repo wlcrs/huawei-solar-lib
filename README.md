@@ -1,5 +1,4 @@
 [![pipeline status](https://gitlab.com/Emilv2/huawei-solar/badges/master/pipeline.svg)](https://gitlab.com/Emilv2/huawei-solar/commits/master)
-[![codecov](https://codecov.io/gl/Emilv2/huawei-solar/branch/master/graph/badge.svg)](https://codecov.io/gl/Emilv2/huawei-solar)
 [![PyPI version](https://badge.fury.io/py/huawei-solar.svg)](https://badge.fury.io/py/huawei-solar)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/huawei-solar.svg)](https://pypi.org/project/huawei-solar/)
 [![PyPI - License](https://img.shields.io/pypi/l/huawei-solar.svg)](https://choosealicense.com/licenses/mit/)
@@ -14,6 +13,7 @@ It was primarily developed to add support for Huawei Solar inverters to Home Ass
 in the following integration: [wlcrs/huawei_solar](https://github.com/wlcrs/huawei_solar).
 
 **Features:**
+
 - Modbus-TCP support: connecting to the inverter via the SDongle, or over the WiFi-AP (`SUN2000-<serial_no>`)
   broadcasted by the inverter
 - Modbus-RTU support: connecting to the inverter via the RS485A1 and RS485B1 pins on the COM port

@@ -39,15 +39,12 @@ Homepage = "https://gitlab.com/EmilV2/huawei-solar"
 dev = [
     "ruff", # Code linter and formatter
     "tox>=4.15",
-    "codecov",
 ]
 
 test = [
     "pytest",
-    "pytest-asyncio"
+    "pytest-asyncio",
 ]
-
-
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
