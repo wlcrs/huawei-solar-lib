@@ -16,7 +16,10 @@ from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 from pymodbus.message.rtu import MessageRTU
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse, ModbusExceptions, ModbusRequest
-from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
+from pymodbus.register_write_message import (
+    WriteMultipleRegistersResponse,
+    WriteSingleRegisterResponse,
+)
 
 import huawei_solar.register_names as rn
 
@@ -85,6 +88,7 @@ class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter."""
 
     _reconnect_task: asyncio.Task | None = None
+    _cooldown_task: asyncio.Task | None = None
 
     def __init__(
         self,
@@ -174,7 +178,7 @@ class AsyncHuaweiSolar:
                     await asyncio.sleep(self._cooldown_time)
                     self.__cooled_down.set()
 
-                asyncio.create_task(_perform_cooldown())
+                self._cooldown_task = asyncio.create_task(_perform_cooldown())
 
     @classmethod
     async def create(  # noqa: PLR0913
@@ -243,6 +247,9 @@ class AsyncHuaweiSolar:
         """Stop the modbus client."""
         if self._reconnect_task:
             self._reconnect_task.cancel()
+
+        if self._cooldown_task:
+            self._cooldown_task.cancel()
 
         self._client.close()
 
