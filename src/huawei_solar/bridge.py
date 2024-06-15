@@ -8,15 +8,30 @@ from contextlib import suppress
 
 from . import register_names as rn
 from . import register_values as rv
-from .const import MAX_BATCHED_REGISTERS_COUNT, MAX_BATCHED_REGISTERS_GAP, MAX_NUMBER_OF_PV_STRINGS
-from .exceptions import HuaweiSolarException, InvalidCredentials, PermissionDenied, ReadException
+from .const import (
+    MAX_BATCHED_REGISTERS_COUNT,
+    MAX_BATCHED_REGISTERS_GAP,
+    MAX_NUMBER_OF_PV_STRINGS,
+)
+from .exceptions import (
+    HuaweiSolarException,
+    InvalidCredentials,
+    PermissionDenied,
+    ReadException,
+)
 from .files import (
     OptimizerRealTimeData,
     OptimizerRealTimeDataFile,
     OptimizerSystemInformation,
     OptimizerSystemInformationDataFile,
 )
-from .huawei_solar import DEFAULT_BAUDRATE, DEFAULT_SLAVE, DEFAULT_TCP_PORT, AsyncHuaweiSolar, Result
+from .huawei_solar import (
+    DEFAULT_BAUDRATE,
+    DEFAULT_SLAVE,
+    DEFAULT_TCP_PORT,
+    AsyncHuaweiSolar,
+    Result,
+)
 from .registers import METER_REGISTERS, REGISTERS
 
 _LOGGER = logging.getLogger(__name__)
@@ -338,7 +353,7 @@ class HuaweiSolarBridge:
             return await self.client.get_file(file_type, customized_data, self.slave_id)
         except PermissionDenied:
             if self.__username:
-                logged_in = self.ensure_logged_in(force=True)
+                logged_in = await self.ensure_logged_in(force=True)
 
                 if not logged_in:
                     _LOGGER.exception("Could not login to read file %x .", file_type)

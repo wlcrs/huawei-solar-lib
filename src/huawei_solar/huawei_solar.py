@@ -5,6 +5,7 @@ import hmac
 import logging
 import secrets
 import sys
+import time
 import typing as t
 from contextlib import asynccontextmanager
 from hashlib import sha256
@@ -88,7 +89,7 @@ class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter."""
 
     _reconnect_task: asyncio.Task | None = None
-    _cooldown_task: asyncio.Task | None = None
+    __last_call_finished_at: int | None = None
 
     def __init__(
         self,
@@ -106,9 +107,6 @@ class AsyncHuaweiSolar:
         # use this lock to prevent concurrent requests, as the
         # Huawei inverters can't cope with those
         self.__communication_lock = asyncio.Lock()
-
-        self.__cooled_down = asyncio.Event()
-        self.__cooled_down.set()
 
         # These values are set by the `initialize()` method
         self.time_zone = None
@@ -167,18 +165,19 @@ class AsyncHuaweiSolar:
                 self._reconnect_task = asyncio.create_task(self._reconnect())
                 raise
 
-            await self.__cooled_down.wait()
-            self.__cooled_down.clear()
+            if self.__last_call_finished_at:
+                cooldown_time_needed = (self.__last_call_finished_at + self._cooldown_time) - time.time()
+                if cooldown_time_needed > 0:
+                    LOGGER.debug(
+                        "Sleeping for %f seconds before making next call.",
+                        cooldown_time_needed,
+                    )
+                    await asyncio.sleep(cooldown_time_needed)
 
             try:
                 yield
             finally:
-
-                async def _perform_cooldown():
-                    await asyncio.sleep(self._cooldown_time)
-                    self.__cooled_down.set()
-
-                self._cooldown_task = asyncio.create_task(_perform_cooldown())
+                self.__last_call_finished_at = time.time()
 
     @classmethod
     async def create(  # noqa: PLR0913
@@ -247,9 +246,6 @@ class AsyncHuaweiSolar:
         """Stop the modbus client."""
         if self._reconnect_task:
             self._reconnect_task.cancel()
-
-        if self._cooldown_task:
-            self._cooldown_task.cancel()
 
         self._client.close()
 
