@@ -112,14 +112,14 @@ async def test_get_s_max(huawei_solar):
 async def test_get_q_max_out(huawei_solar):
     result = await huawei_solar.get("Q_max_out")
     assert result.value == 1980
-    assert result.unit == "VAr"
+    assert result.unit == "var"
 
 
 @pytest.mark.asyncio()
 async def test_get_q_max_in(huawei_solar):
     result = await huawei_solar.get("Q_max_in")
     assert result.value == -1980
-    assert result.unit == "VAr"
+    assert result.unit == "var"
 
 
 @pytest.mark.asyncio()
@@ -453,7 +453,7 @@ async def test_get_active_power(huawei_solar):
 async def test_get_reactive_power(huawei_solar):
     result = await huawei_solar.get("reactive_power")
     assert result.value == 0
-    assert result.unit == "VA"
+    assert result.unit == "var"
 
 
 @pytest.mark.asyncio()
