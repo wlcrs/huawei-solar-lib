@@ -35,4 +35,7 @@ __all__ = [
     "SlaveBusyException",
     "Result",
     "AsyncHuaweiSolar",
+    "registers",
+    "register_names",
+    "register_values",
 ]
