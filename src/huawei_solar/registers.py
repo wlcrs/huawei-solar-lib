@@ -7,7 +7,7 @@ import typing as t
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from enum import IntEnum
+from enum import Flag, IntEnum, auto
 from functools import partial
 from inspect import isclass
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
@@ -32,6 +32,13 @@ T = TypeVar("T")
 UnitType = None | str | dict[Any, T] | Callable[..., T]
 
 
+class TargetDevice(Flag):
+    """Target device for a register."""
+
+    SUN2000 = auto()
+    EMMA = auto()
+
+
 class RegisterDefinition(Generic[T]):
     """Base class for register definitions."""
 
@@ -43,12 +50,14 @@ class RegisterDefinition(Generic[T]):
         length: int,
         writeable: bool = False,
         readable: bool = True,
+        target_device: TargetDevice = TargetDevice.SUN2000,
     ):
         """Create RegisterDefinition."""
         self.register = register
         self.length = length
         self.writeable = writeable
         self.readable = readable
+        self.target_device = target_device
 
     def encode(self, data: T, builder: BinaryPayloadBuilder):
         """Encode register to bytes."""
@@ -730,10 +739,11 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
 
 
 REGISTERS: dict[str, RegisterDefinition] = {
-    rn.MODEL_NAME: StringRegister(30000, 15),
-    rn.SERIAL_NUMBER: StringRegister(30015, 10),
+    rn.MODEL_NAME: StringRegister(30000, 15, target_device=TargetDevice.SUN2000 & TargetDevice.EMMA),
+    rn.SERIAL_NUMBER: StringRegister(30015, 10, target_device=TargetDevice.SUN2000 & TargetDevice.EMMA),
     rn.PN: StringRegister(30025, 10),
     rn.FIRMWARE_VERSION: StringRegister(30035, 15),
+    rn.EMMA_SOFTWARE_VERSION: StringRegister(30035, 15, target_device=TargetDevice.EMMA),
     rn.SOFTWARE_VERSION: StringRegister(30050, 15),
     rn.PROTOCOL_VERSION_MODBUS: U32Register(None, 1, 30068),
     rn.MODEL_ID: U16Register(None, 1, 30070),
@@ -758,6 +768,7 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.FEATURE_MASK_2: U32Register(None, 1, 30213),
     rn.FEATURE_MASK_3: U32Register(None, 1, 30215),
     rn.FEATURE_MASK_4: U32Register(None, 1, 30217),
+    rn.EMMA_MODEL: StringRegister(30222, 20, target_device=TargetDevice.EMMA),
     rn.REALTIME_MAX_ACTIVE_CAPABILITY: I32Register(None, 1, 30366),
     rn.REALTIME_MAX_INDUCTIVE_REACTIVE_CAPACITY: I32Register(None, 1, 30368),
     rn.OFFERING_NAME_OF_SOUTHBOUND_DEVICE_1: StringRegister(30561, 15),
