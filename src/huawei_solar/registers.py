@@ -201,6 +201,23 @@ class U32Register(NumberRegister[T], Generic[T]):
         )
 
 
+class U64Register(NumberRegister[T], Generic[T]):
+    """Unsigned 64-bit register."""
+
+    def __init__(self, unit, gain, register, writeable=False):
+        """Create Unsigned 64-bit register."""
+        super().__init__(
+            unit=unit,
+            gain=gain,
+            register=register,
+            length=4,
+            decode_function_name="decode_64bit_uint",
+            encode_function_name="add_64bit_uint",
+            writeable=writeable,
+            invalid_value=2**63 - 1,
+        )
+
+
 class I16Register(NumberRegister[T], Generic[T]):
     """Signed 16-bit register."""
 
@@ -232,6 +249,23 @@ class I32Register(NumberRegister[T], Generic[T]):
             encode_function_name="add_32bit_int",
             writeable=writeable,
             invalid_value=2**31 - 1,
+        )
+
+
+class I64Register(NumberRegister[T], Generic[T]):
+    """Signed 64-bit register."""
+
+    def __init__(self, unit, gain, register, writeable=False):
+        """Create Signed 64-bit register."""
+        super().__init__(
+            unit=unit,
+            gain=gain,
+            register=register,
+            length=4,
+            decode_function_name="decode_64bit_int",
+            encode_function_name="add_64bit_int",
+            writeable=writeable,
+            invalid_value=2**63 - 1,
         )
 
 
@@ -743,7 +777,6 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.SERIAL_NUMBER: StringRegister(30015, 10, target_device=TargetDevice.SUN2000 | TargetDevice.EMMA),
     rn.PN: StringRegister(30025, 10),
     rn.FIRMWARE_VERSION: StringRegister(30035, 15),
-    rn.EMMA_SOFTWARE_VERSION: StringRegister(30035, 15, target_device=TargetDevice.EMMA),
     rn.SOFTWARE_VERSION: StringRegister(30050, 15),
     rn.PROTOCOL_VERSION_MODBUS: U32Register(None, 1, 30068),
     rn.MODEL_ID: U16Register(None, 1, 30070),
@@ -768,7 +801,6 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.FEATURE_MASK_2: U32Register(None, 1, 30213),
     rn.FEATURE_MASK_3: U32Register(None, 1, 30215),
     rn.FEATURE_MASK_4: U32Register(None, 1, 30217),
-    rn.EMMA_MODEL: StringRegister(30222, 20, target_device=TargetDevice.EMMA),
     rn.REALTIME_MAX_ACTIVE_CAPABILITY: I32Register(None, 1, 30366),
     rn.REALTIME_MAX_INDUCTIVE_REACTIVE_CAPACITY: I32Register(None, 1, 30368),
     rn.OFFERING_NAME_OF_SOUTHBOUND_DEVICE_1: StringRegister(30561, 15),
@@ -1268,6 +1300,8 @@ CAPACITY_CONTROL_REGISTERS = {
 REGISTERS.update(CAPACITY_CONTROL_REGISTERS)
 
 EMMA_REGISTERS = {
+    rn.EMMA_SOFTWARE_VERSION: StringRegister(30035, 15, target_device=TargetDevice.EMMA),
+    rn.EMMA_MODEL: StringRegister(30222, 20, target_device=TargetDevice.EMMA),
     rn.EMMA: U16Register(bool, 1, 48020, writeable=True),
 }
 
