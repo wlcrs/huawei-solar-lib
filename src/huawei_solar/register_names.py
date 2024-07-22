@@ -379,3 +379,5 @@ STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING = "storage_capacity_control_soc_peak_s
 STORAGE_CAPACITY_CONTROL_PERIODS = "storage_capacity_control_periods"
 
 EMMA = "emma"
+EMMA_VERSION = "emma_version"
+EMMA_MODEL = "emma_model"

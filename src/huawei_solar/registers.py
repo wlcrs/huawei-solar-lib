@@ -739,8 +739,8 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
 
 
 REGISTERS: dict[str, RegisterDefinition] = {
-    rn.MODEL_NAME: StringRegister(30000, 15, target_device=TargetDevice.SUN2000 & TargetDevice.EMMA),
-    rn.SERIAL_NUMBER: StringRegister(30015, 10, target_device=TargetDevice.SUN2000 & TargetDevice.EMMA),
+    rn.MODEL_NAME: StringRegister(30000, 15, target_device=TargetDevice.SUN2000 | TargetDevice.EMMA),
+    rn.SERIAL_NUMBER: StringRegister(30015, 10, target_device=TargetDevice.SUN2000 | TargetDevice.EMMA),
     rn.PN: StringRegister(30025, 10),
     rn.FIRMWARE_VERSION: StringRegister(30035, 15),
     rn.EMMA_SOFTWARE_VERSION: StringRegister(30035, 15, target_device=TargetDevice.EMMA),
