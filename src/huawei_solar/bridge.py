@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from abc import ABC, abstractmethod
 from contextlib import suppress
+from dataclasses import dataclass
+from typing import override
 
 from . import register_names as rn
 from . import register_values as rv
@@ -27,7 +30,7 @@ from .files import (
 )
 from .huawei_solar import (
     DEFAULT_BAUDRATE,
-    DEFAULT_SLAVE,
+    DEFAULT_SLAVE_ID,
     DEFAULT_TCP_PORT,
     AsyncHuaweiSolar,
     Result,
@@ -39,7 +42,46 @@ _LOGGER = logging.getLogger(__name__)
 HEARTBEAT_INTERVAL = 15
 
 
-class HuaweiSolarBridge:
+@dataclass(frozen=True)
+class HuaweiSolarProductInfo:
+    """Contains information on Huawei Solar Product."""
+
+    model_name: str
+    serial_number: str
+    product_number: str
+    firmware_version: str
+    software_version: str
+
+    @classmethod
+    async def retrieve_from_device(cls, client: AsyncHuaweiSolar, slave_id: int):
+        """Retrieve product info from device."""
+        (
+            model_name_result,
+            serial_number_result,
+            pn_result,
+            firmware_version_result,
+            software_version_result,
+        ) = await client.get_multiple(
+            [
+                rn.MODEL_NAME,
+                rn.SERIAL_NUMBER,
+                rn.PN,
+                rn.FIRMWARE_VERSION,
+                rn.SOFTWARE_VERSION,
+            ],
+            slave_id,
+        )
+
+        return cls(
+            model_name=model_name_result.value,
+            serial_number=serial_number_result.value,
+            product_number=pn_result.value,
+            firmware_version=firmware_version_result.value,
+            software_version=software_version_result.value,
+        )
+
+
+class HuaweiSolarBridge(ABC):
     """A higher-level interface making it easier to interact with a Huawei Solar inverter."""
 
     model_name: str
@@ -48,17 +90,6 @@ class HuaweiSolarBridge:
     firmware_version: str
     software_version: str
 
-    pv_string_count: int = 0
-    has_optimizers: bool = False
-
-    battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
-    battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
-    supports_capacity_control = False
-    power_meter_online = False
-    power_meter_type: rv.MeterType | None = None
-
-    _pv_registers: list[str]
-
     __login_lock = asyncio.Lock()
     __heartbeat_enabled = False
     __heartbeat_task: asyncio.Task | None = None
@@ -66,149 +97,51 @@ class HuaweiSolarBridge:
     __username: str | None = None
     __password: str | None = None
 
-    _previous_device_status: int | None = None
-
     def __init__(
         self,
         client: AsyncHuaweiSolar,
-        update_lock: asyncio.Lock,
-        primary: bool,
-        slave_id: int | None = None,
+        slave_id: int,
+        product_info: HuaweiSolarProductInfo,
+        update_lock: asyncio.Lock | None = None,
     ):
-        """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use HuaweiSolarBridge.create() instead."""
+        """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use create() method instead."""
         self.client = client
-        self.update_lock = update_lock
+        self.slave_id = slave_id
+        self.update_lock = update_lock or asyncio.Lock()
 
-        self._primary = primary
-        self.slave_id = slave_id or 0
+        self.model_name = product_info.model_name
+        self.serial_number = product_info.serial_number
+        self.product_number = product_info.product_number
+        self.firmware_version = product_info.firmware_version
+        self.software_version = product_info.software_version
+
+        self._primary = slave_id == client.slave_id
 
     @classmethod
     async def create(
         cls,
-        host: str,
-        port: int = DEFAULT_TCP_PORT,
-        slave_id: int = DEFAULT_SLAVE,
-    ) -> HuaweiSolarBridge:
-        """Create a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
-        client = await AsyncHuaweiSolar.create(host, port, slave_id)
-        update_lock = asyncio.Lock()
-        bridge = cls(client, update_lock, primary=True)
-        await HuaweiSolarBridge.__populate_fields(bridge)
-
-        return bridge
-
-    @classmethod
-    async def create_rtu(
-        cls,
-        port: str,
-        baudrate: int = DEFAULT_BAUDRATE,
-        slave_id: int = DEFAULT_SLAVE,
-    ) -> HuaweiSolarBridge:
-        """Create a HuaweiSolarBridge instance for the inverter hosting the modbus interface."""
-        client = await AsyncHuaweiSolar.create_rtu(port, baudrate, slave_id)
-        update_lock = asyncio.Lock()
-        bridge = cls(client, update_lock, primary=True)
-        await HuaweiSolarBridge.__populate_fields(bridge)
-
-        return bridge
-
-    @classmethod
-    async def create_extra_slave(
-        cls,
-        primary_bridge: HuaweiSolarBridge,
+        client: AsyncHuaweiSolar,
         slave_id: int,
-    ) -> HuaweiSolarBridge:
-        """Create a HuaweiSolarBridge instance for extra slaves accessible via the given AsyncHuaweiSolar instance."""
-        assert primary_bridge.slave_id != slave_id
+        product_info: HuaweiSolarProductInfo,
+        update_lock: asyncio.Lock | None,
+    ):
+        """Create instance with the necessary information."""
+        bridge = cls(client, slave_id, product_info, update_lock)
 
-        await primary_bridge.client.determine_battery_type(slave_id)
+        await bridge._populate_additional_fields()
 
-        bridge = cls(
-            primary_bridge.client,
-            primary_bridge.update_lock,
-            primary=False,
-            slave_id=slave_id,
-        )
-        await HuaweiSolarBridge.__populate_fields(bridge)
         return bridge
 
-    @staticmethod
-    async def __populate_fields(bridge: HuaweiSolarBridge):
-        """Compute all the fields that should be returned on each update-call."""
-        (
-            model_name_result,
-            serial_number_result,
-            pn_result,
-            firmware_version_result,
-            software_version_result,
-        ) = await bridge.client.get_multiple(
-            [
-                rn.MODEL_NAME,
-                rn.SERIAL_NUMBER,
-                rn.PN,
-                rn.FIRMWARE_VERSION,
-                rn.SOFTWARE_VERSION,
-            ],
-            bridge.slave_id,
-        )
+    @abstractmethod
+    async def _populate_additional_fields(self) -> None:
+        """Allow subclass to populate additional fields with information."""
+        raise NotImplementedError
 
-        bridge.model_name = model_name_result.value
-        bridge.serial_number = serial_number_result.value
-        bridge.product_number = pn_result.value
-        bridge.firmware_version = firmware_version_result.value
-        bridge.software_version = software_version_result.value
-
-        bridge.pv_string_count = (await bridge.client.get(rn.NB_PV_STRINGS, bridge.slave_id)).value
-        bridge._pv_registers = bridge._compute_pv_registers()
-
-        with suppress(
-            ReadException,  # some inverters throw an IllegalAddress exception when accessing this address
-        ):
-            bridge.has_optimizers = (await bridge.client.get(rn.NB_OPTIMIZERS, bridge.slave_id)).value
-
-        with suppress(ReadException):
-            bridge.battery_1_type = (
-                await bridge.client.get(
-                    rn.STORAGE_UNIT_1_PRODUCT_MODEL,
-                    bridge.slave_id,
-                )
-            ).value
-
-        with suppress(ReadException):
-            bridge.battery_2_type = (
-                await bridge.client.get(
-                    rn.STORAGE_UNIT_2_PRODUCT_MODEL,
-                    bridge.slave_id,
-                )
-            ).value
-
-        if bridge.battery_2_type not in (
-            rv.StorageProductModel.NONE,
-            bridge.battery_1_type,
-        ):
-            _LOGGER.warning(
-                "Detected two batteries of a different type. This can lead to unexpected behavior.",
-            )
-
-        if bridge.battery_type != rv.StorageProductModel.NONE:
-            try:
-                await bridge.client.get(
-                    rn.STORAGE_CAPACITY_CONTROL_MODE,
-                    bridge.slave_id,
-                )
-                bridge.supports_capacity_control = True
-            except ReadException:
-                pass
-
-        with suppress(ReadException):
-            bridge.power_meter_online = (
-                await bridge.client.get(rn.METER_STATUS, bridge.slave_id)
-            ).value == rv.MeterStatus.NORMAL
-
-        # Caveat: if the inverter is in offline mode, and the power meter is thus offline,
-        # we will incorrectly detect that no power meter is present.
-        if bridge.power_meter_online:
-            bridge.power_meter_type = (await bridge.client.get(rn.METER_TYPE, bridge.slave_id)).value
+    @classmethod
+    @abstractmethod
+    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+        """Check if this class support the given device."""
+        raise NotImplementedError
 
     async def _get_multiple_to_dict(self, names: list[str]) -> dict[str, Result]:
         return dict(
@@ -219,54 +152,18 @@ class HuaweiSolarBridge:
             ),
         )
 
-    def _detect_state_changes(self, new_values: dict[str, Result]) -> None:
-        # When there is a power outage, but the installation stays online with a backup box installed,
-        # then the power meter goes offline. If we still try to query it, the inverter will close the connection.
-        # To prevent this, we always check if the power meter is still online when the device status changes.
-        #
-        # cfr. https://gitlab.com/Emilv2/huawei-solar/-/merge_requests/9#note_1281471842
+    def _detect_state_changes(self, new_values: dict[str, Result]) -> None:  # noqa: B027
+        """Update state based on result of batch_update query.
 
-        if rn.DEVICE_STATUS in new_values:
-            new_device_status = new_values[rn.DEVICE_STATUS].value
-            if self._previous_device_status != new_device_status:
-                _LOGGER.debug(
-                    "Detected a device state change from %s to %s : resetting power meter online status",
-                    self._previous_device_status,
-                    new_device_status,
-                )
-                self.power_meter_online = False
-
-            self._previous_device_status = new_device_status
+        Used by subclasses to detect important changes.
+        """
 
     async def _filter_registers(self, register_names: list[str]) -> list[str]:
-        result = register_names
+        """Filter registers being requested in batch_update.
 
-        # Filter out power meter registers if the power meter is offline
-        power_meter_register_names = {rn for rn in register_names if rn in METER_REGISTERS}
-        if len(power_meter_register_names):
-            # Do a check of the METER_STATUS register only if the power meter is marked offline
-            if not self.power_meter_online:
-                power_meter_online_register = await self.client.get(
-                    rn.METER_STATUS,
-                    self.slave_id,
-                )
-                self.power_meter_online = power_meter_online_register.value
-
-                _LOGGER.debug("Power meter online: %s", self.power_meter_online)
-
-            # If it is still offline after the check then filter out all power meter registers
-            if not self.power_meter_online:
-                _LOGGER.debug(
-                    "Removing power meter registers as the power meter is offline.",
-                )
-                result = list(
-                    filter(
-                        lambda regname: regname == rn.METER_STATUS or rn not in power_meter_register_names,
-                        register_names,
-                    ),
-                )
-
-        return result
+        Used by subclasses to prevent read-errors in certain cases.
+        """
+        return register_names
 
     async def batch_update(self, register_names: list[str]) -> dict[str, Result]:
         """Efficiently retrieve the values of all the registers passed in register_names."""
@@ -290,7 +187,7 @@ class HuaweiSolarBridge:
 
         registers.sort(key=lambda rd: rd.register_start)
 
-        async with self.update_lock:
+        async with self.client.update_lock:
             result = {}
             first_idx = 0
             last_idx = 0
@@ -367,52 +264,6 @@ class HuaweiSolarBridge:
 
             # we have no login-credentials available, pass on permission error
             raise
-
-    async def get_latest_optimizer_history_data(
-        self,
-    ) -> dict[int, OptimizerRealTimeData]:
-        """Read the latest Optimizer History Data File from the inverter."""
-        # emulates behavior from FusionSolar app when current status of optimizers is queried
-        end_time = (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
-        start_time = end_time - 600
-
-        file_data = await self._read_file(
-            OptimizerRealTimeDataFile.FILE_TYPE,
-            OptimizerRealTimeDataFile.query_within_timespan(start_time, end_time),
-        )
-        real_time_data = OptimizerRealTimeDataFile(file_data)
-
-        if len(real_time_data.data_units) == 0:
-            return {}
-
-        # we only expect one element, but if more would be present,
-        # then only the latest one is of interest (list is sorted time descending)
-        latest_unit = real_time_data.data_units[0]
-
-        return {opt.optimizer_address: opt for opt in latest_unit.optimizers}
-
-    async def get_optimizer_system_information_data(
-        self,
-    ) -> dict[int, OptimizerSystemInformation]:
-        """Read the Optimizer System Information Data File from the inverter."""
-        file_data = await self._read_file(OptimizerSystemInformationDataFile.FILE_TYPE)
-        system_information_data = OptimizerSystemInformationDataFile(file_data)
-
-        return {opt.optimizer_address: opt for opt in system_information_data.optimizers}
-
-    def _compute_pv_registers(self) -> list[str]:
-        """Get the registers for the PV strings which were detected from the inverter."""
-        assert 1 <= self.pv_string_count <= MAX_NUMBER_OF_PV_STRINGS
-
-        pv_registers = []
-        for idx in range(1, self.pv_string_count + 1):
-            pv_registers.extend(
-                [
-                    getattr(rn, f"PV_{idx:02}_VOLTAGE"),
-                    getattr(rn, f"PV_{idx:02}_CURRENT"),
-                ],
-            )
-        return pv_registers
 
     async def stop(self) -> bool:
         """Stop the bridge."""
@@ -535,9 +386,257 @@ class HuaweiSolarBridge:
             # we have no login-credentials available, pass on permission error
             raise
 
+
+class HuaweiSUN2000Bridge(HuaweiSolarBridge):
+    """Bridge for Huawei SUN2000 devices."""
+
+    pv_string_count: int = 0
+    has_optimizers: bool = False
+
+    battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
+    battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
+    supports_capacity_control = False
+    power_meter_online = False
+    power_meter_type: rv.MeterType | None = None
+
+    _pv_registers: list[str]
+
+    @classmethod
+    @override
+    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+        """Check if this class support the given device."""
+        return product_info.model_name.startswith("SUN2000")
+
+    @override
+    async def _populate_additional_fields(self):
+        self.pv_string_count = (await self.client.get(rn.NB_PV_STRINGS, self.slave_id)).value
+        self._pv_registers = self._compute_pv_registers()
+
+        with suppress(
+            ReadException,  # some inverters throw an IllegalAddress exception when accessing this address
+        ):
+            self.has_optimizers = (await self.client.get(rn.NB_OPTIMIZERS, self.slave_id)).value
+
+        with suppress(ReadException):
+            self.battery_1_type = (
+                await self.client.get(
+                    rn.STORAGE_UNIT_1_PRODUCT_MODEL,
+                    self.slave_id,
+                )
+            ).value
+
+        with suppress(ReadException):
+            self.battery_2_type = (
+                await self.client.get(
+                    rn.STORAGE_UNIT_2_PRODUCT_MODEL,
+                    self.slave_id,
+                )
+            ).value
+
+        if self.battery_2_type not in (
+            rv.StorageProductModel.NONE,
+            self.battery_1_type,
+        ):
+            _LOGGER.warning(
+                "Detected two batteries of a different type. This can lead to unexpected behavior.",
+            )
+
+        if self.battery_type != rv.StorageProductModel.NONE:
+            try:
+                await self.client.get(
+                    rn.STORAGE_CAPACITY_CONTROL_MODE,
+                    self.slave_id,
+                )
+                self.supports_capacity_control = True
+            except ReadException:
+                pass
+
+        with suppress(ReadException):
+            self.power_meter_online = (
+                await self.client.get(rn.METER_STATUS, self.slave_id)
+            ).value == rv.MeterStatus.NORMAL
+
+        # Caveat: if the inverter is in offline mode, and the power meter is thus offline,
+        # we will incorrectly detect that no power meter is present.
+        if self.power_meter_online:
+            self.power_meter_type = (await self.client.get(rn.METER_TYPE, self.slave_id)).value
+
+    @override
+    def _detect_state_changes(self, new_values: dict[str, Result]) -> None:
+        """Update state based on result of batch_update query.
+
+        Used by subclasses to detect important changes.
+        """
+        # When there is a power outage, but the installation stays online with a backup box installed,
+        # then the power meter goes offline. If we still try to query it, the inverter will close the connection.
+        # To prevent this, we always check if the power meter is still online when the device status changes.
+        #
+        # cfr. https://gitlab.com/Emilv2/huawei-solar/-/merge_requests/9#note_1281471842
+
+        if rn.DEVICE_STATUS in new_values:
+            new_device_status = new_values[rn.DEVICE_STATUS].value
+            if self._previous_device_status != new_device_status:
+                _LOGGER.debug(
+                    "Detected a device state change from %s to %s : resetting power meter online status",
+                    self._previous_device_status,
+                    new_device_status,
+                )
+                self.power_meter_online = False
+
+            self._previous_device_status = new_device_status
+
+    @override
+    async def _filter_registers(self, register_names: list[str]) -> list[str]:
+        result = register_names
+
+        # Filter out power meter registers if the power meter is offline
+        power_meter_register_names = {rn for rn in register_names if rn in METER_REGISTERS}
+        if len(power_meter_register_names):
+            # Do a check of the METER_STATUS register only if the power meter is marked offline
+            if not self.power_meter_online:
+                power_meter_online_register = await self.client.get(
+                    rn.METER_STATUS,
+                    self.slave_id,
+                )
+                self.power_meter_online = power_meter_online_register.value
+
+                _LOGGER.debug("Power meter online: %s", self.power_meter_online)
+
+            # If it is still offline after the check then filter out all power meter registers
+            if not self.power_meter_online:
+                _LOGGER.debug(
+                    "Removing power meter registers as the power meter is offline.",
+                )
+                result = list(
+                    filter(
+                        lambda regname: regname == rn.METER_STATUS or rn not in power_meter_register_names,
+                        register_names,
+                    ),
+                )
+
+        return result
+
+    async def get_latest_optimizer_history_data(
+        self,
+    ) -> dict[int, OptimizerRealTimeData]:
+        """Read the latest Optimizer History Data File from the inverter."""
+        # emulates behavior from FusionSolar app when current status of optimizers is queried
+        end_time = (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
+        start_time = end_time - 600
+
+        file_data = await self._read_file(
+            OptimizerRealTimeDataFile.FILE_TYPE,
+            OptimizerRealTimeDataFile.query_within_timespan(start_time, end_time),
+        )
+        real_time_data = OptimizerRealTimeDataFile(file_data)
+
+        if len(real_time_data.data_units) == 0:
+            return {}
+
+        # we only expect one element, but if more would be present,
+        # then only the latest one is of interest (list is sorted time descending)
+        latest_unit = real_time_data.data_units[0]
+
+        return {opt.optimizer_address: opt for opt in latest_unit.optimizers}
+
+    async def get_optimizer_system_information_data(
+        self,
+    ) -> dict[int, OptimizerSystemInformation]:
+        """Read the Optimizer System Information Data File from the inverter."""
+        file_data = await self._read_file(OptimizerSystemInformationDataFile.FILE_TYPE)
+        system_information_data = OptimizerSystemInformationDataFile(file_data)
+
+        return {opt.optimizer_address: opt for opt in system_information_data.optimizers}
+
+    def _compute_pv_registers(self) -> list[str]:
+        """Get the registers for the PV strings which were detected from the inverter."""
+        assert 1 <= self.pv_string_count <= MAX_NUMBER_OF_PV_STRINGS
+
+        pv_registers = []
+        for idx in range(1, self.pv_string_count + 1):
+            pv_registers.extend(
+                [
+                    getattr(rn, f"PV_{idx:02}_VOLTAGE"),
+                    getattr(rn, f"PV_{idx:02}_CURRENT"),
+                ],
+            )
+        return pv_registers
+
     @property
     def battery_type(self) -> rv.StorageProductModel:
         """The battery type present on this inverter."""
         if self.battery_1_type != rv.StorageProductModel.NONE:
             return self.battery_1_type
         return self.battery_2_type
+
+
+class HuaweiEMMABridge(HuaweiSolarBridge):
+    """Bridge for Huawei EMMA devices.
+
+    Also called 'SmartHEMS' by Huawei.
+    """
+
+    model: str
+
+    @classmethod
+    @override
+    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+        """Check if this class support the given device."""
+        _LOGGER.warning(
+            "TODO: EMMA product model is not known at the moment. Assuming that it is %s.",
+            product_info.model_name,
+        )
+        return True
+
+    @override
+    async def _populate_additional_fields(self):
+        self.model = (await self.client.get(rn.EMMA_MODEL, self.slave_id)).value
+
+
+BRIDGE_CLASSES: list[type[HuaweiSolarBridge]] = [HuaweiSUN2000Bridge, HuaweiEMMABridge]
+
+
+async def create_tcp_bridge(
+    host: str,
+    port: int = DEFAULT_TCP_PORT,
+    slave_id: int = DEFAULT_SLAVE_ID,
+) -> HuaweiSolarBridge:
+    """Connect to the device via Modbus TCP and create the appropriate bridge."""
+    return await _create(await AsyncHuaweiSolar.create(host, port, slave_id), slave_id)
+
+
+async def create_rtu_bridge(
+    port: str,
+    baudrate: int = DEFAULT_BAUDRATE,
+    slave_id: int = DEFAULT_SLAVE_ID,
+) -> HuaweiSolarBridge:
+    """Connect to the device via Modbus RTU and create the appropriate bridge."""
+    return await _create(await AsyncHuaweiSolar.create_rtu(port, baudrate, slave_id), slave_id)
+
+
+async def create_sub_bridge(
+    primary_bridge: HuaweiSolarBridge,
+    slave_id: int,
+) -> HuaweiSolarBridge:
+    """Create a HuaweiSolarBridge instance for extra slaves accessible as subdevices via an existing Bridge."""
+    assert primary_bridge.slave_id != slave_id
+    return await _create(primary_bridge.client, slave_id, primary_bridge.update_lock)
+
+
+async def _create(
+    client: AsyncHuaweiSolar,
+    slave_id: int,
+    update_lock: asyncio.Lock | None = None,
+) -> HuaweiSUN2000Bridge | HuaweiEMMABridge:
+    product_info = await HuaweiSolarProductInfo.retrieve_from_device(client, slave_id)
+
+    for candidate_bridge_class in BRIDGE_CLASSES:
+        if candidate_bridge_class.supports_device(product_info):
+            return await candidate_bridge_class.create(
+                client,
+                slave_id,
+                product_info,
+                update_lock,
+            )
+
+    raise HuaweiSolarException(f"Unsupported product model '{product_info.model_name}'")

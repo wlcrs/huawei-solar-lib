@@ -24,7 +24,6 @@ from pymodbus.register_write_message import (
 
 import huawei_solar.register_names as rn
 
-from . import register_values as rv
 from .const import MAX_BATCHED_REGISTERS_COUNT
 from .exceptions import (
     ConnectionException,
@@ -63,7 +62,7 @@ class Result(t.NamedTuple):
 DEFAULT_TCP_PORT = 502
 DEFAULT_BAUDRATE = 9600
 
-DEFAULT_SLAVE = 0
+DEFAULT_SLAVE_ID = 0
 DEFAULT_TIMEOUT = 10  # especially the SDongle can react quite slowly
 DEFAULT_WAIT = 1
 DEFAULT_COOLDOWN_TIME = 0.05
@@ -94,7 +93,7 @@ class AsyncHuaweiSolar:
     def __init__(
         self,
         client: AsyncHuaweiSolarModbusSerialClient | AsyncHuaweiSolarModbusTcpClient,
-        slave: int = DEFAULT_SLAVE,
+        slave_id: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ):
@@ -102,7 +101,7 @@ class AsyncHuaweiSolar:
         self._client = client
         self._timeout = timeout
         self._cooldown_time = cooldown_time
-        self.slave = slave
+        self.slave_id = slave_id
 
         # use this lock to prevent concurrent requests, as the
         # Huawei inverters can't cope with those
@@ -110,42 +109,11 @@ class AsyncHuaweiSolar:
 
         # These values are set by the `initialize()` method
         self.time_zone = None
-        self.battery_type = None
 
     async def _initialize(self):
         # get some registers which are needed to correctly decode all values
 
         self.time_zone = (await self.get(rn.TIME_ZONE)).value
-        await self.determine_battery_type()
-
-    async def determine_battery_type(self, slave_id: int | None = None):
-        """Determine the battery type connected to this inverter."""
-        # Skip if the battery type was already determined via another slave
-        if self.battery_type is not None and self.battery_type != rv.StorageProductModel.NONE:
-            return
-
-        try:
-            self.battery_type = (await self.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL, slave_id or self.slave)).value
-
-            if self.battery_type == rv.StorageProductModel.NONE:
-                self.battery_type = (
-                    await self.get(
-                        rn.STORAGE_UNIT_2_PRODUCT_MODEL,
-                        slave_id or self.slave,
-                    )
-                ).value
-
-        except ReadException as rerr:
-            if "IllegalAddress" in str(rerr):
-                LOGGER.info(
-                    "Received IllegalAddress-error while determining battery support. Setting it to None.",
-                    exc_info=rerr,
-                )
-                # inverter doesn't seem to support a battery
-                self.battery_type = None
-            else:
-                LOGGER.exception("Got error %s while trying to determine battery.")
-                raise
 
     @asynccontextmanager
     async def _communication_lock(self):
@@ -184,7 +152,7 @@ class AsyncHuaweiSolar:
         cls,
         host,
         port: int = DEFAULT_TCP_PORT,
-        slave: int = DEFAULT_SLAVE,
+        slave: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ):
@@ -213,7 +181,7 @@ class AsyncHuaweiSolar:
         cls,
         port,
         baudrate: int = DEFAULT_BAUDRATE,
-        slave: int = DEFAULT_SLAVE,
+        slave: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
         **serial_kwargs,
@@ -399,7 +367,7 @@ class AsyncHuaweiSolar:
                 response = await self._client.read_holding_registers(
                     register,
                     length,
-                    slave=slave or self.slave,
+                    slave=slave or self.slave_id,
                 )
 
                 # trigger a backoff if we get a SlaveBusy-exception
@@ -409,7 +377,7 @@ class AsyncHuaweiSolar:
                             "Got a SlaveBusy Modbus Exception while reading %d (length %d) from slave %d",
                             register,
                             length,
-                            slave or self.slave,
+                            slave or self.slave_id,
                         )
                         raise SlaveBusyException
 
@@ -418,7 +386,7 @@ class AsyncHuaweiSolar:
                             "Got a SlaveFailure Modbus Exception while reading %d (length %d) from slave %d",
                             register,
                             length,
-                            slave or self.slave,
+                            slave or self.slave_id,
                         )
                         raise SlaveFailureException
 
@@ -446,7 +414,7 @@ class AsyncHuaweiSolar:
                 "Reading register %d with length %d from slave %s",
                 register,
                 length,
-                slave or self.slave,
+                slave or self.slave_id,
             )
             return await _do_read()
 
@@ -508,7 +476,7 @@ class AsyncHuaweiSolar:
                 StartUploadModbusRequest(
                     file_type,
                     customized_data,
-                    slave=slave or self.slave,
+                    slave=slave or self.slave_id,
                 ),
                 StartUploadModbusResponse,
             )
@@ -526,7 +494,7 @@ class AsyncHuaweiSolar:
                     UploadModbusRequest(
                         file_type,
                         next_frame_no,
-                        slave=slave or self.slave,
+                        slave=slave or self.slave_id,
                     ),
                     UploadModbusResponse,
                 )
@@ -536,7 +504,7 @@ class AsyncHuaweiSolar:
 
             # Complete the upload and check the CRC
             complete_upload_response = await _perform_request(
-                CompleteUploadModbusRequest(file_type, slave=slave or self.slave),
+                CompleteUploadModbusRequest(file_type, slave=slave or self.slave_id),
                 CompleteUploadModbusResponse,
             )
 
@@ -556,7 +524,7 @@ class AsyncHuaweiSolar:
             LOGGER.debug(
                 "Reading file %#x from slave %d",
                 file_type,
-                slave or self.slave,
+                slave or self.slave_id,
             )
             return await _do_read_file()
 
@@ -607,7 +575,7 @@ class AsyncHuaweiSolar:
                 "Writing to register %s value %s on slave %s",
                 name,
                 value,
-                slave or self.slave,
+                slave or self.slave_id,
             )
             return await _do_set()
 
@@ -627,7 +595,7 @@ class AsyncHuaweiSolar:
                 "Writing to %d: %s on slave %d",
                 register,
                 value,
-                slave or self.slave,
+                slave or self.slave_id,
             )
 
             single_register = len(value) == 1
@@ -635,14 +603,14 @@ class AsyncHuaweiSolar:
                 response = await self._client.write_register(
                     register,
                     value[0],
-                    slave=slave or self.slave,
+                    slave=slave or self.slave_id,
                 )
 
             else:
                 response = await self._client.write_registers(
                     register,
                     value,
-                    slave=slave or self.slave,
+                    slave=slave or self.slave_id,
                 )
 
             if isinstance(response, ExceptionResponse):
@@ -698,7 +666,7 @@ class AsyncHuaweiSolar:
             challenge_request = PrivateHuaweiModbusRequest(
                 36,
                 bytes([1, 0]),
-                slave=slave or self.slave,
+                slave=slave or self.slave_id,
             )
 
             challenge_response = cast(
@@ -731,7 +699,7 @@ class AsyncHuaweiSolar:
             login_request = PrivateHuaweiModbusRequest(
                 37,
                 login_bytes,
-                slave=slave or self.slave,
+                slave=slave or self.slave_id,
             )
             login_response = cast(
                 PrivateHuaweiModbusResponse,
@@ -765,7 +733,7 @@ class AsyncHuaweiSolar:
             response = await self._client.write_register(
                 HEARTBEAT_REGISTER,
                 0x1,
-                slave=slave_id or self.slave,
+                slave=slave_id or self.slave_id,
             )
             if isinstance(response, ExceptionResponse):
                 LOGGER.warning(

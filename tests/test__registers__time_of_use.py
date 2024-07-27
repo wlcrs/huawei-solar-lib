@@ -5,7 +5,7 @@ import pytest
 from huawei_solar.exceptions import TimeOfUsePeriodsException
 from huawei_solar.registers import REGISTERS, HUAWEI_LUNA2000_TimeOfUsePeriod, LG_RESU_TimeOfUsePeriod
 
-ppr = REGISTERS[rn.STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS]
+ppr = REGISTERS[rn.STORAGE_HUAWEI_LUNA2000_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS]
 
 
 def test__validate__tou_periods__HUAWEI_LUNA2000__too_long_span__start_time():

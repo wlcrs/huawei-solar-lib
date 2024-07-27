@@ -3,7 +3,6 @@
 # pyright: reportIncompatibleMethodOverride=false
 
 import time
-import typing as t
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -18,7 +17,6 @@ import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
 from huawei_solar.exceptions import (
     DecodeError,
-    EncodeError,
     PeakPeriodsValidationError,
     TimeOfUsePeriodsException,
     WriteException,
@@ -96,9 +94,16 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
         writeable: bool = False,
         readable: bool = True,
         invalid_value: int | None = None,
+        target_device: TargetDevice = TargetDevice.SUN2000,
     ):
         """Initialize NumberRegister."""
-        super().__init__(register, length, writeable, readable)
+        super().__init__(
+            register,
+            length,
+            writeable,
+            readable,
+            target_device=target_device,
+        )
         self.unit = unit
         self.gain = gain
 
@@ -169,6 +174,7 @@ class U16Register(NumberRegister[T], Generic[T]):
         writeable=False,
         readable=True,
         ignore_invalid=False,
+        target_device: TargetDevice = TargetDevice.SUN2000,
     ):
         """Create Unsigned 16-bit register."""
         super().__init__(
@@ -181,13 +187,21 @@ class U16Register(NumberRegister[T], Generic[T]):
             writeable=writeable,
             readable=readable,
             invalid_value=2**16 - 1 if not ignore_invalid else None,
+            target_device=target_device,
         )
 
 
 class U32Register(NumberRegister[T], Generic[T]):
     """Unsigned 32-bit register."""
 
-    def __init__(self, unit, gain, register, writeable=False):
+    def __init__(
+        self,
+        unit,
+        gain,
+        register,
+        writeable=False,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+    ):
         """Create Unsigned 32-bit register."""
         super().__init__(
             unit=unit,
@@ -198,13 +212,21 @@ class U32Register(NumberRegister[T], Generic[T]):
             encode_function_name="add_32bit_uint",
             writeable=writeable,
             invalid_value=2**32 - 1,
+            target_device=target_device,
         )
 
 
 class U64Register(NumberRegister[T], Generic[T]):
     """Unsigned 64-bit register."""
 
-    def __init__(self, unit, gain, register, writeable=False):
+    def __init__(
+        self,
+        unit,
+        gain,
+        register,
+        writeable=False,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+    ):
         """Create Unsigned 64-bit register."""
         super().__init__(
             unit=unit,
@@ -215,13 +237,21 @@ class U64Register(NumberRegister[T], Generic[T]):
             encode_function_name="add_64bit_uint",
             writeable=writeable,
             invalid_value=2**63 - 1,
+            target_device=target_device,
         )
 
 
 class I16Register(NumberRegister[T], Generic[T]):
     """Signed 16-bit register."""
 
-    def __init__(self, unit, gain, register, writeable=False):
+    def __init__(
+        self,
+        unit,
+        gain,
+        register,
+        writeable=False,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+    ):
         """Create Signed 16-bit register."""
         super().__init__(
             unit=unit,
@@ -232,13 +262,21 @@ class I16Register(NumberRegister[T], Generic[T]):
             encode_function_name="add_16bit_int",
             writeable=writeable,
             invalid_value=2**15 - 1,
+            target_device=target_device,
         )
 
 
 class I32Register(NumberRegister[T], Generic[T]):
     """Signed 32-bit register."""
 
-    def __init__(self, unit, gain, register, writeable=False):
+    def __init__(
+        self,
+        unit,
+        gain,
+        register,
+        writeable=False,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+    ):
         """Create Signed 32-bit register."""
         super().__init__(
             unit=unit,
@@ -249,13 +287,21 @@ class I32Register(NumberRegister[T], Generic[T]):
             encode_function_name="add_32bit_int",
             writeable=writeable,
             invalid_value=2**31 - 1,
+            target_device=target_device,
         )
 
 
 class I64Register(NumberRegister[T], Generic[T]):
     """Signed 64-bit register."""
 
-    def __init__(self, unit, gain, register, writeable=False):
+    def __init__(
+        self,
+        unit,
+        gain,
+        register,
+        writeable=False,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+    ):
         """Create Signed 64-bit register."""
         super().__init__(
             unit=unit,
@@ -266,6 +312,7 @@ class I64Register(NumberRegister[T], Generic[T]):
             encode_function_name="add_64bit_int",
             writeable=writeable,
             invalid_value=2**63 - 1,
+            target_device=target_device,
         )
 
 
@@ -280,7 +327,14 @@ class I32AbsoluteValueRegister(NumberRegister[T], Generic[T]):
 
     """
 
-    def __init__(self, unit, gain, register, writeable=False):
+    def __init__(
+        self,
+        unit,
+        gain,
+        register,
+        writeable=False,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+    ):
         """Create Absolute value 32-bit register."""
         super().__init__(
             unit,
@@ -291,6 +345,7 @@ class I32AbsoluteValueRegister(NumberRegister[T], Generic[T]):
             "add_32bit_int",
             writeable=writeable,
             invalid_value=2**31 - 1,
+            target_device=target_device,
         )
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
@@ -314,13 +369,19 @@ def bitfield_decoder(definition, bitfield):
 class TimestampRegister(U32Register[datetime]):
     """Timestamp register."""
 
-    def __init__(self, register, writeable=False):
+    def __init__(
+        self,
+        register,
+        writeable=False,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+    ):
         """Create timestamp register."""
         super().__init__(
             unit=None,
             gain=1,
             register=register,
             writeable=writeable,
+            target_device=target_device,
         )
 
     def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
@@ -382,28 +443,13 @@ class HUAWEI_LUNA2000_TimeOfUsePeriod:
 
 
 LG_RESU_TOU_PERIODS = 10
-HUAWEI_LUNA2000_TOU_PERIODS = 14
 
 
-class TimeOfUseRegisters(
-    RegisterDefinition[list[LG_RESU_TimeOfUsePeriod] | list[HUAWEI_LUNA2000_TimeOfUsePeriod]],
-):
+class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod]]):
     """Time of use register."""
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder, _inverter: "AsyncHuaweiSolar"):
         """Decode time of use register."""
-        if inverter.battery_type == rv.StorageProductModel.LG_RESU:
-            return self._decode_lg_resu(decoder)
-        if inverter.battery_type == rv.StorageProductModel.HUAWEI_LUNA2000:
-            return self._decode_huawei_luna2000(decoder)
-        raise DecodeError(
-            f"Invalid model to decode TOU Registers for: {inverter.battery_type}",
-        )
-
-    def _decode_lg_resu(
-        self,
-        decoder: BinaryPayloadDecoder,
-    ) -> list[LG_RESU_TimeOfUsePeriod]:
         number_of_periods = decoder.decode_16bit_uint()
         assert number_of_periods <= LG_RESU_TOU_PERIODS
 
@@ -420,14 +466,11 @@ class TimeOfUseRegisters(
 
     def _validate(
         self,
-        data: list[HUAWEI_LUNA2000_TimeOfUsePeriod] | list[LG_RESU_TimeOfUsePeriod],
+        data: list[LG_RESU_TimeOfUsePeriod],
     ):
         """Validate data type."""
         if len(data) == 0:
-            return None  # nothing to check
-
-        if len({type(period) for period in data}) != 1:
-            raise TimeOfUsePeriodsException("TOU periods cannot be of different types")
+            return  # nothing to check
 
         # Sanity check of each period individually
         for tou_period in data:
@@ -442,37 +485,6 @@ class TimeOfUseRegisters(
                     "TOU period is invalid (start-time is greater than end-time)",
                 )
 
-        if isinstance(data[0], HUAWEI_LUNA2000_TimeOfUsePeriod):
-            return self._validate_huawei_luna2000(
-                t.cast(list[HUAWEI_LUNA2000_TimeOfUsePeriod], data),
-            )
-        if isinstance(data[0], LG_RESU_TimeOfUsePeriod):
-            return self._validate_lg_resu(
-                t.cast(list[LG_RESU_TimeOfUsePeriod], data),
-            )
-        raise TimeOfUsePeriodsException("TOU period is of an unexpected type")
-
-    def _validate_huawei_luna2000(self, data: list[HUAWEI_LUNA2000_TimeOfUsePeriod]):
-        """Perform sanity checks between periods."""
-        for day_idx in range(7):
-            # find all ranges that are valid for the given day
-            active_periods: list[HUAWEI_LUNA2000_TimeOfUsePeriod] = list(
-                filter(lambda period: period.days_effective[day_idx], data),
-            )
-
-            active_periods.sort(key=lambda a: a.start_time)
-
-            for period_idx in range(1, len(active_periods)):
-                current_period = active_periods[period_idx]
-                prev_period = active_periods[period_idx - 1]
-                if (
-                    prev_period.start_time <= current_period.start_time < prev_period.end_time
-                    or prev_period.start_time < current_period.end_time <= prev_period.end_time
-                ):
-                    raise TimeOfUsePeriodsException("TOU periods are overlapping")
-
-    def _validate_lg_resu(self, data: list[LG_RESU_TimeOfUsePeriod]):
-        """Perform sanity checks between periods."""
         # make a copy of the data to sort
         sorted_periods: list[LG_RESU_TimeOfUsePeriod] = data.copy()
 
@@ -489,31 +501,12 @@ class TimeOfUseRegisters(
 
     def encode(
         self,
-        data: list[HUAWEI_LUNA2000_TimeOfUsePeriod] | list[LG_RESU_TimeOfUsePeriod],
+        data: list[LG_RESU_TimeOfUsePeriod],
         builder: BinaryPayloadBuilder,
     ):
         """Encode Time Of Use Period registers."""
         self._validate(data)
 
-        if len(data) == 0 or isinstance(data[0], HUAWEI_LUNA2000_TimeOfUsePeriod):
-            return self._encode_huawei_luna2000(
-                data=t.cast(list[HUAWEI_LUNA2000_TimeOfUsePeriod], data),
-                builder=builder,
-            )
-        if isinstance(data[0], LG_RESU_TimeOfUsePeriod):
-            return self._encode_lg_resu(
-                data=t.cast(list[LG_RESU_TimeOfUsePeriod], data),
-                builder=builder,
-            )
-        raise EncodeError(
-            f"Invalid dataclass to encode for TOU Registers: {type(data[0])}",
-        )
-
-    def _encode_lg_resu(
-        self,
-        data: list[LG_RESU_TimeOfUsePeriod],
-        builder: BinaryPayloadBuilder,
-    ):
         assert len(data) <= LG_RESU_TOU_PERIODS
         builder.add_16bit_uint(len(data))
 
@@ -528,10 +521,15 @@ class TimeOfUseRegisters(
             builder.add_16bit_uint(0)
             builder.add_32bit_uint(0)
 
-    def _decode_huawei_luna2000(
-        self,
-        decoder: BinaryPayloadDecoder,
-    ) -> list[HUAWEI_LUNA2000_TimeOfUsePeriod]:
+
+HUAWEI_LUNA2000_TOU_PERIODS = 14
+
+
+class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000_TimeOfUsePeriod]]):
+    """Time of use register."""
+
+    def decode(self, decoder: BinaryPayloadDecoder, _inverter: "AsyncHuaweiSolar"):
+        """Decode time of use register."""
         number_of_periods = decoder.decode_16bit_uint()
         assert number_of_periods <= HUAWEI_LUNA2000_TOU_PERIODS
 
@@ -556,11 +554,52 @@ class TimeOfUseRegisters(
 
         return periods[:number_of_periods]
 
-    def _encode_huawei_luna2000(
+    def _validate(
+        self,
+        data: list[HUAWEI_LUNA2000_TimeOfUsePeriod],
+    ):
+        """Validate data type."""
+        if len(data) == 0:
+            return  # nothing to check
+
+        # Sanity check of each period individually
+        for tou_period in data:
+            if tou_period.start_time < 0 or tou_period.end_time < 0:
+                raise TimeOfUsePeriodsException("TOU period is invalid (Below zero)")
+            if tou_period.start_time > 24 * 60 or tou_period.end_time > 24 * 60:
+                raise TimeOfUsePeriodsException(
+                    "TOU period is invalid (Spans over more than one day)",
+                )
+            if tou_period.start_time >= tou_period.end_time:
+                raise TimeOfUsePeriodsException(
+                    "TOU period is invalid (start-time is greater than end-time)",
+                )
+
+        for day_idx in range(7):
+            # find all ranges that are valid for the given day
+            active_periods: list[HUAWEI_LUNA2000_TimeOfUsePeriod] = list(
+                filter(lambda period: period.days_effective[day_idx], data),
+            )
+
+            active_periods.sort(key=lambda a: a.start_time)
+
+            for period_idx in range(1, len(active_periods)):
+                current_period = active_periods[period_idx]
+                prev_period = active_periods[period_idx - 1]
+                if (
+                    prev_period.start_time <= current_period.start_time < prev_period.end_time
+                    or prev_period.start_time < current_period.end_time <= prev_period.end_time
+                ):
+                    raise TimeOfUsePeriodsException("TOU periods are overlapping")
+
+    def encode(
         self,
         data: list[HUAWEI_LUNA2000_TimeOfUsePeriod],
         builder: BinaryPayloadBuilder,
     ):
+        """Encode Time Of Use Period registers."""
+        self._validate(data)
+
         assert len(data) <= HUAWEI_LUNA2000_TOU_PERIODS
         builder.add_16bit_uint(len(data))
 
@@ -989,6 +1028,7 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.MPPT_PREDICTED_POWER: U32Register("W", 1, 42056),
     rn.TIME_ZONE: I16Register("min", 1, 43006, writeable=True),
     rn.WLAN_WAKEUP: I16Register(rv.WlanWakeup, 1, 45052, writeable=True),
+    rn.SUN2000_EMMA: U16Register(bool, 1, 48020, writeable=True),
 }
 
 
@@ -1158,7 +1198,8 @@ BATTERY_REGISTERS = {
     rn.STORAGE_UNIT_1_PRODUCT_MODEL: U16Register(rv.StorageProductModel, 1, 47000),
     rn.STORAGE_WORKING_MODE_A: I16Register(rv.StorageWorkingModesA, 1, 47004),
     rn.STORAGE_TIME_OF_USE_PRICE: I16Register(bool, 1, 47027),
-    rn.STORAGE_TIME_OF_USE_PRICE_PERIODS: TimeOfUseRegisters(47028, 41, writeable=True),
+    rn.STORAGE_LG_RESU_TIME_OF_USE_PRICE_PERIODS: LG_RESU_TimeOfUseRegisters(47028, 41, writeable=True),
+    rn.STORAGE_HUAWEI_LUNA2000_TIME_OF_USE_PRICE_PERIODS: HUAWEI_LUNA2000_TimeOfUseRegisters(47028, 41, writeable=True),
     rn.STORAGE_LCOE: U32Register(None, 1000, 47069),
     rn.STORAGE_MAXIMUM_CHARGING_POWER: U32Register("W", 1, 47075, writeable=True),
     rn.STORAGE_MAXIMUM_DISCHARGING_POWER: U32Register("W", 1, 47077, writeable=True),
@@ -1226,7 +1267,12 @@ BATTERY_REGISTERS = {
     ),
     rn.STORAGE_FORCIBLE_CHARGE_POWER: U32Register(None, 1, 47247, writeable=True),
     rn.STORAGE_FORCIBLE_DISCHARGE_POWER: U32Register(None, 1, 47249, writeable=True),
-    rn.STORAGE_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS: TimeOfUseRegisters(
+    rn.STORAGE_LG_RESU_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS: LG_RESU_TimeOfUseRegisters(
+        47255,
+        43,
+        writeable=True,
+    ),
+    rn.STORAGE_HUAWEI_LUNA2000_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS: HUAWEI_LUNA2000_TimeOfUseRegisters(
         47255,
         43,
         writeable=True,
@@ -1302,7 +1348,45 @@ REGISTERS.update(CAPACITY_CONTROL_REGISTERS)
 EMMA_REGISTERS = {
     rn.EMMA_SOFTWARE_VERSION: StringRegister(30035, 15, target_device=TargetDevice.EMMA),
     rn.EMMA_MODEL: StringRegister(30222, 20, target_device=TargetDevice.EMMA),
-    rn.EMMA: U16Register(bool, 1, 48020, writeable=True),
+    rn.INVERTER_TOTAL_ABSORBED_ENERGY: U64Register("kWh", 100, 30302, target_device=TargetDevice.EMMA),
+    rn.ENERGY_CHARGED_TODAY: U32Register("kWh", 100, 30306, target_device=TargetDevice.EMMA),
+    rn.TOTAL_CHARGED_ENERGY: U64Register("kWh", 100, 30308, target_device=TargetDevice.EMMA),
+    rn.ENERGY_DISCHARGED_TODAY: U32Register("kWh", 100, 30312, target_device=TargetDevice.EMMA),
+    rn.TOTAL_DISCHARGED_ENERGY: U64Register("kWh", 100, 30314, target_device=TargetDevice.EMMA),
+    rn.ESS_CHARGEABLE_ENERGY: U32Register("kWh", 1000, 30318, target_device=TargetDevice.EMMA),
+    rn.ESS_DISCHARGEABLE_ENERGY: U32Register("kWh", 1000, 30320, target_device=TargetDevice.EMMA),
+    rn.RATED_ESS_CAPACITY: U32Register("kWh", 1000, 30322, target_device=TargetDevice.EMMA),
+    rn.CONSUMPTION_TODAY: U32Register("kWh", 100, 30324, target_device=TargetDevice.EMMA),
+    rn.TOTAL_ENERGY_CONSUMPTION: U64Register("kWh", 100, 30326, target_device=TargetDevice.EMMA),
+    rn.FEED_IN_TO_GRID_TODAY: U32Register("kWh", 100, 30330, target_device=TargetDevice.EMMA),
+    rn.TOTAL_FEED_IN_TO_GRID: U64Register("kWh", 100, 30332, target_device=TargetDevice.EMMA),
+    rn.SUPPLY_FROM_GRID_TODAY: U32Register("kWh", 100, 30336, target_device=TargetDevice.EMMA),
+    rn.TOTAL_SUPPLY_FROM_GRID: U64Register("kWh", 100, 30338, target_device=TargetDevice.EMMA),
+    rn.INVERTER_ENERGY_YIELD_TODAY: U32Register("kWh", 100, 30342, target_device=TargetDevice.EMMA),
+    rn.INVERTER_TOTAL_ENERGY_YIELD: U32Register("kWh", 100, 30344, target_device=TargetDevice.EMMA),
+    rn.PV_YIELD_TODAY: U32Register("kWh", 100, 30346, target_device=TargetDevice.EMMA),
+    rn.TOTAL_PV_ENERGY_YIELD: U64Register("kWh", 100, 30348, target_device=TargetDevice.EMMA),
+    rn.PV_OUTPUT_POWER: U32Register("W", 1, 30354, target_device=TargetDevice.EMMA),
+    rn.LOAD_POWER: U32Register("W", 1, 30356, target_device=TargetDevice.EMMA),
+    rn.FEED_IN_POWER: I32Register("W", 1, 30358, target_device=TargetDevice.EMMA),
+    rn.BATTERY_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 30360, target_device=TargetDevice.EMMA),
+    rn.INVERTER_RATED_POWER: U32Register("W", 1, 30362, target_device=TargetDevice.EMMA),
+    rn.INVERTER_ACTIVE_POWER: I32Register("W", 1, 30364, target_device=TargetDevice.EMMA),
+    rn.STATE_OF_CAPACITY: U16Register("%", 100, 30368, target_device=TargetDevice.EMMA),
+    rn.ESS_CHARGEABLE_CAPACITY: U32Register("kWh", 1000, 30369, target_device=TargetDevice.EMMA),
+    rn.ESS_DISCHARGEABLE_CAPACITY: U32Register("kWh", 1000, 30371, target_device=TargetDevice.EMMA),
+    rn.BACKUP_POWER_STATE_OF_CHARGE: U16Register("%", 100, 30373, target_device=TargetDevice.EMMA),
+    rn.YIELD_THIS_MONTH: U32Register("kWh", 100, 30380, target_device=TargetDevice.EMMA),
+    rn.MONTHLY_ENERGY_CONSUMPTION: U32Register("kWh", 100, 30382, target_device=TargetDevice.EMMA),
+    rn.MONTHLY_FEED_IN_TO_GRID: U32Register("kWh", 100, 30384, target_device=TargetDevice.EMMA),
+    rn.YIELD_THIS_YEAR: U32Register("kWh", 100, 30386, target_device=TargetDevice.EMMA),
+    rn.ANNUAL_ENERGY_CONSUMPTION: U32Register("kWh", 100, 30388, target_device=TargetDevice.EMMA),
+    rn.YEARLY_FEED_IN_TO_GRID: U32Register("kWh", 100, 30390, target_device=TargetDevice.EMMA),
+    rn.MONTHLY_SUPPLY_FROM_GRID: U32Register("kWh", 100, 30394, target_device=TargetDevice.EMMA),
+    rn.YEARLY_SUPPLY_FROM_GRID: U32Register("kWh", 100, 30396, target_device=TargetDevice.EMMA),
+    rn.BACKUP_TIME_NOTIFICATION_THRESHOLD: U16Register("min", 1, 30406, target_device=TargetDevice.EMMA),
+    rn.ENERGY_CHARGED_THIS_MONTH: U32Register("kWh", 100, 30407, target_device=TargetDevice.EMMA),
+    rn.ENERGY_DISCHARGED_THIS_MONTH: U32Register("kWh", 100, 30409, target_device=TargetDevice.EMMA),
 }
 
 REGISTERS.update(EMMA_REGISTERS)

@@ -1,6 +1,6 @@
 """Interact with Huawei inverters over Modbus."""
 
-from .bridge import HuaweiSolarBridge
+from .bridge import HuaweiEMMABridge, HuaweiSUN2000Bridge, create_rtu_bridge, create_sub_bridge, create_tcp_bridge
 from .exceptions import (
     ConnectionException,
     ConnectionInterruptedException,
@@ -19,7 +19,11 @@ from .exceptions import (
 from .huawei_solar import AsyncHuaweiSolar, Result
 
 __all__ = [
-    "HuaweiSolarBridge",
+    "HuaweiSUN2000Bridge",
+    "HuaweiEMMABridge",
+    "create_tcp_bridge",
+    "create_rtu_bridge",
+    "create_sub_bridge",
     "HuaweiSolarException",
     "DecodeError",
     "EncodeError",
