@@ -1,7 +1,7 @@
 import asyncio
 
 import pytest
-from huawei_solar.bridge import HuaweiSolarBridge
+from huawei_solar.bridge import HuaweiSolarProductInfo, HuaweiSUN2000Bridge
 from huawei_solar.huawei_solar import AsyncHuaweiSolar
 from huawei_solar.register_values import StorageProductModel
 from pymodbus.register_read_message import ReadHoldingRegistersResponse
@@ -130,9 +130,9 @@ def huawei_bridge():
     hs = AsyncHuaweiSolar(client=MockModbusClient(), cooldown_time=0)
     hs.time_zone = 60
     hs.battery_type = StorageProductModel.HUAWEI_LUNA2000
-    return HuaweiSolarBridge(
+    return HuaweiSUN2000Bridge(
         client=hs,
-        update_lock=asyncio.Lock(),
-        primary=True,
         slave_id=1,
+        product_info=HuaweiSolarProductInfo("SUN2000-9KTL-123", "SN123", "PN456", "FW789", "SW123"),
+        update_lock=asyncio.Lock(),
     )

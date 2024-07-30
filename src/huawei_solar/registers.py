@@ -564,6 +564,8 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
 
         # Sanity check of each period individually
         for tou_period in data:
+            if not isinstance(tou_period, HUAWEI_LUNA2000_TimeOfUsePeriod):
+                raise TimeOfUsePeriodsException("TOU period is of an unexpected type")
             if tou_period.start_time < 0 or tou_period.end_time < 0:
                 raise TimeOfUsePeriodsException("TOU period is invalid (Below zero)")
             if tou_period.start_time > 24 * 60 or tou_period.end_time > 24 * 60:

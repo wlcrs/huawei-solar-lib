@@ -9,12 +9,11 @@ _LOGGER = logging.getLogger(__name__)
 
 def test_register_config():
     """Parse all REGISTERS and check for correct order and potential overlaps"""
-    registers = [r for r in REGISTERS.values() if r.target_device & TargetDevice.SUN2000]
-    registers = list(REGISTERS.values())
+    registers = [r for r in REGISTERS.values() if TargetDevice.SUN2000 in r.target_device]
     registers.sort(key=lambda x: x.register)
 
     for idx in range(1, len(registers)):
-        if registers[idx].register in [32066, 32072, 40000]:
+        if registers[idx].register in [32066, 32072, 40000, 47028, 47255]:
             # skip these registers, as they have multiple entries
             continue
         if registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:
@@ -32,11 +31,11 @@ def test_register_config():
 
 def test_register_config_emma():
     """Parse all REGISTERS and check for correct order and potential overlaps"""
-    registers = [r for r in REGISTERS.values() if r.target_device & TargetDevice.EMMA]
+    registers = [r for r in REGISTERS.values() if TargetDevice.EMMA in r.target_device]
     registers.sort(key=lambda x: x.register)
 
     for idx in range(1, len(registers)):
-        if registers[idx].register in [30035, 32066, 32072, 40000]:
+        if registers[idx].register in []:
             # skip these registers, as they have multiple entries
             continue
         if registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:

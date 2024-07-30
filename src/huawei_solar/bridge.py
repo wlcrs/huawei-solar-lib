@@ -187,7 +187,7 @@ class HuaweiSolarBridge(ABC):
 
         registers.sort(key=lambda rd: rd.register_start)
 
-        async with self.client.update_lock:
+        async with self.update_lock:
             result = {}
             first_idx = 0
             last_idx = 0
