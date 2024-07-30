@@ -27,6 +27,7 @@ requires-python = ">= 3.10"
 dependencies = [
     "pymodbus>=3.6.9,<3.7",
     "pyserial-asyncio>=0.6",
+    "typing-extensions>=4.12.2",
     "backoff",
     "pytz",
 ]

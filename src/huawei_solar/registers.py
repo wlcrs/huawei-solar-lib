@@ -145,7 +145,7 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
             int_data = data * self.gain
         elif isinstance(data, float):
             int_data = int(data * self.gain)  # it should always be an int!
-        elif self.unit == bool:
+        elif self.unit is bool:
             assert isinstance(data, bool)
             int_data = int(data)
             assert self.gain == 1

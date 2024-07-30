@@ -7,7 +7,8 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import override
+
+from typing_extensions import override
 
 from . import register_names as rn
 from . import register_values as rv
