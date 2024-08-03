@@ -637,7 +637,7 @@ class AsyncHuaweiSolar:
             LOGGER.exception("Failed to connect to device, is the host correct?")
             raise ConnectionInterruptedException(err) from err
 
-    async def login(self, username: str, password: str, slave: int | None = None):
+    async def login(self, username: str, password: str, slave: int | None = None) -> bool:
         """Login into the inverter."""
 
         def backoff_giveup(details):
@@ -661,7 +661,7 @@ class AsyncHuaweiSolar:
             ),
             on_giveup=backoff_giveup,
         )
-        async def _do_login():
+        async def _do_login() -> bool:
             # Get challenge
             challenge_request = PrivateHuaweiModbusRequest(
                 36,

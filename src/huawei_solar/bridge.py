@@ -104,7 +104,7 @@ class HuaweiSolarBridge(ABC):
         slave_id: int,
         product_info: HuaweiSolarProductInfo,
         update_lock: asyncio.Lock | None = None,
-    ):
+    ) -> None:
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use create() method instead."""
         self.client = client
         self.slave_id = slave_id
@@ -168,13 +168,15 @@ class HuaweiSolarBridge(ABC):
 
     async def batch_update(self, register_names: list[str]) -> dict[str, Result]:
         """Efficiently retrieve the values of all the registers passed in register_names."""
+        if any(register_name not in REGISTERS for register_name in register_names):
+            _LOGGER.warning("Unknown register name passed to batch_update")
 
         class _Register:
             name: str
             register_start: int
             register_end: int
 
-            def __init__(self, regname: str):
+            def __init__(self, regname: str) -> None:
                 self.name = regname
 
                 reg = REGISTERS[regname]
@@ -182,9 +184,6 @@ class HuaweiSolarBridge(ABC):
                 self.register_end = reg.register + reg.length - 1
 
         registers = [_Register(rn) for rn in register_names]
-
-        if None in registers:
-            _LOGGER.warning("Unknown register name passed to batch_update")
 
         registers.sort(key=lambda rd: rd.register_start)
 
@@ -401,6 +400,8 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
     power_meter_type: rv.MeterType | None = None
 
     _pv_registers: list[str]
+
+    _previous_device_status: str | None = None
 
     @classmethod
     @override
@@ -628,7 +629,7 @@ async def _create(
     client: AsyncHuaweiSolar,
     slave_id: int,
     update_lock: asyncio.Lock | None = None,
-) -> HuaweiSUN2000Bridge | HuaweiEMMABridge:
+) -> HuaweiSolarBridge:
     product_info = await HuaweiSolarProductInfo.retrieve_from_device(client, slave_id)
 
     for candidate_bridge_class in BRIDGE_CLASSES:
