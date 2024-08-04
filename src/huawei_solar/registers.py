@@ -2,14 +2,13 @@
 
 # pyright: reportIncompatibleMethodOverride=false
 
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Flag, IntEnum, auto
 from functools import partial
 from inspect import isclass
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast, override
 
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
 
@@ -22,9 +21,6 @@ from huawei_solar.exceptions import (
     WriteException,
 )
 
-if TYPE_CHECKING:
-    from .huawei_solar import AsyncHuaweiSolar
-
 T = TypeVar("T")
 
 UnitType = None | str | dict[Any, T] | Callable[..., T]
@@ -35,6 +31,8 @@ class TargetDevice(Flag):
 
     SUN2000 = auto()
     EMMA = auto()
+    SDONGLE = auto()
+    SMARTLOGGER = auto()
 
 
 class RegisterDefinition(Generic[T]):
@@ -61,7 +59,7 @@ class RegisterDefinition(Generic[T]):
         """Encode register to bytes."""
         raise NotImplementedError
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar") -> T:
+    def decode(self, decoder: BinaryPayloadDecoder) -> T:
         """Decode register to value."""
         raise NotImplementedError
 
@@ -69,7 +67,7 @@ class RegisterDefinition(Generic[T]):
 class StringRegister(RegisterDefinition[str]):
     """A string register."""
 
-    def decode(self, decoder: BinaryPayloadDecoder, _inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder):
         """Decode string register."""
         str_bytes = cast(bytes, decoder.decode_string(self.length * 2))
         try:
@@ -111,11 +109,7 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
         self._encode_function_name = encode_function_name
         self._invalid_value = invalid_value
 
-    def decode(
-        self,
-        decoder: BinaryPayloadDecoder,
-        inverter: "AsyncHuaweiSolar",  # noqa: ARG002
-    ) -> T | None:
+    def decode(self, decoder: BinaryPayloadDecoder) -> T | None:
         """Decode number register."""
         result = cast(int, getattr(decoder, self._decode_function_name)())
 
@@ -348,9 +342,9 @@ class I32AbsoluteValueRegister(NumberRegister[T], Generic[T]):
             target_device=target_device,
         )
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder):
         """Decode 32-bit signed integer into absolute value."""
-        value = super().decode(decoder, inverter)
+        value = super().decode(decoder)
         return abs(value) if value is not None else None
 
 
@@ -384,28 +378,29 @@ class TimestampRegister(U32Register[datetime]):
             target_device=target_device,
         )
 
-    def decode(self, decoder: BinaryPayloadDecoder, inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder):
         """Decode timestamp register."""
-        value = super().decode(decoder, inverter)
-
+        value = super().decode(decoder)
         if value is None:
             return None
 
-        if inverter.time_zone:
-            value = value - 60 * inverter.time_zone
+        assert isinstance(value, int)
+        return datetime.fromtimestamp(value)
+        # if inverter.time_zone:
+        #     value = value - 60 * inverter.time_zone
 
-        # if DST is in effect, we need to shift another hour. However, the inverter
-        # does not expose a register to check that.
-        # Workaround: check the local time on the machine running the library if DST
-        # is in effect there. We assume that both inverter and client are in the same time zone.
+        # # if DST is in effect, we need to shift another hour. However, the inverter
+        # # does not expose a register to check that.
+        # # Workaround: check the local time on the machine running the library if DST
+        # # is in effect there. We assume that both inverter and client are in the same time zone.
 
-        if time.localtime(value).tm_isdst:
-            value = value - 60 * 60
+        # if time.localtime(value).tm_isdst:
+        #     value = value - 60 * 60
 
-        try:
-            return datetime.fromtimestamp(value, timezone.utc)
-        except OverflowError as err:
-            raise DecodeError(f"Received invalid timestamp {value}") from err
+        # try:
+        #     return datetime.fromtimestamp(value, timezone.utc)
+        # except OverflowError as err:
+        #     raise DecodeError(f"Received invalid timestamp {value}") from err
 
 
 @dataclass
@@ -448,7 +443,7 @@ LG_RESU_TOU_PERIODS = 10
 class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod]]):
     """Time of use register."""
 
-    def decode(self, decoder: BinaryPayloadDecoder, _inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder):
         """Decode time of use register."""
         number_of_periods = decoder.decode_16bit_uint()
         assert number_of_periods <= LG_RESU_TOU_PERIODS
@@ -528,7 +523,7 @@ HUAWEI_LUNA2000_TOU_PERIODS = 14
 class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000_TimeOfUsePeriod]]):
     """Time of use register."""
 
-    def decode(self, decoder: BinaryPayloadDecoder, _inverter: "AsyncHuaweiSolar"):
+    def decode(self, decoder: BinaryPayloadDecoder):
         """Decode time of use register."""
         number_of_periods = decoder.decode_16bit_uint()
         assert number_of_periods <= HUAWEI_LUNA2000_TOU_PERIODS
@@ -643,11 +638,8 @@ CHARGE_DISCHARGE_PERIODS = 10
 class ChargeDischargePeriodRegisters(RegisterDefinition[list[ChargeDischargePeriod]]):
     """Charge or discharge period registers."""
 
-    def decode(
-        self,
-        decoder: BinaryPayloadDecoder,
-        inverter: "AsyncHuaweiSolar",  # noqa: ARG002
-    ) -> list[ChargeDischargePeriod]:
+    @override
+    def decode(self, decoder: BinaryPayloadDecoder) -> list[ChargeDischargePeriod]:
         """Decode ChargeDischargePeriodRegisters."""
         number_of_periods = decoder.decode_16bit_uint()
         assert number_of_periods <= CHARGE_DISCHARGE_PERIODS
@@ -725,11 +717,7 @@ def _days_effective_parser(value):
 class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
     """Peak Setting Period registers."""
 
-    def decode(
-        self,
-        decoder: BinaryPayloadDecoder,
-        inverter: "AsyncHuaweiSolar",  # noqa: ARG002
-    ) -> list[PeakSettingPeriod]:
+    def decode(self, decoder: BinaryPayloadDecoder) -> list[PeakSettingPeriod]:
         """Decode PeakSettingPeriodRegisters."""
         number_of_periods = decoder.decode_16bit_uint()
 
@@ -815,10 +803,14 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
 
 REGISTERS: dict[str, RegisterDefinition] = {
     rn.MODEL_NAME: StringRegister(30000, 15, target_device=TargetDevice.SUN2000 | TargetDevice.EMMA),
-    rn.SERIAL_NUMBER: StringRegister(30015, 10, target_device=TargetDevice.SUN2000 | TargetDevice.EMMA),
+    rn.SERIAL_NUMBER: StringRegister(
+        30015,
+        10,
+        target_device=TargetDevice.SUN2000 | TargetDevice.EMMA | TargetDevice.SDONGLE,
+    ),
     rn.PN: StringRegister(30025, 10),
     rn.FIRMWARE_VERSION: StringRegister(30035, 15),
-    rn.SOFTWARE_VERSION: StringRegister(30050, 15),
+    rn.SOFTWARE_VERSION: StringRegister(30050, 15, target_device=TargetDevice.SUN2000 | TargetDevice.SDONGLE),
     rn.PROTOCOL_VERSION_MODBUS: U32Register(None, 1, 30068),
     rn.MODEL_ID: U16Register(None, 1, 30070),
     rn.NB_PV_STRINGS: U16Register(None, 1, 30071),
@@ -1028,7 +1020,20 @@ REGISTERS: dict[str, RegisterDefinition] = {
     rn.MPPT_MULTIMODAL_SCANNING: U16Register(bool, 1, 42054, writeable=True),
     rn.MPPT_SCANNING_INTERVAL: U16Register("minutes", 1, 42055, writeable=True),
     rn.MPPT_PREDICTED_POWER: U32Register("W", 1, 42056),
-    rn.TIME_ZONE: I16Register("min", 1, 43006, writeable=True),
+    rn.DAYLIGHT_SAVING_TIME: U16Register(
+        bool,
+        1,
+        42900,
+        writeable=True,
+        target_device=TargetDevice.SUN2000 | TargetDevice.SDONGLE,
+    ),
+    rn.TIME_ZONE: I16Register(
+        "min",
+        1,
+        43006,
+        writeable=True,
+        target_device=TargetDevice.SUN2000 | TargetDevice.SDONGLE,
+    ),
     rn.WLAN_WAKEUP: I16Register(rv.WlanWakeup, 1, 45052, writeable=True),
     rn.SUN2000_EMMA: U16Register(bool, 1, 48020, writeable=True),
 }
@@ -1421,3 +1426,13 @@ METER_REGISTERS = {
 }
 
 REGISTERS.update(METER_REGISTERS)
+
+SDONGLE_REGISTERS = {
+    rn.SDONGLE_TOTAL_INPUT_POWER: U32Register("W", 1, 37498),
+    rn.SDONGLE_LOAD_POWER: U32Register("W", 1, 37500),
+    rn.SDONGLE_GRID_POWER: I32Register("W", 1, 37502),  # positive is importing, negative is exporting
+    rn.SDONGLE_TOTAL_BATTERY_POWER: I32Register("W", 1, 37504),  # positive is charging, negative is discharging
+    rn.SDONGLE_TOTAL_ACTIVE_POWER: I32Register("W", 1, 37516),
+}
+
+REGISTERS.update(SDONGLE_REGISTERS)

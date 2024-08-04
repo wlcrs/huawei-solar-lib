@@ -4,10 +4,12 @@ import asyncio
 import hmac
 import logging
 import secrets
+import struct
 import sys
 import time
 import typing as t
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from hashlib import sha256
 from typing import cast
 
@@ -21,8 +23,6 @@ from pymodbus.register_write_message import (
     WriteMultipleRegistersResponse,
     WriteSingleRegisterResponse,
 )
-
-import huawei_solar.register_names as rn
 
 from .const import MAX_BATCHED_REGISTERS_COUNT
 from .exceptions import (
@@ -42,6 +42,8 @@ from .modbus import (
     CompleteUploadModbusResponse,
     PrivateHuaweiModbusRequest,
     PrivateHuaweiModbusResponse,
+    ReadDeviceIdentifierRequest,
+    ReadDeviceIdentifierResponse,
     StartUploadModbusRequest,
     StartUploadModbusResponse,
     UploadModbusRequest,
@@ -84,11 +86,35 @@ def _compute_digest(password, seed):
     return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
 
 
+@dataclass(frozen=True)
+class DeviceInfo:
+    """Device information."""
+
+    model: str | None
+    software_version: str | None
+    interface_protocol_version: str | None
+    esn: str | None
+    device_id: int | None
+    feature_version: str | None
+    unknown_field: str | None
+    product_type: str | None
+
+
+@dataclass(frozen=True)
+class DeviceIdentifier:
+    """Device identifier information."""
+
+    vendor: str
+    product_code: str
+    main_revision_version: str
+    other_data: dict[int, bytes]
+
+
 class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter."""
 
     _reconnect_task: asyncio.Task | None = None
-    __last_call_finished_at: int | None = None
+    __last_call_finished_at: float | None = None
 
     def __init__(
         self,
@@ -106,14 +132,6 @@ class AsyncHuaweiSolar:
         # use this lock to prevent concurrent requests, as the
         # Huawei inverters can't cope with those
         self.__communication_lock = asyncio.Lock()
-
-        # These values are set by the `initialize()` method
-        self.time_zone = None
-
-    async def _initialize(self):
-        # get some registers which are needed to correctly decode all values
-
-        self.time_zone = (await self.get(rn.TIME_ZONE)).value
 
     @asynccontextmanager
     async def _communication_lock(self):
@@ -163,8 +181,6 @@ class AsyncHuaweiSolar:
             await client.connect()
 
             huawei_solar = cls(client, slave, timeout, cooldown_time)
-
-            await huawei_solar._initialize()
         except Exception as err:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
@@ -201,7 +217,6 @@ class AsyncHuaweiSolar:
             await asyncio.sleep(1)
 
             huawei_solar = cls(client, slave, timeout, cooldown_time)
-            await huawei_solar._initialize()
         except Exception as err:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
@@ -228,7 +243,7 @@ class AsyncHuaweiSolar:
         decoder: BinaryPayloadDecoder,
     ):
         """Decode a modbus register and puts it into a Result object."""
-        result = reg.decode(decoder, self)
+        result = reg.decode(decoder)
 
         if not hasattr(reg, "unit") or callable(reg.unit) or isinstance(reg.unit, dict):
             return Result(result, None)
@@ -417,6 +432,82 @@ class AsyncHuaweiSolar:
                 slave or self.slave_id,
             )
             return await _do_read()
+
+    async def get_device_identifiers(self):
+        """Read the device identifiers from the inverter."""
+        response = await self._client.execute(ReadDeviceIdentifierRequest(read_dev_id_code=0x01, object_id=0x00))
+
+        if isinstance(response, ExceptionResponse):
+            if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
+                raise PermissionDenied("Permission denied")
+            if response.exception_code == ModbusExceptions.SlaveBusy:
+                raise SlaveBusyException
+            if response.exception_code == ModbusExceptions.SlaveFailure:
+                raise SlaveFailureException
+            raise ReadException(
+                f"Exception occurred while trying to read device infos "
+                f"{hex(response.exception_code) if response.exception_code else 'no exception code'}",
+                modbus_exception_code=response.exception_code,
+            )
+
+        assert isinstance(response, ReadDeviceIdentifierResponse)
+
+        return DeviceIdentifier(
+            vendor=response.objects.pop(0x00).decode("ascii"),
+            product_code=response.objects.pop(0x01).decode("ascii"),
+            main_revision_version=response.objects.pop(0x02).decode("ascii"),
+            other_data=response.objects,
+        )
+
+    async def get_device_infos(self):
+        """Read the device identifiers from the inverter."""
+        response = await self._client.execute(ReadDeviceIdentifierRequest(read_dev_id_code=0x03, object_id=0x87))
+
+        if isinstance(response, ExceptionResponse):
+            if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
+                raise PermissionDenied("Permission denied")
+            if response.exception_code == ModbusExceptions.SlaveBusy:
+                raise SlaveBusyException
+            if response.exception_code == ModbusExceptions.SlaveFailure:
+                raise SlaveFailureException
+            raise ReadException(
+                f"Exception occurred while trying to read device infos "
+                f"{hex(response.exception_code) if response.exception_code else 'no exception code'}",
+                modbus_exception_code=response.exception_code,
+            )
+
+        assert isinstance(response, ReadDeviceIdentifierResponse)
+
+        def _parse_device_entry(device_info_str: str) -> DeviceInfo:
+            raw_device_info: dict[int, str] = {}
+            for entry in device_info_str.split(";"):
+                key, value = entry.split("=")
+                raw_device_info[int(key)] = value
+
+            return DeviceInfo(
+                model=raw_device_info.get(1),
+                software_version=raw_device_info.get(2),
+                interface_protocol_version=raw_device_info.get(3),
+                esn=raw_device_info.get(4),
+                device_id=int(raw_device_info[5]) if 5 in raw_device_info else None,  # noqa: PLR2004
+                feature_version=raw_device_info.get(6),
+                unknown_field=raw_device_info.get(7),
+                product_type=raw_device_info.get(8),
+            )
+
+        (number_of_devices,) = struct.unpack(">B", response.objects.pop(0x87))
+        device_infos = [
+            _parse_device_entry(device_info_bytes.decode("ascii")) for device_info_bytes in response.objects.values()
+        ]
+
+        if len(device_infos) != number_of_devices:
+            LOGGER.warning(
+                "Number of device infos does not match the number of devices: %d != %d",
+                len(device_infos),
+                number_of_devices,
+            )
+
+        return device_infos
 
     async def get_file(
         self,

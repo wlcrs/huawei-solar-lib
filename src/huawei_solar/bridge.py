@@ -7,6 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from typing_extensions import override
 
@@ -36,7 +37,7 @@ from .huawei_solar import (
     AsyncHuaweiSolar,
     Result,
 )
-from .registers import METER_REGISTERS, REGISTERS
+from .registers import METER_REGISTERS, REGISTERS, TimestampRegister
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -166,6 +167,14 @@ class HuaweiSolarBridge(ABC):
         """
         return register_names
 
+    def _transform_register_values(
+        self,
+        register_name: str,  # noqa: ARG002
+        result: Result,
+    ) -> Result:
+        """Optionally Transform the value of a register before returning it."""
+        return result
+
     async def batch_update(self, register_names: list[str]) -> dict[str, Result]:
         """Efficiently retrieve the values of all the registers passed in register_names."""
         if any(register_name not in REGISTERS for register_name in register_names):
@@ -188,7 +197,7 @@ class HuaweiSolarBridge(ABC):
         registers.sort(key=lambda rd: rd.register_start)
 
         async with self.update_lock:
-            result = {}
+            result: dict[str, Result] = {}
             first_idx = 0
             last_idx = 0
 
@@ -234,6 +243,9 @@ class HuaweiSolarBridge(ABC):
                 first_idx = last_idx + 1
                 last_idx = first_idx
 
+            for key, value in result.items():
+                result[key] = self._transform_register_values(key, value)
+
             return result
 
     async def _read_file(self, file_type, customized_data=None) -> bytes:
@@ -270,7 +282,7 @@ class HuaweiSolarBridge(ABC):
         self.stop_heartbeat()
 
         if self._primary:
-            return await self.client.stop()
+            await self.client.stop()
 
         return True
 
@@ -401,6 +413,9 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
 
     _pv_registers: list[str]
 
+    _time_zone: int | None = None
+    _dst: bool | None = None
+
     _previous_device_status: str | None = None
 
     @classmethod
@@ -463,6 +478,9 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
         if self.power_meter_online:
             self.power_meter_type = (await self.client.get(rn.METER_TYPE, self.slave_id)).value
 
+        self._dst = (await self.client.get(rn.DAYLIGHT_SAVING_TIME, self.slave_id)).value
+        self._time_zone = (await self.client.get(rn.TIME_ZONE, self.slave_id)).value
+
     @override
     def _detect_state_changes(self, new_values: dict[str, Result]) -> None:
         """Update state based on result of batch_update query.
@@ -515,6 +533,21 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
                         register_names,
                     ),
                 )
+
+        return result
+
+    @override
+    def _transform_register_values(self, register_name: str, result: Result) -> Result:
+        if isinstance(REGISTERS[register_name], TimestampRegister) and result.value is not None:
+            assert isinstance(result.value, datetime)
+            value = result.value
+            if self._time_zone:
+                value -= timedelta(minutes=self._time_zone)
+            # if DST is in effect, we need to shift another hour.
+            if self._dst:
+                value += timedelta(hours=1)
+
+            return Result(value, result.unit)
 
         return result
 

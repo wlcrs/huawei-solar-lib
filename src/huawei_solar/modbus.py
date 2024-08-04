@@ -5,10 +5,10 @@
 import asyncio
 import logging
 import struct
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
-from pymodbus.pdu import ModbusRequest, ModbusResponse
+from pymodbus.pdu import ExceptionResponse, ModbusRequest, ModbusResponse
 
 RECONNECT_DELAY = 1000  # in milliseconds
 WAIT_ON_CONNECT = 1500  # in milliseconds
@@ -30,6 +30,8 @@ class ModbusConnectionMixin(_Base):  # type: ignore
         """Add support for the custom Huawei modbus messages."""
         super().__init__(*args, **kwargs)
         super().register(PrivateHuaweiModbusResponse)
+        super().register(ReadDeviceIdentifierResponse)
+        super().register(AbnormalDeviceDescriptionResponse)
 
     def connection_made(self, transport):
         """Register that a connection has been made in an asyncio Event."""
@@ -269,3 +271,84 @@ class CompleteUploadModbusResponse(ModbusResponse):
         ) = struct.unpack_from(">BBH", data, 0)
 
         assert data_length == 3  # noqa: PLR2004
+
+
+class DeviceIdentifiersRequestType(TypedDict):
+    """Device identifiers request type."""
+
+    read_dev_id_code: int
+    object_id: int
+
+
+DEVICE_IDENTIFIERS: DeviceIdentifiersRequestType = {
+    "read_dev_id_code": 0x01,
+    "object_id": 0x00,
+}
+DEVICE_INFO: DeviceIdentifiersRequestType = {
+    "read_dev_id_code": 0x03,
+    "object_id": 0x87,
+}
+
+
+class ReadDeviceIdentifierRequest(ModbusRequest):
+    """Modbus Request to read a device identifier."""
+
+    function_code = 0x2B
+
+    MEI_type = 0x0E
+
+    def __init__(self, read_dev_id_code, object_id, **kwargs):
+        """Create ReadDeviceIdentifierRequest."""
+        ModbusRequest.__init__(self, **kwargs)
+        self.read_dev_id_code = read_dev_id_code
+        self.object_id = object_id
+
+    def encode(self):
+        """Encode CompleteUploadModbusRequest."""
+        return struct.pack(">BBB", self.MEI_type, self.read_dev_id_code, self.object_id)
+
+    def decode(self, data):
+        """Decode CompleteUploadModbusRequest."""
+        MEI_type, self.device_id, self.object_id = struct.unpack(">BBB", data)
+
+        assert MEI_type == self.MEI_type
+
+
+class ReadDeviceIdentifierResponse(ModbusResponse):
+    """Modbus Response when a file upload has been completed."""
+
+    function_code = 0x2B
+
+    MEI_type = 0x0E
+
+    device_id_code: int
+    consistency_level: int
+    more: bool
+    next_object_id: int
+
+    objects: dict[int, bytes]
+
+    def decode(self, data) -> None:
+        """Decode ReadDeviceIdentifierResponse."""
+        (
+            MEI_type,
+            self.device_id_code,
+            self.consistency_level,
+            self.more,
+            self.next_object_id,
+            number_of_objects,
+        ) = struct.unpack_from(">BBBBBB", data, 0)
+
+        self.objects = {}
+        offset = 6
+        for _ in range(number_of_objects):
+            obj_id, obj_length = struct.unpack_from(">BB", data, offset)
+            offset += 2
+            self.objects[obj_id] = data[offset : offset + obj_length]
+            offset += obj_length
+
+
+class AbnormalDeviceDescriptionResponse(ExceptionResponse):
+    """The device description definition call returned a response."""
+
+    function_code = 0xAB
