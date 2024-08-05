@@ -34,6 +34,6 @@ def test_capacity_control_register():
         wordorder=Endian.BIG,
     )
 
-    decoded_result = pspr.decode(decoder, None)
+    decoded_result = pspr.decode(decoder)
 
     assert decoded_result == value

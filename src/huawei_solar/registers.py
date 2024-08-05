@@ -8,9 +8,10 @@ from datetime import datetime
 from enum import Flag, IntEnum, auto
 from functools import partial
 from inspect import isclass
-from typing import Any, Generic, TypeVar, cast, override
+from typing import Any, Generic, TypeVar, cast
 
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
+from typing_extensions import override
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
