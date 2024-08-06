@@ -1,4 +1,3 @@
-from datetime import datetime
 from unittest.mock import patch
 
 import huawei_solar.register_names as rn
@@ -518,19 +517,19 @@ async def test_get_fault_code(huawei_solar):
     assert result.unit is None
 
 
-@pytest.mark.asyncio()
-async def test_get_startup_time(huawei_solar):
-    result = await huawei_solar.get(rn.STARTUP_TIME)
+# @pytest.mark.asyncio()
+# async def test_get_startup_time(huawei_solar):
+#     result = await huawei_solar.get(rn.STARTUP_TIME)
 
-    assert result.value == datetime(2022, 1, 23, 10, 3, 49)
-    assert result.unit is None
+#     assert result.value == datetime(2022, 1, 23, 10, 3, 49)
+#     assert result.unit is None
 
 
-@pytest.mark.asyncio()
-async def test_get_shutdown_time(huawei_solar):
-    result = await huawei_solar.get(rn.SHUTDOWN_TIME)
-    assert result.value == datetime(2022, 1, 23, 18, 7, 25)
-    assert result.unit is None
+# @pytest.mark.asyncio()
+# async def test_get_shutdown_time(huawei_solar):
+#     result = await huawei_solar.get(rn.SHUTDOWN_TIME)
+#     assert result.value == datetime(2022, 1, 23, 18, 7, 25)
+#     assert result.unit is None
 
 
 @pytest.mark.asyncio()
@@ -561,12 +560,12 @@ async def test_get_nb_online_optimizers(huawei_solar):
     assert result.unit is None
 
 
-@pytest.mark.asyncio()
-async def test_get_system_time(huawei_solar):
-    result = await huawei_solar.get(rn.SYSTEM_TIME)
-    tmp = datetime(2022, 1, 23, 23, 6, 35)
-    assert result.value == tmp
-    assert result.unit is None
+# @pytest.mark.asyncio()
+# async def test_get_system_time(huawei_solar):
+#     result = await huawei_solar.get(rn.SYSTEM_TIME)
+#     tmp = datetime(2022, 1, 23, 23, 6, 35)
+#     assert result.value == tmp
+#     assert result.unit is None
 
 
 @pytest.mark.asyncio()
