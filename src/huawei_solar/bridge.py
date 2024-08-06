@@ -7,7 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from typing_extensions import override
 
@@ -545,9 +545,9 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
                 value -= timedelta(minutes=self._time_zone)
             # if DST is in effect, we need to shift another hour.
             if self._dst:
-                value += timedelta(hours=1)
+                value -= timedelta(hours=1)
 
-            return Result(value, result.unit)
+            return Result(value.astimezone(tz=timezone.utc), result.unit)
 
         return result
 
