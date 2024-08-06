@@ -1395,6 +1395,7 @@ EMMA_REGISTERS = {
     rn.BACKUP_TIME_NOTIFICATION_THRESHOLD: U16Register("min", 1, 30406, target_device=TargetDevice.EMMA),
     rn.ENERGY_CHARGED_THIS_MONTH: U32Register("kWh", 100, 30407, target_device=TargetDevice.EMMA),
     rn.ENERGY_DISCHARGED_THIS_MONTH: U32Register("kWh", 100, 30409, target_device=TargetDevice.EMMA),
+    rn.LOCAL_TIME_YEAR: U16Register(None, 1, 40490, target_device=TargetDevice.EMMA),
 }
 
 REGISTERS.update(EMMA_REGISTERS)

@@ -428,6 +428,8 @@ BACKUP_TIME_NOTIFICATION_THRESHOLD = "backup_time_notification_threshold"
 ENERGY_CHARGED_THIS_MONTH = "energy_charged_this_month"
 ENERGY_DISCHARGED_THIS_MONTH = "energy_discharged_this_month"
 
+LOCAL_TIME_YEAR = "local_time_year"
+
 DAYLIGHT_SAVING_TIME = "daylight_saving_time"
 SDONGLE_TOTAL_INPUT_POWER = "sdongle_total_input_power"
 SDONGLE_LOAD_POWER = "sdongle_load_power"

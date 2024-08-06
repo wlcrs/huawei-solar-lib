@@ -99,6 +99,8 @@ class HuaweiSolarBridge(ABC):
     __username: str | None = None
     __password: str | None = None
 
+    _write_test_register = rn.TIME_ZONE
+
     def __init__(
         self,
         client: AsyncHuaweiSolar,
@@ -293,13 +295,9 @@ class HuaweiSolarBridge(ABC):
     async def has_write_permission(self) -> bool | None:
         """Test write permission by getting the time zone and trying to write that same value back to the inverter."""
         try:
-            time_zone = await self.client.get(rn.TIME_ZONE, self.slave_id)
+            result = await self.client.get(self._write_test_register, self.slave_id)
 
-            await self.client.set(rn.TIME_ZONE, time_zone.value, self.slave_id)
-        except ReadException:
-            # A ReadException can occur when connecting via a SmartLogger 3000A.
-            # In that case, we do not support writing values at all.
-            return None
+            await self.client.set(self._write_test_register, result.value, self.slave_id)
         except PermissionDenied:
             return False
         else:
@@ -612,6 +610,8 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
     """
 
     model: str
+
+    _write_test_register = rn.LOCAL_TIME_YEAR
 
     @classmethod
     @override
