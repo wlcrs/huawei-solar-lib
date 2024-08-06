@@ -617,11 +617,7 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
     @override
     def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
         """Check if this class support the given device."""
-        _LOGGER.warning(
-            "TODO: EMMA product model is not known at the moment. Assuming that it is %s.",
-            product_info.model_name,
-        )
-        return True
+        return product_info.model_name.startswith("SmartHEMS")
 
     @override
     async def _populate_additional_fields(self):
