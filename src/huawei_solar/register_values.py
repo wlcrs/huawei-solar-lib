@@ -708,3 +708,44 @@ class RemoteChargeDischargeControlMode(IntEnum):
     REMOTE_CONTROL_FULLY_FED_TO_GRID = 2
     REMOTE_CONTROL_TOU = 3
     REMOTE_CONTROL_AI_CONTROL = 4
+
+
+class EmmaExternalMeterRunningStatus(IntEnum):
+    """Emma External Meter Running Status."""
+
+    ONLINE = 0
+    OFFLINE = 1
+
+
+class EmmaEssControlMode(_IntEnumWithPrettyString):
+    """Emma ESS Control Mode."""
+
+    RESERVED_1 = 1
+    MAXIMUM_SELF_CONSUMPTION = 2
+    RESERVED_3 = 3
+    FULLY_FED_TO_GRID = 4
+    TIME_OF_USE = 5
+    THIRD_PARTY_DISPATCH = 6
+
+
+class EmmaLimitationMode(_IntEnumWithPrettyString):
+    """Emma Limitation mode."""
+
+    TOTAL_POWER = 0
+    SINGLE_PHASE_POWER = 1
+
+
+class EmmaPowerSupplyConfiguration(_IntEnumWithPrettyString):
+    """EMMA Power Supply Configuration."""
+
+    NONE = 0
+    MAINS_ONLY = 1
+    MAINS_AND_GENERATOR = 2
+    GENERATOR_ONLY = 3
+
+
+class EmmaConsiderMainsFaultyIf(IntEnum):
+    """Consider mains to be faulty if."""
+
+    OPEN = 0
+    CLOSED = 1
