@@ -297,7 +297,7 @@ class ReadDeviceIdentifierRequest(ModbusRequest):
 
     MEI_type = 0x0E
 
-    def __init__(self, read_dev_id_code, object_id, **kwargs):
+    def __init__(self, read_dev_id_code, object_id, **kwargs) -> None:
         """Create ReadDeviceIdentifierRequest."""
         ModbusRequest.__init__(self, **kwargs)
         self.read_dev_id_code = read_dev_id_code
@@ -309,7 +309,7 @@ class ReadDeviceIdentifierRequest(ModbusRequest):
 
     def decode(self, data):
         """Decode CompleteUploadModbusRequest."""
-        MEI_type, self.device_id, self.object_id = struct.unpack(">BBB", data)
+        MEI_type, self.read_dev_id_code, self.object_id = struct.unpack(">BBB", data)
 
         assert MEI_type == self.MEI_type
 
@@ -324,7 +324,7 @@ class ReadDeviceIdentifierResponse(ModbusResponse):
     device_id_code: int
     consistency_level: int
     more: bool
-    next_object_id: int
+    next_object_id: int | None
 
     objects: dict[int, bytes]
 
@@ -341,7 +341,7 @@ class ReadDeviceIdentifierResponse(ModbusResponse):
 
         self.objects = {}
         offset = 6
-        for _ in range(number_of_objects):
+        while offset < len(data):
             obj_id, obj_length = struct.unpack_from(">BB", data, offset)
             offset += 2
             self.objects[obj_id] = data[offset : offset + obj_length]

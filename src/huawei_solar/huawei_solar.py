@@ -24,7 +24,7 @@ from pymodbus.register_write_message import (
     WriteSingleRegisterResponse,
 )
 
-from .const import MAX_BATCHED_REGISTERS_COUNT
+from .const import DEVICE_INFOS_START_OBJECT_ID, MAX_BATCHED_REGISTERS_COUNT
 from .exceptions import (
     ConnectionException,
     ConnectionInterruptedException,
@@ -433,50 +433,53 @@ class AsyncHuaweiSolar:
             )
             return await _do_read()
 
-    async def get_device_identifiers(self):
-        """Read the device identifiers from the inverter."""
-        response = await self._client.execute(ReadDeviceIdentifierRequest(read_dev_id_code=0x01, object_id=0x00))
+    async def _read_device_identifier_objects(self, read_dev_id_code: int, object_id: int):
+        """Read all the objects of a certain ReadDevId code."""
+        next_object_id: int | None = object_id
 
-        if isinstance(response, ExceptionResponse):
-            if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
-                raise PermissionDenied("Permission denied")
-            if response.exception_code == ModbusExceptions.SlaveBusy:
-                raise SlaveBusyException
-            if response.exception_code == ModbusExceptions.SlaveFailure:
-                raise SlaveFailureException
-            raise ReadException(
-                f"Exception occurred while trying to read device infos "
-                f"{hex(response.exception_code) if response.exception_code else 'no exception code'}",
-                modbus_exception_code=response.exception_code,
+        objects = {}
+
+        while next_object_id is not None:
+            response = await self._client.execute(
+                ReadDeviceIdentifierRequest(
+                    read_dev_id_code=read_dev_id_code,
+                    object_id=next_object_id,
+                ),
             )
 
-        assert isinstance(response, ReadDeviceIdentifierResponse)
+            if isinstance(response, ExceptionResponse):
+                if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
+                    raise PermissionDenied("Permission denied")
+                if response.exception_code == ModbusExceptions.SlaveBusy:
+                    raise SlaveBusyException
+                if response.exception_code == ModbusExceptions.SlaveFailure:
+                    raise SlaveFailureException
+                raise ReadException(
+                    f"Exception occurred while trying to read device infos "
+                    f"{hex(response.exception_code) if response.exception_code else 'no exception code'}",
+                    modbus_exception_code=response.exception_code,
+                )
+
+            assert isinstance(response, ReadDeviceIdentifierResponse)
+            objects.update(response.objects)
+            next_object_id = response.next_object_id if response.more else None
+
+        return objects
+
+    async def get_device_identifiers(self):
+        """Read the device identifiers from the inverter."""
+        objects = await self._read_device_identifier_objects(0x01, 0x00)
 
         return DeviceIdentifier(
-            vendor=response.objects.pop(0x00).decode("ascii"),
-            product_code=response.objects.pop(0x01).decode("ascii"),
-            main_revision_version=response.objects.pop(0x02).decode("ascii"),
-            other_data=response.objects,
+            vendor=objects.pop(0x00).decode("ascii"),
+            product_code=objects.pop(0x01).decode("ascii"),
+            main_revision_version=objects.pop(0x02).decode("ascii"),
+            other_data=objects,
         )
 
     async def get_device_infos(self):
-        """Read the device identifiers from the inverter."""
-        response = await self._client.execute(ReadDeviceIdentifierRequest(read_dev_id_code=0x03, object_id=0x87))
-
-        if isinstance(response, ExceptionResponse):
-            if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
-                raise PermissionDenied("Permission denied")
-            if response.exception_code == ModbusExceptions.SlaveBusy:
-                raise SlaveBusyException
-            if response.exception_code == ModbusExceptions.SlaveFailure:
-                raise SlaveFailureException
-            raise ReadException(
-                f"Exception occurred while trying to read device infos "
-                f"{hex(response.exception_code) if response.exception_code else 'no exception code'}",
-                modbus_exception_code=response.exception_code,
-            )
-
-        assert isinstance(response, ReadDeviceIdentifierResponse)
+        """Read the device infos from the inverter."""
+        objects = await self._read_device_identifier_objects(0x03, DEVICE_INFOS_START_OBJECT_ID)
 
         def _parse_device_entry(device_info_str: str) -> DeviceInfo:
             raw_device_info: dict[int, str] = {}
@@ -495,12 +498,17 @@ class AsyncHuaweiSolar:
                 product_type=raw_device_info.get(8),
             )
 
-        (number_of_devices,) = struct.unpack(">B", response.objects.pop(0x87))
+        if DEVICE_INFOS_START_OBJECT_ID in objects:
+            (number_of_devices,) = struct.unpack(">B", objects.pop(DEVICE_INFOS_START_OBJECT_ID))
+        else:
+            LOGGER.warning("No 0x87 entry with number of devices found in objects. Ignoring")
+            number_of_devices = -1
+
         device_infos = [
-            _parse_device_entry(device_info_bytes.decode("ascii")) for device_info_bytes in response.objects.values()
+            _parse_device_entry(device_info_bytes.decode("ascii")) for device_info_bytes in objects.values()
         ]
 
-        if len(device_infos) != number_of_devices:
+        if number_of_devices >= 0 and len(device_infos) != number_of_devices:
             LOGGER.warning(
                 "Number of device infos does not match the number of devices: %d != %d",
                 len(device_infos),
