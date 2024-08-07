@@ -61,3 +61,7 @@ class PermissionDenied(HuaweiSolarException):
 
 class InvalidCredentials(HuaweiSolarException):
     """Logging in on the inverter failed."""
+
+
+class UnsupportedDeviceException(HuaweiSolarException):
+    """No bridge class is available for this device."""

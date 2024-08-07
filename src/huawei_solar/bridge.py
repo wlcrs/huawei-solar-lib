@@ -23,6 +23,7 @@ from .exceptions import (
     InvalidCredentials,
     PermissionDenied,
     ReadException,
+    UnsupportedDeviceException,
 )
 from .files import (
     OptimizerRealTimeData,
@@ -292,7 +293,7 @@ class HuaweiSolarBridge(ABC):
     # Everything write-related #
     ############################
 
-    async def has_write_permission(self) -> bool | None:
+    async def has_write_permission(self) -> bool:
         """Test write permission by getting the time zone and trying to write that same value back to the inverter."""
         try:
             result = await self.client.get(self._write_test_register, self.slave_id)
@@ -611,13 +612,15 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
 
     model: str
 
-    _write_test_register = rn.LOCAL_TIME_YEAR
-
     @classmethod
     @override
     def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
         """Check if this class support the given device."""
         return product_info.model_name.startswith("SmartHEMS")
+
+    async def has_write_permission(self) -> bool:
+        """EMMA always gives write access."""
+        return True
 
     @override
     async def _populate_additional_fields(self):
@@ -670,4 +673,4 @@ async def _create(
                 update_lock,
             )
 
-    raise HuaweiSolarException(f"Unsupported product model '{product_info.model_name}'")
+    raise UnsupportedDeviceException(f"Unsupported product model '{product_info.model_name}'")
