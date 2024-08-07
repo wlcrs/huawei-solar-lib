@@ -1546,7 +1546,13 @@ EMMA_REGISTERS = {
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
-    rn.LOCAL_TIME_YEAR: U16Register(None, 1, 40490, target_device=TargetDevice.EMMA),
+    rn.LOCAL_TIME_YEAR: U16Register(
+        None, 
+        1, 
+        40490, 
+        writeable=True,
+        target_device=TargetDevice.EMMA,
+    ),
 }
 
 REGISTERS.update(EMMA_REGISTERS)
