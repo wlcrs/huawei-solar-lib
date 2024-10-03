@@ -445,9 +445,10 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
                 )
             ).value
 
-        if self.battery_2_type not in (
-            rv.StorageProductModel.NONE,
-            self.battery_1_type,
+        if (
+            self.battery_1_type is not None
+            and self.battery_2_type is not None
+            and self.battery_1_type != self.battery_2_type
         ):
             _LOGGER.warning(
                 "Detected two batteries of a different type. This can lead to unexpected behavior",
