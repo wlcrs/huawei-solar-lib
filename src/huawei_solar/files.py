@@ -338,5 +338,5 @@ def _to_string(data: bytes):
     try:
         return data.decode("ascii").rstrip("\x00")
     except ValueError:
-        _LOGGER.exception("Could not decode '%s'. Ignoring.", binascii.hexlify(data))
+        _LOGGER.exception("Could not decode '%s'. Ignoring", binascii.hexlify(data))
         return ""

@@ -723,8 +723,7 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
         number_of_periods = decoder.decode_16bit_uint()
 
         # Safety check
-        if number_of_periods > PEAK_SETTING_PERIODS:
-            number_of_periods = PEAK_SETTING_PERIODS
+        number_of_periods = min(number_of_periods, PEAK_SETTING_PERIODS)
 
         periods = []
         for _ in range(number_of_periods):

@@ -157,6 +157,10 @@ class HuaweiSolarBridge(ABC):
             ),
         )
 
+    def _handle_batch_read_error(self, _queried_register_names: list[str], exc: HuaweiSolarException) -> None:
+        """Handle read errors in get."""
+        raise exc
+
     def _detect_state_changes(self, new_values: dict[str, Result]) -> None:  # noqa: B027
         """Update state based on result of batch_update query.
 
@@ -230,15 +234,7 @@ class HuaweiSolarBridge(ABC):
                 try:
                     values = await self._get_multiple_to_dict(register_names_to_query)
                 except HuaweiSolarException as exc:
-                    if any(regname in METER_REGISTERS for regname in register_names_to_query):
-                        _LOGGER.info(
-                            "Fetching power meter registers failed. "
-                            "We'll assume that this is due to the power meter going offline and the registers "
-                            "becoming invalid as a result.",
-                            exc_info=exc,
-                        )
-                        self.power_meter_online = False
-                    raise
+                    self._handle_batch_read_error(register_names_to_query, exc)
 
                 self._detect_state_changes(values)
                 result.update(values)
@@ -257,7 +253,7 @@ class HuaweiSolarBridge(ABC):
 
         if not logged_in:
             _LOGGER.warning(
-                "Could not login, reading file %x will probably fail.",
+                "Could not login, reading file %x will probably fail",
                 file_type,
             )
 
@@ -268,7 +264,7 @@ class HuaweiSolarBridge(ABC):
                 logged_in = await self.ensure_logged_in(force=True)
 
                 if not logged_in:
-                    _LOGGER.exception("Could not login to read file %x .", file_type)
+                    _LOGGER.exception("Could not login to read file %x", file_type)
                     raise
 
                 return await self.client.get_file(
@@ -371,7 +367,7 @@ class HuaweiSolarBridge(ABC):
         logged_in = await self.ensure_logged_in()  # we must login again before trying to set the value
 
         if not logged_in:
-            _LOGGER.warning("Could not login, setting, %s will probably fail.", name)
+            _LOGGER.warning("Could not login, setting, %s will probably fail", name)
 
         if self.__heartbeat_enabled:
             try:
@@ -386,7 +382,7 @@ class HuaweiSolarBridge(ABC):
                 logged_in = await self.ensure_logged_in(force=True)
 
                 if not logged_in:
-                    _LOGGER.exception("Could not login to set %s .", name)
+                    _LOGGER.exception("Could not login to set %s", name)
                     raise
 
                 # Force a heartbeat first when connected with username/password credentials
@@ -454,7 +450,7 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
             self.battery_1_type,
         ):
             _LOGGER.warning(
-                "Detected two batteries of a different type. This can lead to unexpected behavior.",
+                "Detected two batteries of a different type. This can lead to unexpected behavior",
             )
 
         if self.battery_type != rv.StorageProductModel.NONE:
@@ -465,7 +461,8 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
                 )
                 self.supports_capacity_control = True
             except ReadException:
-                pass
+                _LOGGER.debug("Storage capacity control as it is not supported by slave %d", self.slave_id)
+                self.supports_capacity_control = False
 
         with suppress(ReadException):
             self.power_meter_online = (
@@ -479,6 +476,20 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
 
         self._dst = (await self.client.get(rn.DAYLIGHT_SAVING_TIME, self.slave_id)).value
         self._time_zone = (await self.client.get(rn.TIME_ZONE, self.slave_id)).value
+
+    @override
+    def _handle_batch_read_error(self, queried_register_names: list[str], exc: HuaweiSolarException) -> None:
+        """Handle read errors in batch_update."""
+        if any(regname in METER_REGISTERS for regname in queried_register_names):
+            _LOGGER.info(
+                "Fetching power meter registers failed. "
+                "We'll assume that this is due to the power meter going offline and the registers "
+                "becoming invalid as a result",
+                exc_info=exc,
+            )
+            self.power_meter_online = False
+
+        raise exc
 
     @override
     def _detect_state_changes(self, new_values: dict[str, Result]) -> None:
@@ -524,7 +535,7 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
             # If it is still offline after the check then filter out all power meter registers
             if not self.power_meter_online:
                 _LOGGER.debug(
-                    "Removing power meter registers as the power meter is offline.",
+                    "Removing power meter registers as the power meter is offline",
                 )
                 result = list(
                     filter(

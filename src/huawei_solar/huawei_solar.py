@@ -137,7 +137,7 @@ class AsyncHuaweiSolar:
     async def _communication_lock(self):
         async with self.__communication_lock:
             if not self._client.connected_event.is_set():
-                LOGGER.info("Waiting for connection ...")
+                LOGGER.info("Waiting for connection")
 
             try:
                 await asyncio.wait_for(
@@ -146,7 +146,7 @@ class AsyncHuaweiSolar:
                 )
             except asyncio.TimeoutError:
                 LOGGER.exception(
-                    "Timeout while waiting for connection. Reconnecting...",
+                    "Timeout while waiting for connection. Reconnecting",
                 )
                 self._reconnect_task = asyncio.create_task(self._reconnect())
                 raise
@@ -155,7 +155,7 @@ class AsyncHuaweiSolar:
                 cooldown_time_needed = (self.__last_call_finished_at + self._cooldown_time) - time.time()
                 if cooldown_time_needed > 0:
                     LOGGER.debug(
-                        "Sleeping for %f seconds before making next call.",
+                        "Sleeping for %f seconds before making next call",
                         cooldown_time_needed,
                     )
                     await asyncio.sleep(cooldown_time_needed)
@@ -184,7 +184,7 @@ class AsyncHuaweiSolar:
         except Exception as err:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
-            LOGGER.exception("Aborting client creation due to error.")
+            LOGGER.exception("Aborting client creation due to error")
 
             if client:
                 client.close()
@@ -220,7 +220,7 @@ class AsyncHuaweiSolar:
         except Exception as err:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
-            LOGGER.exception("Aborting client creation due to error.")
+            LOGGER.exception("Aborting client creation due to error")
             raise ConnectionException from err
         else:
             return huawei_solar
@@ -375,7 +375,7 @@ class AsyncHuaweiSolar:
         )
         async def _do_read():
             if not self._client.connected:
-                message = "Modbus client is not connected to the inverter."
+                message = "Modbus client is not connected to the inverter"
                 LOGGER.exception(message)
                 raise ConnectionInterruptedException(message)
             try:
