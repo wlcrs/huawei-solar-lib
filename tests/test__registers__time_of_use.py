@@ -1,7 +1,8 @@
 from unittest.mock import MagicMock
 
-import huawei_solar.register_names as rn
 import pytest
+
+import huawei_solar.register_names as rn
 from huawei_solar.exceptions import TimeOfUsePeriodsException
 from huawei_solar.registers import REGISTERS, HUAWEI_LUNA2000_TimeOfUsePeriod, LG_RESU_TimeOfUsePeriod
 

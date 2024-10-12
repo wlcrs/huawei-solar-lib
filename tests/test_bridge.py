@@ -1,8 +1,9 @@
-import huawei_solar.register_names as rn
 import pytest
 
+import huawei_solar.register_names as rn
 
-@pytest.mark.asyncio()
+
+@pytest.mark.asyncio
 async def test_get_model_name(huawei_bridge):
     result = await huawei_bridge.batch_update([rn.MODEL_NAME])
     assert len(result) == 1
@@ -10,7 +11,7 @@ async def test_get_model_name(huawei_bridge):
     assert result[rn.MODEL_NAME].unit is None
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_get_multiple(huawei_bridge):
     result = await huawei_bridge.batch_update(
         [rn.INPUT_POWER, rn.LINE_VOLTAGE_A_B, rn.LINE_VOLTAGE_B_C, rn.LINE_VOLTAGE_C_A],

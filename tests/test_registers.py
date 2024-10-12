@@ -1,7 +1,8 @@
-import huawei_solar.register_names as rn
-from huawei_solar.registers import REGISTERS, PeakSettingPeriod
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
+
+import huawei_solar.register_names as rn
+from huawei_solar.registers import REGISTERS, PeakSettingPeriod
 
 
 def test_capacity_control_register():

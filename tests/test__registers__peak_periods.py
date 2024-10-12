@@ -1,5 +1,6 @@
-import huawei_solar.register_names as rn
 import pytest
+
+import huawei_solar.register_names as rn
 from huawei_solar.exceptions import PeakPeriodsValidationError
 from huawei_solar.registers import REGISTERS, PeakSettingPeriod
 
