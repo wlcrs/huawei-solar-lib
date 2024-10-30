@@ -42,11 +42,6 @@ deploy_production:
     paths:
       - dist/
 
-python310:
-  stage: test
-  image: python:3.10
-  script: tox -e py310
-
 python311:
   stage: test
   image: python:3.11
@@ -56,3 +51,8 @@ python312:
   stage: test
   image: python:3.12
   script: tox -e py312
+
+python313:
+  stage: test
+  image: python:3.13
+  script: tox -e py313
