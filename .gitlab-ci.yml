@@ -18,29 +18,53 @@ linting:
   script:
     - tox -e ruff,yamllint
 
-build_staging:
-  stage: deploy
+build-job:
+  stage: build
+  image: python:3-bookworm
   script:
+    - python -m pip install -U build
     - python -m build
-  except:
-    - tags
   artifacts:
     paths:
-      - dist/
+      - "dist/"
 
-deploy_production:
-  stage: deploy
-  variables:
-    TWINE_USERNAME: $PRODUCTION_USERNAME
-    TWINE_PASSWORD: $PRODUCTION_PASSWORD
+generate-pypi-attestations:
+  stage: build
+  image: python:3-bookworm
+  needs:
+    - job: build-job
+      artifacts: true
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
   script:
-    - python -m build
-    - twine upload dist/*
-  only:
-    - tags
+    - python -m pip install -U pypi-attestations
+    - python -m pypi_attestations sign dist/*
   artifacts:
     paths:
-      - dist/
+      - "dist/"
+
+publish-job:
+  stage: deploy
+  image: python:3-bookworm
+  dependencies:
+    - build-job
+    - generate-pypi-attestations
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+  script:
+    # Install dependencies
+    - apt update && apt install -y jq
+    - python -m pip install -U twine id
+
+    # Retrieve the OIDC token from GitLab CI/CD, and exchange it for a PyPI API token
+    - oidc_token=$(python -m id PYPI)
+    - resp=$(curl -X POST https://pypi.org/_/oidc/mint-token -d "{\"token\":\"${oidc_token}\"}")
+    - api_token=$(jq --raw-output '.token' <<< "${resp}")
+
+    # Upload to PyPI authenticating via the newly-minted token, including the generated attestations
+    - twine --verbose --attestations upload -u __token__ -p "${api_token}" python_pkg/dist/*
 
 python311:
   stage: test
