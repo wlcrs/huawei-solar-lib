@@ -144,7 +144,7 @@ class AsyncHuaweiSolar:
                     self._client.connected_event.wait(),
                     WAIT_FOR_CONNECTION_TIMEOUT,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 LOGGER.exception(
                     "Timeout while waiting for connection. Reconnecting",
                 )
@@ -171,7 +171,7 @@ class AsyncHuaweiSolar:
         host,
         port: int = DEFAULT_TCP_PORT,
         slave: int = DEFAULT_SLAVE_ID,
-        timeout: int = DEFAULT_TIMEOUT,
+        timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ):
         """Create an AsyncHuaweiSolar instance."""
@@ -198,7 +198,7 @@ class AsyncHuaweiSolar:
         port,
         baudrate: int = DEFAULT_BAUDRATE,
         slave: int = DEFAULT_SLAVE_ID,
-        timeout: int = DEFAULT_TIMEOUT,
+        timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
         **serial_kwargs,
     ):

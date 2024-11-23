@@ -7,7 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from typing_extensions import override
 
@@ -558,7 +558,7 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
             if self._dst:
                 value -= timedelta(hours=1)
 
-            return Result(value.astimezone(tz=timezone.utc), result.unit)
+            return Result(value.astimezone(tz=UTC), result.unit)
 
         return result
 
