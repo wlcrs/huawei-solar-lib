@@ -65,6 +65,8 @@ publish-job:
 
     # Upload to PyPI authenticating via the newly-minted token, including the generated attestations
     - twine --verbose --attestations upload -u __token__ -p "${api_token}" python_pkg/dist/*
+  only:
+    - tags
 
 python311:
   stage: test
