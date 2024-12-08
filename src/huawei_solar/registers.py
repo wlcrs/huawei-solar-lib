@@ -61,11 +61,11 @@ class RegisterDefinition(Generic[T]):
 
     def encode(self, data: T) -> list[int]:
         """Encode register to bytes."""
-        return ModbusClientMixin.convert_to_registers(data, self.datatype)
+        return ModbusClientMixin.convert_to_registers(data, self.datatype)  # type: ignore
 
     def decode(self, registers: list[int]) -> T:
         """Decode register to value."""
-        return ModbusClientMixin.convert_from_registers(registers, self.datatype)
+        return ModbusClientMixin.convert_from_registers(registers, self.datatype)  # type: ignore
 
     def _validate(self, data: T):
         """Validate data type."""
