@@ -1,56 +1,49 @@
 """Custom classes for pyModbus."""
 
-# pyright: reportIncompatibleMethodOverride=false
-
 import asyncio
 import logging
 import struct
 from typing import TYPE_CHECKING, TypedDict
 
-from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
+from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient, ModbusBaseClient
 from pymodbus.pdu import ExceptionResponse, ModbusPDU
 
 RECONNECT_DELAY = 1000  # in milliseconds
 WAIT_ON_CONNECT = 1500  # in milliseconds
 
 LOGGER = logging.getLogger(__name__)
-
 if TYPE_CHECKING:
-    _Base = AsyncModbusSerialClient | AsyncModbusTcpClient
+    _Base = ModbusBaseClient
 else:
     _Base = object
 
 
-class ModbusConnectionMixin(_Base):  # type: ignore
+class ModbusConnectionMixin(_Base):
     """Mixin that adds support for custom Huawei modbus messages and delays upon reconnect."""
 
     connected_event = asyncio.Event()
 
     def __init__(self, *args, **kwargs) -> None:
         """Add support for the custom Huawei modbus messages."""
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, trace_connect=self._trace_connect)  # forward all unused arguments
         super().register(PrivateHuaweiModbusResponse)
         super().register(ReadDeviceIdentifierResponse)
         super().register(AbnormalDeviceDescriptionResponse)
 
-    def connection_made(self, transport):
-        """Register that a connection has been made in an asyncio Event."""
-        super().connection_made(transport)
+    def _trace_connect(self, connected: bool):
+        if connected:
 
-        async def _made_connection_task():
-            LOGGER.debug(
-                "Waiting for %d milliseconds after connection before performing operations",
-                WAIT_ON_CONNECT,
-            )
-            await asyncio.sleep(WAIT_ON_CONNECT / 1000)
-            self.connected_event.set()
+            async def _made_connection_task():
+                LOGGER.debug(
+                    "Waiting for %d milliseconds after connection before performing operations",
+                    WAIT_ON_CONNECT,
+                )
+                await asyncio.sleep(WAIT_ON_CONNECT / 1000)
+                self.connected_event.set()
 
-        asyncio.create_task(_made_connection_task())
-
-    def connection_lost(self, reason):
-        """Register that a connection has been lost in an asyncio Event."""
-        super().connection_lost(reason)
-        self.connected_event.clear()
+            asyncio.create_task(_made_connection_task())
+        else:
+            self.connected_event.clear()
 
 
 class AsyncHuaweiSolarModbusSerialClient(
@@ -61,13 +54,7 @@ class AsyncHuaweiSolarModbusSerialClient(
 
     def __init__(self, port, baudrate, timeout: int, **serial_kwargs):
         """Create AsyncHuaweiSolarModbusSerialClient."""
-        super().__init__(
-            port,
-            **serial_kwargs,
-            baudrate=baudrate,
-            reconnect_delay=RECONNECT_DELAY,
-            timeout=timeout,
-        )
+        super().__init__(self, port=port, baudrate=baudrate, timeout=timeout, **serial_kwargs)
 
 
 class AsyncHuaweiSolarModbusTcpClient(ModbusConnectionMixin, AsyncModbusTcpClient):
@@ -75,7 +62,7 @@ class AsyncHuaweiSolarModbusTcpClient(ModbusConnectionMixin, AsyncModbusTcpClien
 
     def __init__(self, host, port, timeout):
         """Create AsyncHuaweiSolarModbusTcpClient."""
-        super().__init__(host, port, timeout=timeout, reconnect_delay=RECONNECT_DELAY)
+        super().__init__(host, port=port, timeout=timeout, reconnect_delay=RECONNECT_DELAY)
 
 
 class PrivateHuaweiModbusResponse(ModbusPDU):

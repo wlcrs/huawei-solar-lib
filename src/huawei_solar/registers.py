@@ -2,6 +2,7 @@
 
 # pyright: reportIncompatibleMethodOverride=false
 
+import struct
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,7 +11,7 @@ from functools import partial
 from inspect import isclass
 from typing import Any, Generic, TypeVar, cast
 
-from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
+from pymodbus.client.mixin import ModbusClientMixin
 from typing_extensions import override
 
 import huawei_solar.register_names as rn
@@ -40,6 +41,8 @@ class RegisterDefinition(Generic[T]):
     """Base class for register definitions."""
 
     unit: UnitType = None
+    datatype: ModbusClientMixin.DATATYPE
+    length: int
 
     def __init__(
         self,
@@ -56,13 +59,13 @@ class RegisterDefinition(Generic[T]):
         self.readable = readable
         self.target_device = target_device
 
-    def encode(self, data: T, builder: BinaryPayloadBuilder):
+    def encode(self, data: T) -> list[int]:
         """Encode register to bytes."""
-        raise NotImplementedError
+        return ModbusClientMixin.convert_to_registers(data, self.datatype)
 
-    def decode(self, decoder: BinaryPayloadDecoder) -> T:
+    def decode(self, registers: list[int]) -> T:
         """Decode register to value."""
-        raise NotImplementedError
+        return ModbusClientMixin.convert_from_registers(registers, self.datatype)
 
     def _validate(self, data: T):
         """Validate data type."""
@@ -72,15 +75,7 @@ class RegisterDefinition(Generic[T]):
 class StringRegister(RegisterDefinition[str]):
     """A string register."""
 
-    def decode(self, decoder: BinaryPayloadDecoder):
-        """Decode string register."""
-        str_bytes = cast(bytes, decoder.decode_string(self.length * 2))
-        try:
-            result = str_bytes.decode("utf-8")
-        except UnicodeDecodeError as err:
-            raise DecodeError from err
-        else:
-            return result.rstrip("\0")
+    datatype = ModbusClientMixin.DATATYPE.STRING
 
 
 class NumberRegister(RegisterDefinition[T], Generic[T]):
@@ -92,8 +87,6 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
         gain: int,
         register: int,
         length: int,
-        decode_function_name: str,
-        encode_function_name: str,
         writeable: bool = False,
         readable: bool = True,
         invalid_value: int | None = None,
@@ -110,13 +103,11 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
         self.unit = unit
         self.gain = gain
 
-        self._decode_function_name = decode_function_name
-        self._encode_function_name = encode_function_name
         self._invalid_value = invalid_value
 
-    def decode(self, decoder: BinaryPayloadDecoder) -> T | None:
+    def decode(self, registers: list[int]) -> T | None:
         """Decode number register."""
-        result = cast(int, getattr(decoder, self._decode_function_name)())
+        result = cast(int, ModbusClientMixin.convert_from_registers(registers, self.datatype))
 
         if self._invalid_value is not None and result == self._invalid_value:
             return None
@@ -138,7 +129,7 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
             result /= self.gain
         return result  # ignore: return-value
 
-    def encode(self, data: T, builder: BinaryPayloadBuilder):
+    def encode(self, data: T):
         """Encode number register."""
         if isinstance(data, int):
             int_data = data * self.gain
@@ -159,11 +150,13 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
         else:
             raise WriteException(f"Unsupported type: {type(data)}.")
 
-        getattr(builder, self._encode_function_name)(int_data)
+        return ModbusClientMixin.convert_to_registers(int_data, self.datatype)
 
 
 class U16Register(NumberRegister[T], Generic[T]):
     """Unsigned 16-bit register."""
+
+    datatype = ModbusClientMixin.DATATYPE.UINT16
 
     def __init__(  # noqa: PLR0913
         self,
@@ -181,8 +174,6 @@ class U16Register(NumberRegister[T], Generic[T]):
             gain=gain,
             register=register,
             length=1,
-            decode_function_name="decode_16bit_uint",
-            encode_function_name="add_16bit_uint",
             writeable=writeable,
             readable=readable,
             invalid_value=2**16 - 1 if not ignore_invalid else None,
@@ -192,6 +183,8 @@ class U16Register(NumberRegister[T], Generic[T]):
 
 class U32Register(NumberRegister[T], Generic[T]):
     """Unsigned 32-bit register."""
+
+    datatype = ModbusClientMixin.DATATYPE.UINT32
 
     def __init__(
         self,
@@ -207,8 +200,6 @@ class U32Register(NumberRegister[T], Generic[T]):
             gain=gain,
             register=register,
             length=2,
-            decode_function_name="decode_32bit_uint",
-            encode_function_name="add_32bit_uint",
             writeable=writeable,
             invalid_value=2**32 - 1,
             target_device=target_device,
@@ -217,6 +208,8 @@ class U32Register(NumberRegister[T], Generic[T]):
 
 class U64Register(NumberRegister[T], Generic[T]):
     """Unsigned 64-bit register."""
+
+    datatype = ModbusClientMixin.DATATYPE.UINT64
 
     def __init__(
         self,
@@ -232,8 +225,6 @@ class U64Register(NumberRegister[T], Generic[T]):
             gain=gain,
             register=register,
             length=4,
-            decode_function_name="decode_64bit_uint",
-            encode_function_name="add_64bit_uint",
             writeable=writeable,
             invalid_value=2**63 - 1,
             target_device=target_device,
@@ -242,6 +233,8 @@ class U64Register(NumberRegister[T], Generic[T]):
 
 class I16Register(NumberRegister[T], Generic[T]):
     """Signed 16-bit register."""
+
+    datatype = ModbusClientMixin.DATATYPE.INT16
 
     def __init__(
         self,
@@ -257,8 +250,6 @@ class I16Register(NumberRegister[T], Generic[T]):
             gain=gain,
             register=register,
             length=1,
-            decode_function_name="decode_16bit_int",
-            encode_function_name="add_16bit_int",
             writeable=writeable,
             invalid_value=2**15 - 1,
             target_device=target_device,
@@ -267,6 +258,8 @@ class I16Register(NumberRegister[T], Generic[T]):
 
 class I32Register(NumberRegister[T], Generic[T]):
     """Signed 32-bit register."""
+
+    datatype = ModbusClientMixin.DATATYPE.INT32
 
     def __init__(
         self,
@@ -282,8 +275,6 @@ class I32Register(NumberRegister[T], Generic[T]):
             gain=gain,
             register=register,
             length=2,
-            decode_function_name="decode_32bit_int",
-            encode_function_name="add_32bit_int",
             writeable=writeable,
             invalid_value=2**31 - 1,
             target_device=target_device,
@@ -292,6 +283,8 @@ class I32Register(NumberRegister[T], Generic[T]):
 
 class I64Register(NumberRegister[T], Generic[T]):
     """Signed 64-bit register."""
+
+    datatype = ModbusClientMixin.DATATYPE.INT64
 
     def __init__(
         self,
@@ -307,15 +300,13 @@ class I64Register(NumberRegister[T], Generic[T]):
             gain=gain,
             register=register,
             length=4,
-            decode_function_name="decode_64bit_int",
-            encode_function_name="add_64bit_int",
             writeable=writeable,
             invalid_value=2**63 - 1,
             target_device=target_device,
         )
 
 
-class I32AbsoluteValueRegister(NumberRegister[T], Generic[T]):
+class I32AbsoluteValueRegister(I32Register):
     """Signed 32-bit register, converted into the equivalent absolute number.
 
     Use case: for registers of which the value should always be interpreted
@@ -339,17 +330,13 @@ class I32AbsoluteValueRegister(NumberRegister[T], Generic[T]):
             unit,
             gain,
             register,
-            2,
-            "decode_32bit_int",
-            "add_32bit_int",
             writeable=writeable,
-            invalid_value=2**31 - 1,
             target_device=target_device,
         )
 
-    def decode(self, decoder: BinaryPayloadDecoder):
+    def decode(self, registers: list[int]):
         """Decode 32-bit signed integer into absolute value."""
-        value = super().decode(decoder)
+        value = super().decode(registers)
         return abs(value) if value is not None else None
 
 
@@ -383,9 +370,9 @@ class TimestampRegister(U32Register[datetime]):
             target_device=target_device,
         )
 
-    def decode(self, decoder: BinaryPayloadDecoder):
+    def decode(self, registers: list[int]) -> datetime | None:
         """Decode timestamp register."""
-        value = super().decode(decoder)
+        value = super().decode(registers)
         if value is None:
             return None
 
@@ -448,21 +435,23 @@ LG_RESU_TOU_PERIODS = 10
 class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod]]):
     """Time of use register."""
 
-    def decode(self, decoder: BinaryPayloadDecoder):
+    def decode(self, registers: list[int]):
         """Decode time of use register."""
-        number_of_periods = decoder.decode_16bit_uint()
+        number_of_periods = cast(
+            int,
+            ModbusClientMixin.convert_from_registers(registers[0:1], ModbusClientMixin.DATATYPE.UINT16),
+        )
         assert number_of_periods <= LG_RESU_TOU_PERIODS
 
-        periods = [
-            LG_RESU_TimeOfUsePeriod(
-                decoder.decode_16bit_uint(),
-                decoder.decode_16bit_uint(),
-                decoder.decode_32bit_uint() / 1000,
+        def _decode_lg_resu_tou_period(r: list[int]):
+            start_time, end_time, electricity_price = struct.unpack(">HHI", registers_to_bytearray(r))
+            return LG_RESU_TimeOfUsePeriod(
+                start_time,
+                end_time,
+                electricity_price / 1000,
             )
-            for _ in range(LG_RESU_TOU_PERIODS)
-        ]
 
-        return periods[:number_of_periods]
+        return [_decode_lg_resu_tou_period(registers[idx * 4 : (idx + 1) * 4]) for idx in range(number_of_periods)]
 
     def _validate(
         self,
@@ -499,38 +488,63 @@ class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod
             ):
                 raise TimeOfUsePeriodsException("TOU periods are overlapping")
 
-    def encode(
-        self,
-        data: list[LG_RESU_TimeOfUsePeriod],
-        builder: BinaryPayloadBuilder,
-    ):
+    def encode(self, data: list[LG_RESU_TimeOfUsePeriod]):
         """Encode Time Of Use Period registers."""
         self._validate(data)
 
         assert len(data) <= LG_RESU_TOU_PERIODS
-        builder.add_16bit_uint(len(data))
+
+        registers = []
+        registers.extend(ModbusClientMixin.convert_to_registers(len(data), ModbusClientMixin.DATATYPE.UINT16))
 
         for period in data:
-            builder.add_16bit_uint(period.start_time)
-            builder.add_16bit_uint(period.end_time)
-            builder.add_32bit_uint(int(period.electricity_price * 1000))
+            registers.extend(
+                ModbusClientMixin.convert_to_registers(
+                    period.start_time,
+                    ModbusClientMixin.DATATYPE.UINT16,
+                ),
+            )
+            registers.extend(ModbusClientMixin.convert_to_registers(period.end_time, ModbusClientMixin.DATATYPE.UINT16))
+            registers.extend(
+                ModbusClientMixin.convert_to_registers(
+                    int(period.electricity_price * 1000),
+                    ModbusClientMixin.DATATYPE.UINT32,
+                ),
+            )
 
         # pad with empty periods
-        for _ in range(len(data), LG_RESU_TOU_PERIODS):
-            builder.add_16bit_uint(0)
-            builder.add_16bit_uint(0)
-            builder.add_32bit_uint(0)
+        registers.extend([0, 0, 0, 0] * (LG_RESU_TOU_PERIODS - len(data)))
+
+        return registers
 
 
 HUAWEI_LUNA2000_TOU_PERIODS = 14
 
 
+def registers_to_bytearray(registers: list[int]) -> bytearray:
+    """Convert registers to bytes."""
+    b = bytearray()
+    for x in registers:
+        b.extend(x.to_bytes(2, "big"))
+
+    return b
+
+
+def bytearray_to_registers(data: bytearray) -> list[int]:
+    """Convert bytes to registers."""
+    assert len(data) % 2 == 0
+    return [int.from_bytes(data[i : i + 2], "big") for i in range(0, len(data), 2)]
+
+
 class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000_TimeOfUsePeriod]]):
     """Time of use register."""
 
-    def decode(self, decoder: BinaryPayloadDecoder):
+    def decode(self, registers: list[int]):
         """Decode time of use register."""
-        number_of_periods = decoder.decode_16bit_uint()
+        number_of_periods = cast(
+            int,
+            ModbusClientMixin.convert_from_registers(registers[0:1], ModbusClientMixin.DATATYPE.UINT16),
+        )
         assert number_of_periods <= HUAWEI_LUNA2000_TOU_PERIODS
 
         def _days_effective_parser(value):
@@ -542,14 +556,19 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
 
             return tuple(result)
 
-        periods = [
-            HUAWEI_LUNA2000_TimeOfUsePeriod(
-                decoder.decode_16bit_uint(),
-                decoder.decode_16bit_uint(),
-                ChargeFlag(decoder.decode_8bit_uint()),
-                _days_effective_parser(decoder.decode_8bit_uint()),
+        def _decode_huawei_luna2000_tou_period(r: list[int]):
+            start_time, end_time, charge, days_effective = struct.unpack(">HHBB", registers_to_bytearray(r))
+
+            return HUAWEI_LUNA2000_TimeOfUsePeriod(
+                start_time,
+                end_time,
+                ChargeFlag(charge),
+                _days_effective_parser(days_effective),
             )
-            for _ in range(HUAWEI_LUNA2000_TOU_PERIODS)
+
+        periods = [
+            _decode_huawei_luna2000_tou_period(registers[idx * 3 : (idx + 1) * 3])
+            for idx in range(HUAWEI_LUNA2000_TOU_PERIODS)
         ]
 
         return periods[:number_of_periods]
@@ -597,13 +616,14 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
     def encode(
         self,
         data: list[HUAWEI_LUNA2000_TimeOfUsePeriod],
-        builder: BinaryPayloadBuilder,
-    ):
+    ) -> list[int]:
         """Encode Time Of Use Period registers."""
         self._validate(data)
 
         assert len(data) <= HUAWEI_LUNA2000_TOU_PERIODS
-        builder.add_16bit_uint(len(data))
+
+        b = bytearray()
+        b.extend(struct.pack(">H", len(data)))
 
         def _days_effective_builder(days_tuple):
             result = 0
@@ -616,16 +636,20 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
             return result
 
         for period in data:
-            builder.add_16bit_uint(period.start_time)
-            builder.add_16bit_uint(period.end_time)
-            builder.add_8bit_uint(int(period.charge_flag))
-            builder.add_8bit_uint(_days_effective_builder(period.days_effective))
+            b.extend(
+                struct.pack(
+                    ">HHBB",
+                    period.start_time,
+                    period.end_time,
+                    int(period.charge_flag),
+                    _days_effective_builder(period.days_effective),
+                ),
+            )
 
         # pad with empty periods
-        for _ in range(len(data), HUAWEI_LUNA2000_TOU_PERIODS):
-            builder.add_16bit_uint(0)
-            builder.add_16bit_uint(0)
-            builder.add_16bit_uint(0)
+        b.extend(bytearray(3 * (HUAWEI_LUNA2000_TOU_PERIODS - len(data))))
+
+        return bytearray_to_registers(b)
 
 
 @dataclass
@@ -644,37 +668,39 @@ class ChargeDischargePeriodRegisters(RegisterDefinition[list[ChargeDischargePeri
     """Charge or discharge period registers."""
 
     @override
-    def decode(self, decoder: BinaryPayloadDecoder) -> list[ChargeDischargePeriod]:
+    def decode(self, registers: list[int]) -> list[ChargeDischargePeriod]:
         """Decode ChargeDischargePeriodRegisters."""
-        number_of_periods = decoder.decode_16bit_uint()
+        number_of_periods = cast(
+            int,
+            ModbusClientMixin.convert_from_registers(registers[0:1], ModbusClientMixin.DATATYPE.UINT16),
+        )
         assert number_of_periods <= CHARGE_DISCHARGE_PERIODS
 
+        def _decode_charge_discharge_period(r: list[int]):
+            start_time, end_time, power = struct.unpack(">HHI", registers_to_bytearray(r))
+            return ChargeDischargePeriod(start_time, end_time, power)
+
         periods = [
-            ChargeDischargePeriod(
-                decoder.decode_16bit_uint(),
-                decoder.decode_16bit_uint(),
-                decoder.decode_32bit_int(),
-            )
-            for _ in range(10)
+            _decode_charge_discharge_period(registers[idx * 3 : (idx + 1) * 3]) for idx in range(number_of_periods)
         ]
 
         return periods[:number_of_periods]
 
-    def encode(self, data: list[ChargeDischargePeriod], builder: BinaryPayloadBuilder):
+    def encode(self, data: list[ChargeDischargePeriod]):
         """Encode ChargeDischargePeriodRegisters."""
         assert len(data) <= CHARGE_DISCHARGE_PERIODS
-        builder.add_16bit_uint(len(data))
+
+        b = bytearray()
+        b.extend(struct.pack(">H", len(data)))
 
         for period in data:
-            builder.add_16bit_uint(period.start_time)
-            builder.add_16bit_uint(period.end_time)
-            builder.add_32bit_uint(period.power)
+            b.extend(struct.pack(">HHI", period.start_time, period.end_time, period.power))
 
         # pad with empty periods
         for _ in range(len(data), CHARGE_DISCHARGE_PERIODS):
-            builder.add_16bit_uint(0)
-            builder.add_16bit_uint(0)
-            builder.add_32bit_uint(0)
+            b.extend(struct.pack(">HHI", 0, 0, 0))
+
+        return bytearray_to_registers(b)
 
 
 @dataclass
@@ -722,20 +748,23 @@ def _days_effective_parser(value):
 class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
     """Peak Setting Period registers."""
 
-    def decode(self, decoder: BinaryPayloadDecoder) -> list[PeakSettingPeriod]:
+    def decode(self, registers: list[int]) -> list[PeakSettingPeriod]:
         """Decode PeakSettingPeriodRegisters."""
-        number_of_periods = decoder.decode_16bit_uint()
+        number_of_periods = cast(
+            int,
+            ModbusClientMixin.convert_from_registers(registers[0:1], ModbusClientMixin.DATATYPE.UINT16),
+        )
 
         # Safety check
         number_of_periods = min(number_of_periods, PEAK_SETTING_PERIODS)
 
+        b = registers_to_bytearray(registers[1:])
+        decoder = struct.Struct(">HHIB")
+
         periods = []
-        for _ in range(number_of_periods):
-            start_time, end_time, peak_value, week_value = (
-                decoder.decode_16bit_uint(),
-                decoder.decode_16bit_uint(),
-                decoder.decode_32bit_int(),
-                decoder.decode_8bit_uint(),
+        for idx in range(number_of_periods):
+            start_time, end_time, peak_value, week_value = decoder.unpack(
+                b[idx * decoder.size : (idx + 1) * decoder.size],
             )
 
             if start_time != end_time and week_value != 0:
@@ -784,25 +813,30 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
                     "Every day must be covered until 23:59",
                 )
 
-    def encode(self, data: list[PeakSettingPeriod], builder: BinaryPayloadBuilder):
+    def encode(self, data: list[PeakSettingPeriod]):
         """Encode PeakSettingPeriodRegisters."""
         if len(data) > PEAK_SETTING_PERIODS:
             data = data[:PEAK_SETTING_PERIODS]
 
-        builder.add_16bit_uint(len(data))
+        result = bytearray()
+        result.extend(struct.pack(">H", len(data)))
 
         for period in data:
-            builder.add_16bit_uint(period.start_time)
-            builder.add_16bit_uint(period.end_time)
-            builder.add_32bit_uint(period.power)
-            builder.add_8bit_uint(_days_effective_builder(period.days_effective))
+            result.extend(
+                struct.pack(
+                    ">HHIB",
+                    period.start_time,
+                    period.end_time,
+                    period.power,
+                    _days_effective_builder(period.days_effective),
+                ),
+            )
 
         # pad with empty periods
         for _ in range(len(data), PEAK_SETTING_PERIODS):
-            builder.add_16bit_uint(0)
-            builder.add_16bit_uint(0)
-            builder.add_32bit_uint(0)
-            builder.add_8bit_uint(0)
+            result.extend(struct.pack(">HHIB", 0, 0, 0, 0))
+
+        return bytearray_to_registers(result)
 
 
 REGISTERS: dict[str, RegisterDefinition] = {

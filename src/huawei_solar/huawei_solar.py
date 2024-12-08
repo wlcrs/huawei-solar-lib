@@ -14,10 +14,8 @@ from hashlib import sha256
 from typing import cast
 
 import backoff
-from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 from pymodbus.framer import FramerRTU
-from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse, ModbusPDU
 from pymodbus.pdu.register_message import (
     WriteMultipleRegistersResponse,
@@ -240,10 +238,10 @@ class AsyncHuaweiSolar:
     async def _decode_response(
         self,
         reg: RegisterDefinition,
-        decoder: BinaryPayloadDecoder,
+        registers: list[int],
     ):
         """Decode a modbus register and puts it into a Result object."""
-        result = reg.decode(decoder)
+        result = reg.decode(registers)
 
         if not hasattr(reg, "unit") or callable(reg.unit) or isinstance(reg.unit, dict):
             return Result(result, None)
@@ -297,21 +295,15 @@ class AsyncHuaweiSolar:
             slave,
         )
 
-        decoder = BinaryPayloadDecoder.fromRegisters(
-            response.registers,
-            byteorder=Endian.BIG,
-            wordorder=Endian.BIG,
-        )
+        start_register = registers[0].register
 
-        result = [await self._decode_response(registers[0], decoder)]
-        for idx in range(1, len(registers)):
-            skip_registers = registers[idx].register - (registers[idx - 1].register + registers[idx - 1].length)
-            decoder.skip_bytes(
-                skip_registers * 2,
-            )  # registers are 16-bit, so we need to multiply by two
-            result.append(await self._decode_response(registers[idx], decoder))
-
-        return result
+        return [
+            await self._decode_response(
+                reg,
+                response.registers[reg.register - start_register : reg.register - start_register + reg.length],
+            )
+            for reg in registers
+        ]
 
     async def _read_registers(  # noqa: C901
         self,
@@ -579,7 +571,7 @@ class AsyncHuaweiSolar:
                 StartUploadModbusRequest(
                     file_type,
                     customized_data,
-                    slave=slave or self.slave_id,
+                    dev_id=slave or self.slave_id,
                 ),
                 StartUploadModbusResponse,
             )
@@ -597,7 +589,7 @@ class AsyncHuaweiSolar:
                     UploadModbusRequest(
                         file_type,
                         next_frame_no,
-                        slave=slave or self.slave_id,
+                        dev_id=slave or self.slave_id,
                     ),
                     UploadModbusResponse,
                 )
@@ -607,7 +599,7 @@ class AsyncHuaweiSolar:
 
             # Complete the upload and check the CRC
             complete_upload_response = await _perform_request(
-                CompleteUploadModbusRequest(file_type, slave=slave or self.slave_id),
+                CompleteUploadModbusRequest(file_type, dev_id=slave or self.slave_id),
                 CompleteUploadModbusResponse,
             )
 
@@ -641,11 +633,9 @@ class AsyncHuaweiSolar:
         if not reg.writeable:
             raise WriteException("Register is not writable")
 
-        builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.BIG)
-        reg.encode(value, builder)
-        value = builder.to_registers()
+        registers = reg.encode(value)
 
-        if len(value) != reg.length:
+        if len(registers) != reg.length:
             raise WriteException("Wrong number of registers to write")
 
         def backoff_giveup(details):
@@ -669,7 +659,7 @@ class AsyncHuaweiSolar:
         async def _do_set():
             return await self._write_registers(
                 reg.register,
-                builder.to_registers(),
+                registers,
                 slave,
             )
 
@@ -677,7 +667,7 @@ class AsyncHuaweiSolar:
             LOGGER.debug(
                 "Writing to register %s value %s on slave %s",
                 name,
-                value,
+                registers,
                 slave or self.slave_id,
             )
             return await _do_set()
@@ -768,7 +758,7 @@ class AsyncHuaweiSolar:
             challenge_request = PrivateHuaweiModbusRequest(
                 36,
                 bytes([1, 0]),
-                slave=slave or self.slave_id,
+                dev_id=slave or self.slave_id,
             )
 
             challenge_response = cast(
@@ -801,7 +791,7 @@ class AsyncHuaweiSolar:
             login_request = PrivateHuaweiModbusRequest(
                 37,
                 login_bytes,
-                slave=slave or self.slave_id,
+                dev_id=slave or self.slave_id,
             )
             login_response = cast(
                 PrivateHuaweiModbusResponse,
