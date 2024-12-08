@@ -1,7 +1,7 @@
 import asyncio
 
 import pytest
-from pymodbus.register_read_message import ReadHoldingRegistersResponse
+from pymodbus.pdu.register_message import ReadHoldingRegistersResponse
 
 from huawei_solar.bridge import HuaweiSolarProductInfo, HuaweiSUN2000Bridge
 from huawei_solar.huawei_solar import AsyncHuaweiSolar
@@ -114,8 +114,8 @@ class MockModbusClient:
         self.connected_event = asyncio.Event()
         self.connected_event.set()
 
-    async def read_holding_registers(self, register, length, *args, **kwargs):
-        return ReadHoldingRegistersResponse(MOCK_REGISTERS[(register, length)])
+    async def read_holding_registers(self, register, count, *args, **kwargs):
+        return ReadHoldingRegistersResponse(registers=MOCK_REGISTERS[(register, count)])
 
 
 @pytest.fixture

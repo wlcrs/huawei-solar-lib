@@ -12,8 +12,8 @@ def test_simple():
         PeakSettingPeriod(
             start_time=0,
             end_time=1440,
-            power=2.5,
-            days_effective=[True, True, True, True, True, True, True],
+            power=2500,
+            days_effective=(True, True, True, True, True, True, True),
         ),
     ]
 
@@ -25,8 +25,8 @@ def test_invalid_start_time():
         PeakSettingPeriod(
             start_time=60 * 24 + 1,
             end_time=15,
-            power=2.5,
-            days_effective=[True, True, True, True, True, True, True],
+            power=2500,
+            days_effective=(True, True, True, True, True, True, True),
         ),
     ]
 
@@ -42,8 +42,8 @@ def test_invalid_end_time():
         PeakSettingPeriod(
             start_time=0,
             end_time=15,
-            power=2.5,
-            days_effective=[True, True, True, True, True, True, True],
+            power=2500,
+            days_effective=(True, True, True, True, True, True, True),
         ),
     ]
 
@@ -57,8 +57,8 @@ def test_invalid_end_time():
         PeakSettingPeriod(
             start_time=0,
             end_time=1441,
-            power=2.5,
-            days_effective=[True, True, True, True, True, True, True],
+            power=2500,
+            days_effective=(True, True, True, True, True, True, True),
         ),
     ]
 
@@ -74,8 +74,8 @@ def test_all_days_of_week_covered():
         PeakSettingPeriod(
             start_time=0,
             end_time=15,
-            power=2.5,
-            days_effective=[False, True, True, True, True, True, True],
+            power=2500,
+            days_effective=(False, True, True, True, True, True, True),
         ),
     ]
 
@@ -91,20 +91,20 @@ def test_multiple_periods_on_a_day():
         PeakSettingPeriod(
             start_time=0,
             end_time=1439,
-            power=2.5,
-            days_effective=[False, True, True, True, True, True, True],
+            power=2500,
+            days_effective=(False, True, True, True, True, True, True),
         ),
         PeakSettingPeriod(
             start_time=0,
             end_time=600,
-            power=2.5,
-            days_effective=[True, False, False, False, False, False, False],
+            power=2500,
+            days_effective=(True, False, False, False, False, False, False),
         ),
         PeakSettingPeriod(
             start_time=600,
             end_time=1439,
-            power=2.5,
-            days_effective=[True, False, False, False, False, False, False],
+            power=2500,
+            days_effective=(True, False, False, False, False, False, False),
         ),
     ]
 
@@ -114,20 +114,20 @@ def test_multiple_periods_on_a_day():
         PeakSettingPeriod(
             start_time=0,
             end_time=1439,
-            power=2.5,
-            days_effective=[False, True, True, True, True, True, True],
+            power=2500,
+            days_effective=(False, True, True, True, True, True, True),
         ),
         PeakSettingPeriod(
             start_time=0,
             end_time=600,
-            power=2.5,
-            days_effective=[True, False, False, False, False, False, False],
+            power=2500,
+            days_effective=(True, False, False, False, False, False, False),
         ),
         PeakSettingPeriod(
             start_time=601,
             end_time=1439,
-            power=2.5,
-            days_effective=[True, False, False, False, False, False, False],
+            power=2500,
+            days_effective=(True, False, False, False, False, False, False),
         ),
     ]
 
@@ -137,20 +137,20 @@ def test_multiple_periods_on_a_day():
         PeakSettingPeriod(
             start_time=0,
             end_time=1439,
-            power=2.5,
-            days_effective=[False, True, True, True, True, True, True],
+            power=2500,
+            days_effective=(False, True, True, True, True, True, True),
         ),
         PeakSettingPeriod(
             start_time=0,
             end_time=600,
-            power=2.5,
-            days_effective=[True, False, False, False, False, False, False],
+            power=2500,
+            days_effective=(True, False, False, False, False, False, False),
         ),
         PeakSettingPeriod(
             start_time=602,
             end_time=1439,
-            power=2.5,
-            days_effective=[True, False, False, False, False, False, False],
+            power=2500,
+            days_effective=(True, False, False, False, False, False, False),
         ),
     ]
 

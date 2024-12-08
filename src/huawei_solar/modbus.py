@@ -8,7 +8,7 @@ import struct
 from typing import TYPE_CHECKING, TypedDict
 
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
-from pymodbus.pdu import ExceptionResponse, ModbusRequest, ModbusResponse
+from pymodbus.pdu import ExceptionResponse, ModbusPDU
 
 RECONNECT_DELAY = 1000  # in milliseconds
 WAIT_ON_CONNECT = 1500  # in milliseconds
@@ -78,18 +78,18 @@ class AsyncHuaweiSolarModbusTcpClient(ModbusConnectionMixin, AsyncModbusTcpClien
         super().__init__(host, port, timeout=timeout, reconnect_delay=RECONNECT_DELAY)
 
 
-class PrivateHuaweiModbusResponse(ModbusResponse):
+class PrivateHuaweiModbusResponse(ModbusPDU):
     """Response with the private Huawei Solar function code."""
 
     function_code = 0x41
-    _rtu_byte_count_pos = 3
+    rtu_byte_count_pos = 3
 
     sub_command: int | None = None
     content: bytes = b""
 
     def __init__(self, **kwargs):
         """Create PrivateHuaweiModbusResponse."""
-        ModbusResponse.__init__(self, **kwargs)
+        ModbusPDU.__init__(self, **kwargs)
 
     def decode(self, data) -> None:
         """Decode PrivateHuaweiModbusResponse into subcommand and data."""
@@ -101,15 +101,15 @@ class PrivateHuaweiModbusResponse(ModbusResponse):
         return f"{self.__class__.__name__}({self.sub_command})"
 
 
-class PrivateHuaweiModbusRequest(ModbusRequest):
+class PrivateHuaweiModbusRequest(ModbusPDU):
     """Request with the private Huawei Solar function code."""
 
     function_code = 0x41
-    _rtu_byte_count_pos = 3
+    rtu_byte_count_pos = 3
 
     def __init__(self, sub_command, content: bytes, **kwargs):
         """Create PrivateHuaweiModbusRequest."""
-        ModbusRequest.__init__(self, **kwargs)
+        ModbusPDU.__init__(self, **kwargs)
         self.sub_command = sub_command
         self.content = content
 
@@ -127,7 +127,7 @@ class PrivateHuaweiModbusRequest(ModbusRequest):
         return f"{self.__class__.__name__}({self.sub_command})"
 
 
-class StartUploadModbusRequest(ModbusRequest):
+class StartUploadModbusRequest(ModbusPDU):
     """Modbus file upload request."""
 
     function_code = 0x41
@@ -135,7 +135,7 @@ class StartUploadModbusRequest(ModbusRequest):
 
     def __init__(self, file_type, customized_data: bytes | None = None, **kwargs):
         """Create StartUploadModbusRequest."""
-        ModbusRequest.__init__(self, **kwargs)
+        ModbusPDU.__init__(self, **kwargs)
         self.file_type = file_type
 
         if customized_data is None:
@@ -157,7 +157,7 @@ class StartUploadModbusRequest(ModbusRequest):
         assert len(self.customised_data) == data_length - 1
 
 
-class StartUploadModbusResponse(ModbusResponse):
+class StartUploadModbusResponse(ModbusPDU):
     """Modbus Response to a file upload request."""
 
     function_code = 0x41
@@ -165,7 +165,7 @@ class StartUploadModbusResponse(ModbusResponse):
 
     def __init__(self, data):
         """Create StartUploadModbusResponse."""
-        ModbusResponse.__init__(self)
+        ModbusPDU.__init__(self)
 
         (
             data_length,
@@ -178,7 +178,7 @@ class StartUploadModbusResponse(ModbusResponse):
         assert len(self.customised_data) == data_length - 6
 
 
-class UploadModbusRequest(ModbusRequest):
+class UploadModbusRequest(ModbusPDU):
     """Modbus Request for (a part of) a file."""
 
     function_code = 0x41
@@ -186,7 +186,7 @@ class UploadModbusRequest(ModbusRequest):
 
     def __init__(self, file_type, frame_no, **kwargs):
         """Create UploadModbusRequest."""
-        ModbusRequest.__init__(self, **kwargs)
+        ModbusPDU.__init__(self, **kwargs)
         self.file_type = file_type
         self.frame_no = frame_no
 
@@ -212,7 +212,7 @@ class UploadModbusRequest(ModbusRequest):
         assert data_length == 3  # noqa: PLR2004
 
 
-class UploadModbusResponse(ModbusResponse):
+class UploadModbusResponse(ModbusPDU):
     """Modbus Response with (a part of) a file."""
 
     function_code = 0x41
@@ -220,7 +220,7 @@ class UploadModbusResponse(ModbusResponse):
 
     def __init__(self, data):
         """Create UploadModbusResponse."""
-        ModbusResponse.__init__(self)
+        ModbusPDU.__init__(self)
 
         (
             data_length,
@@ -232,7 +232,7 @@ class UploadModbusResponse(ModbusResponse):
         assert len(self.frame_data) == data_length - 3
 
 
-class CompleteUploadModbusRequest(ModbusRequest):
+class CompleteUploadModbusRequest(ModbusPDU):
     """Modbus Request to complete a file upload."""
 
     function_code = 0x41
@@ -240,7 +240,7 @@ class CompleteUploadModbusRequest(ModbusRequest):
 
     def __init__(self, file_type, **kwargs):
         """Create CompleteUploadModbusRequest."""
-        ModbusRequest.__init__(self, **kwargs)
+        ModbusPDU.__init__(self, **kwargs)
         self.file_type = file_type
 
     def encode(self):
@@ -255,7 +255,7 @@ class CompleteUploadModbusRequest(ModbusRequest):
         assert sub_function_code == self.sub_function_code
 
 
-class CompleteUploadModbusResponse(ModbusResponse):
+class CompleteUploadModbusResponse(ModbusPDU):
     """Modbus Response when a file upload has been completed."""
 
     function_code = 0x41
@@ -263,7 +263,7 @@ class CompleteUploadModbusResponse(ModbusResponse):
 
     def __init__(self, data):
         """Create CompleteUploadModbusResponse."""
-        ModbusResponse.__init__(self)
+        ModbusPDU.__init__(self)
         (
             data_length,
             self.file_type,
@@ -290,7 +290,7 @@ DEVICE_INFO: DeviceIdentifiersRequestType = {
 }
 
 
-class ReadDeviceIdentifierRequest(ModbusRequest):
+class ReadDeviceIdentifierRequest(ModbusPDU):
     """Modbus Request to read a device identifier."""
 
     function_code = 0x2B
@@ -299,7 +299,7 @@ class ReadDeviceIdentifierRequest(ModbusRequest):
 
     def __init__(self, read_dev_id_code, object_id, **kwargs) -> None:
         """Create ReadDeviceIdentifierRequest."""
-        ModbusRequest.__init__(self, **kwargs)
+        ModbusPDU.__init__(self, **kwargs)
         self.read_dev_id_code = read_dev_id_code
         self.object_id = object_id
 
@@ -314,7 +314,7 @@ class ReadDeviceIdentifierRequest(ModbusRequest):
         assert MEI_type == self.MEI_type
 
 
-class ReadDeviceIdentifierResponse(ModbusResponse):
+class ReadDeviceIdentifierResponse(ModbusPDU):
     """Modbus Response when a file upload has been completed."""
 
     function_code = 0x2B

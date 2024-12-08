@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from pymodbus.register_read_message import ReadHoldingRegistersResponse
+from pymodbus.pdu.register_message import ReadHoldingRegistersResponse
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
@@ -23,7 +23,7 @@ async def test_get_invalid_model_name(huawei_solar):
             huawei_solar,
             "_read_registers",
             return_value=ReadHoldingRegistersResponse(
-                [
+                registers=[
                     21333,
                     20018,
                     12336,
@@ -134,7 +134,7 @@ async def test_get_state_1_extra_bits_set(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b0111_1100_0000_0000]),
+        return_value=ReadHoldingRegistersResponse(registers=[0b0111_1100_0000_0000]),
     ):
         result = await huawei_solar.get(rn.STATE_1)
         assert result.value == []
@@ -153,7 +153,7 @@ async def test_get_state_2_extra_bits_set(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b0111_1111_1111_1000]),
+        return_value=ReadHoldingRegistersResponse(registers=[0b0111_1111_1111_1000]),
     ):
         result = await huawei_solar.get(rn.STATE_2)
 
@@ -173,7 +173,7 @@ async def test_get_state_3_extra_bits_set(huawei_solar):
         huawei_solar,
         "_read_registers",
         return_value=ReadHoldingRegistersResponse(
-            [0b0111_1111_1111_1111, 0b0111_1111_1111_1111],
+            registers=[0b0111_1111_1111_1111, 0b0111_1111_1111_1111],
         ),
     ):
         result = await huawei_solar.get(rn.STATE_3)
@@ -197,7 +197,7 @@ async def test_get_alarm_1_none(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0]),
+        return_value=ReadHoldingRegistersResponse(registers=[0]),
     ):
         result = await huawei_solar.get(rn.ALARM_1)
         assert result.value == []
@@ -209,7 +209,7 @@ async def test_get_alarm_1_all(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b1111_1111_1111_1111]),
+        return_value=ReadHoldingRegistersResponse(registers=[0b1111_1111_1111_1111]),
     ):
         result = await huawei_solar.get(rn.ALARM_1)
         expected_result = list(rv.ALARM_CODES_1.values())
@@ -233,7 +233,7 @@ async def test_get_alarm_2_none(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0]),
+        return_value=ReadHoldingRegistersResponse(registers=[0]),
     ):
         result = await huawei_solar.get(rn.ALARM_2)
         expected_result = []
@@ -246,7 +246,7 @@ async def test_get_alarm_2_all(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b1111_1111_1111_1111]),
+        return_value=ReadHoldingRegistersResponse(registers=[0b1111_1111_1111_1111]),
     ):
         result = await huawei_solar.get(rn.ALARM_2)
         expected_result = list(rv.ALARM_CODES_2.values())
@@ -267,7 +267,7 @@ async def test_get_alarm_3_almost_all(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b0111_1111_1111_1111]),
+        return_value=ReadHoldingRegistersResponse(registers=[0b0111_1111_1111_1111]),
     ):
         result = await huawei_solar.get(rn.ALARM_3)
         expected_result = list(rv.ALARM_CODES_3.values())[:-1]
@@ -280,7 +280,7 @@ async def test_get_alarm_3_3rd_octet_bits_set(huawei_solar):
     with patch.object(
         huawei_solar,
         "_read_registers",
-        return_value=ReadHoldingRegistersResponse([0b0000_1110_0000_0000]),
+        return_value=ReadHoldingRegistersResponse(registers=[0b0000_1110_0000_0000]),
     ):
         result = await huawei_solar.get(rn.ALARM_3)
         expected_result = list(rv.ALARM_CODES_3.values())[9:12]
@@ -504,7 +504,7 @@ async def test_get_device_status_invalid(huawei_solar):
         patch.object(
             huawei_solar,
             "_read_registers",
-            return_value=ReadHoldingRegistersResponse([0b0000_0010_1111_1111]),
+            return_value=ReadHoldingRegistersResponse(registers=[0b0000_0010_1111_1111]),
         ),
         pytest.raises(DecodeError),
     ):

@@ -25,7 +25,7 @@ dynamic = ["version"]
 requires-python = ">= 3.11"
 
 dependencies = [
-    "pymodbus>=3.6.9,<3.7",
+    "pymodbus>=3.8.0,<3.9",
     "pyserial-asyncio>=0.6",
     "typing-extensions>=4.12.2",
     "backoff",
