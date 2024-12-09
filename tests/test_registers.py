@@ -1,6 +1,3 @@
-from pymodbus.constants import Endian
-from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
-
 import huawei_solar.register_names as rn
 from huawei_solar.registers import REGISTERS, PeakSettingPeriod
 
@@ -24,17 +21,8 @@ def test_capacity_control_register():
 
     pspr = REGISTERS[rn.STORAGE_CAPACITY_CONTROL_PERIODS]
 
-    builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.BIG)
-    pspr.encode(value, builder)
+    payload = pspr.encode(value)
 
-    payload = builder.to_registers()
-
-    decoder = BinaryPayloadDecoder.fromRegisters(
-        payload,
-        byteorder=Endian.BIG,
-        wordorder=Endian.BIG,
-    )
-
-    decoded_result = pspr.decode(decoder)
+    decoded_result = pspr.decode(payload)
 
     assert decoded_result == value

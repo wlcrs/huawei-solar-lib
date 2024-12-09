@@ -77,6 +77,22 @@ class StringRegister(RegisterDefinition[str]):
 
     datatype = ModbusClientMixin.DATATYPE.STRING
 
+    def decode(self, registers: list[int]) -> str:
+        """Decode string."""
+        b = registers_to_bytearray(registers)
+
+        # remove trailing null bytes
+        trailing_nulls_begin = len(b)
+        while trailing_nulls_begin > 0 and b[trailing_nulls_begin - 1] == 0:
+            trailing_nulls_begin -= 1
+
+        b = b[:trailing_nulls_begin]
+
+        try:
+            return b.decode("utf-8")
+        except UnicodeDecodeError as err:
+            raise DecodeError from err
+
 
 class NumberRegister(RegisterDefinition[T], Generic[T]):
     """Base class for number registers."""

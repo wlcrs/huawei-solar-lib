@@ -18,6 +18,8 @@ async def test_get_model_name(huawei_solar):
 
 @pytest.mark.asyncio
 async def test_get_invalid_model_name(huawei_solar):
+    # invalid utf-8 sequence from here:
+    # https://stackoverflow.com/questions/1301402/example-invalid-utf8-string
     with (
         patch.object(
             huawei_solar,
@@ -45,8 +47,6 @@ async def test_get_invalid_model_name(huawei_solar):
         pytest.raises(DecodeError),
     ):
         await huawei_solar.get("model_name")
-        # invalid utf-8 sequence from here:
-        # https://stackoverflow.com/questions/1301402/example-invalid-utf8-string
 
 
 @pytest.mark.asyncio
