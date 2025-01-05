@@ -38,6 +38,7 @@ from .huawei_solar import (
     AsyncHuaweiSolar,
     Result,
 )
+from .register_values import StorageProductModel
 from .registers import METER_REGISTERS, REGISTERS, TimestampRegister
 
 _LOGGER = logging.getLogger(__name__)
@@ -447,8 +448,8 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
             ).value
 
         if (
-            self.battery_1_type is not None
-            and self.battery_2_type is not None
+            self.battery_1_type is not StorageProductModel.NONE
+            and self.battery_2_type is not StorageProductModel.NONE
             and self.battery_1_type != self.battery_2_type
         ):
             _LOGGER.warning(
