@@ -142,8 +142,8 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
                 raise DecodeError from err
 
         if self.gain != 1:
-            result /= self.gain
-        return result  # ignore: return-value
+            result /= self.gain  # type: ignore
+        return result  # type: ignore
 
     def encode(self, data: T):
         """Encode number register."""

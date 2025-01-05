@@ -235,6 +235,7 @@ class HuaweiSolarBridge(ABC):
                     values = await self._get_multiple_to_dict(register_names_to_query)
                 except HuaweiSolarException as exc:
                     self._handle_batch_read_error(register_names_to_query, exc)
+                    values = {}
 
                 self._detect_state_changes(values)
                 result.update(values)
