@@ -467,7 +467,9 @@ class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod
                 electricity_price / 1000,
             )
 
-        return [_decode_lg_resu_tou_period(registers[idx * 4 : (idx + 1) * 4]) for idx in range(number_of_periods)]
+        return [
+            _decode_lg_resu_tou_period(registers[1 + idx * 4 : 1 + ((idx + 1) * 4)]) for idx in range(number_of_periods)
+        ]
 
     def _validate(
         self,
@@ -583,7 +585,7 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
             )
 
         periods = [
-            _decode_huawei_luna2000_tou_period(registers[idx * 3 : (idx + 1) * 3])
+            _decode_huawei_luna2000_tou_period(registers[1 + idx * 3 : 1 + ((idx + 1) * 3)])
             for idx in range(HUAWEI_LUNA2000_TOU_PERIODS)
         ]
 
@@ -697,7 +699,8 @@ class ChargeDischargePeriodRegisters(RegisterDefinition[list[ChargeDischargePeri
             return ChargeDischargePeriod(start_time, end_time, power)
 
         periods = [
-            _decode_charge_discharge_period(registers[idx * 3 : (idx + 1) * 3]) for idx in range(number_of_periods)
+            _decode_charge_discharge_period(registers[1 + idx * 3 : 1 + ((idx + 1) * 3)])
+            for idx in range(number_of_periods)
         ]
 
         return periods[:number_of_periods]
