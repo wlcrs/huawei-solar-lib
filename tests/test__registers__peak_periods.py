@@ -110,6 +110,9 @@ def test_multiple_periods_on_a_day():
 
     assert ppr._validate(pp) is None
 
+    encoded = ppr.encode(pp)
+    assert ppr.decode(encoded) == pp
+
     pp2 = [
         PeakSettingPeriod(
             start_time=0,

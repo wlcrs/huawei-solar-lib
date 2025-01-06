@@ -135,11 +135,59 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__OK():
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=121,
             end_time=150,
-            charge_flag=ChargeFlag.DISCHARGE,
-            days_effective=(True, True, True, True, True, True, True),
+            charge_flag=ChargeFlag.CHARGE,
+            days_effective=(False, True, True, True, True, True, True),
         ),
     ]
     huawei_ppr._validate(tou)
+
+    encoded = huawei_ppr.encode(tou)
+    assert len(encoded) == 43
+    assert encoded == [
+        2,
+        15,
+        120,
+        383,
+        121,
+        150,
+        126,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
 
 
 def test__validate__tou_periods__HUAWEI_LUNA2000__OK_2():
@@ -158,6 +206,57 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__OK_2():
         ),
     ]
     huawei_ppr._validate(tou)
+    encoded = huawei_ppr.encode(tou)
+
+    assert encoded == [
+        2,
+        15,
+        120,
+        383,
+        0,
+        14,
+        383,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
+
+    decoded = huawei_ppr.decode(encoded)
+
+    assert decoded == tou
 
 
 def test__validate__tou_periods__HUAWEI_LUNA2000__OK__different_days():
@@ -177,6 +276,56 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__OK__different_days():
     ]
 
     huawei_ppr._validate(tou)
+    encoded = huawei_ppr.encode(tou)
+
+    assert encoded == [
+        2,
+        0,
+        120,
+        344,
+        0,
+        120,
+        293,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
+
+    decoded = huawei_ppr.decode(encoded)
+    assert decoded == tou
 
 
 def test__validate__tou_periodsG__RESU___OK():
@@ -185,6 +334,57 @@ def test__validate__tou_periodsG__RESU___OK():
         LG_RESU_TimeOfUsePeriod(start_time=16, end_time=20, electricity_price=1),
     ]
     lg_ppr._validate(tou)
+    encoded = lg_ppr.encode(tou)
+
+    assert len(encoded) == 43
+    assert encoded == [
+        2,
+        5,
+        15,
+        0,
+        1000,
+        16,
+        20,
+        0,
+        1000,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
+
+    decoded = lg_ppr.decode(encoded)
+    assert decoded == tou
 
 
 def test__validate__tou_periodsG__RESU___overlaping():
@@ -213,3 +413,7 @@ def test__validate__tou_periods__unknown_type():
 
 def test__validate__data_type__none():
     huawei_ppr._validate([])
+
+    encoded = huawei_ppr.encode([])
+
+    assert encoded == [0] * 43

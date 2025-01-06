@@ -512,28 +512,20 @@ class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod
 
         assert len(data) <= LG_RESU_TOU_PERIODS
 
-        registers = []
-        registers.extend(ModbusClientMixin.convert_to_registers(len(data), ModbusClientMixin.DATATYPE.UINT16))
+        b = bytearray(43 * 2)
+        struct.pack_into(">H", b, 0, len(data))
 
-        for period in data:
-            registers.extend(
-                ModbusClientMixin.convert_to_registers(
-                    period.start_time,
-                    ModbusClientMixin.DATATYPE.UINT16,
-                ),
-            )
-            registers.extend(ModbusClientMixin.convert_to_registers(period.end_time, ModbusClientMixin.DATATYPE.UINT16))
-            registers.extend(
-                ModbusClientMixin.convert_to_registers(
-                    int(period.electricity_price * 1000),
-                    ModbusClientMixin.DATATYPE.UINT32,
-                ),
+        for idx, period in enumerate(data):
+            struct.pack_into(
+                ">HHI",
+                b,
+                2 * (1 + idx * 4),
+                period.start_time,
+                period.end_time,
+                int(period.electricity_price * 1000),
             )
 
-        # pad with empty periods
-        registers.extend([0, 0, 0, 0] * (LG_RESU_TOU_PERIODS - len(data)))
-
-        return registers
+        return bytearray_to_registers(b)
 
 
 HUAWEI_LUNA2000_TOU_PERIODS = 14
@@ -640,8 +632,8 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
 
         assert len(data) <= HUAWEI_LUNA2000_TOU_PERIODS
 
-        b = bytearray()
-        b.extend(struct.pack(">H", len(data)))
+        b = bytearray(43 * 2)
+        struct.pack_into(">H", b, 0, len(data))
 
         def _days_effective_builder(days_tuple):
             result = 0
@@ -653,19 +645,16 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
 
             return result
 
-        for period in data:
-            b.extend(
-                struct.pack(
-                    ">HHBB",
-                    period.start_time,
-                    period.end_time,
-                    int(period.charge_flag),
-                    _days_effective_builder(period.days_effective),
-                ),
+        for idx, period in enumerate(data):
+            struct.pack_into(
+                ">HHBB",
+                b,
+                2 * (1 + idx * 3),
+                period.start_time,
+                period.end_time,
+                int(period.charge_flag),
+                _days_effective_builder(period.days_effective),
             )
-
-        # pad with empty periods
-        b.extend(bytearray(3 * (HUAWEI_LUNA2000_TOU_PERIODS - len(data))))
 
         return bytearray_to_registers(b)
 
