@@ -423,6 +423,7 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
                 "SUN2000",
                 "EDF ESS",
                 "Powershifter",
+                "SWI300"
             ),
         )
 
