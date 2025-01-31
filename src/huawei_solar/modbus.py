@@ -54,7 +54,7 @@ class AsyncHuaweiSolarModbusSerialClient(
 
     def __init__(self, port, baudrate, timeout: int, **serial_kwargs):
         """Create AsyncHuaweiSolarModbusSerialClient."""
-        super().__init__(self, port=port, baudrate=baudrate, timeout=timeout, **serial_kwargs)
+        super().__init__(self, port, baudrate=baudrate, timeout=timeout, **serial_kwargs)
 
 
 class AsyncHuaweiSolarModbusTcpClient(ModbusConnectionMixin, AsyncModbusTcpClient):
