@@ -23,7 +23,6 @@ from .exceptions import (
     InvalidCredentials,
     PermissionDenied,
     ReadException,
-    UnsupportedDeviceException,
 )
 from .files import (
     OptimizerRealTimeData,
@@ -419,7 +418,13 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
     @override
     def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
         """Check if this class support the given device."""
-        return product_info.model_name.startswith("SUN2000") or product_info.model_name.startswith("EDF ESS")
+        return product_info.model_name.startswith(
+            (
+                "SUN2000",
+                "EDF ESS",
+                "Powershifter",
+            ),
+        )
 
     @override
     async def _populate_additional_fields(self):
@@ -687,4 +692,10 @@ async def _create(
                 update_lock,
             )
 
-    raise UnsupportedDeviceException(f"Unsupported product model '{product_info.model_name}'")
+    _LOGGER.warning("Unknown product model '%s'. Defaulting to a SUN2000 device.", product_info.model_name)
+    return await HuaweiSUN2000Bridge.create(
+        client,
+        slave_id,
+        product_info,
+        update_lock,
+    )
