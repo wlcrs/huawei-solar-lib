@@ -419,7 +419,7 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
     @override
     def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
         """Check if this class support the given device."""
-        return product_info.model_name.startswith("SUN2000")
+        return product_info.model_name.startswith("SUN2000") or product_info.model_name.startswith("EDF ESS")
 
     @override
     async def _populate_additional_fields(self):
