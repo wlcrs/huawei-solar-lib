@@ -1606,6 +1606,12 @@ EMMA_REGISTERS = {
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
+    rn.EMMA_SYSTEM_TIME: U32Register(
+        "seconds",
+        1,
+        40470,
+        target_device=TargetDevice.EMMA,
+    ),
     rn.LOCAL_TIME_YEAR: U16Register(
         None,
         1,

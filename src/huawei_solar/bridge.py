@@ -108,11 +108,13 @@ class HuaweiSolarBridge(ABC):
         slave_id: int,
         product_info: HuaweiSolarProductInfo,
         update_lock: asyncio.Lock | None = None,
+        connected_via_emma: bool = False,
     ) -> None:
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use create() method instead."""
         self.client = client
         self.slave_id = slave_id
         self.update_lock = update_lock or asyncio.Lock()
+        self.connected_via_emma = connected_via_emma
 
         self.model_name = product_info.model_name
         self.serial_number = product_info.serial_number
@@ -129,9 +131,16 @@ class HuaweiSolarBridge(ABC):
         slave_id: int,
         product_info: HuaweiSolarProductInfo,
         update_lock: asyncio.Lock | None,
+        connected_via_emma: bool = False,
     ):
         """Create instance with the necessary information."""
-        bridge = cls(client, slave_id, product_info, update_lock)
+        bridge = cls(
+            client,
+            slave_id,
+            product_info,
+            update_lock,
+            connected_via_emma=connected_via_emma,
+        )
 
         await bridge._populate_additional_fields()
 
@@ -570,12 +579,24 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
 
         return result
 
+    async def _get_system_time(self) -> int | None:
+        """Get the system time from the inverter."""
+        if self.connected_via_emma:
+            # Inverters don't return their own system time when connected via EMMA.
+            # Instead, we need to read the system time from the EMMA device.
+
+            return (await self.client.get(rn.EMMA_SYSTEM_TIME, self.client.slave_id)).value
+
+        return (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
+
     async def get_latest_optimizer_history_data(
         self,
     ) -> dict[int, OptimizerRealTimeData]:
         """Read the latest Optimizer History Data File from the inverter."""
         # emulates behavior from FusionSolar app when current status of optimizers is queried
-        end_time = (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
+        end_time = await self._get_system_time()
+        if end_time is None:
+            raise ReadException("Could not retrieve system time. Cannot proceed with reading optimizer data.")
         start_time = end_time - 600
 
         file_data = await self._read_file(
@@ -674,13 +695,19 @@ async def create_sub_bridge(
 ) -> HuaweiSolarBridge:
     """Create a HuaweiSolarBridge instance for extra slaves accessible as subdevices via an existing Bridge."""
     assert primary_bridge.slave_id != slave_id
-    return await _create(primary_bridge.client, slave_id, primary_bridge.update_lock)
+    return await _create(
+        primary_bridge.client,
+        slave_id,
+        primary_bridge.update_lock,
+        isinstance(primary_bridge, HuaweiEMMABridge),
+    )
 
 
 async def _create(
     client: AsyncHuaweiSolar,
     slave_id: int,
     update_lock: asyncio.Lock | None = None,
+    connected_via_emma: bool = False,
 ) -> HuaweiSolarBridge:
     product_info = await HuaweiSolarProductInfo.retrieve_from_device(client, slave_id)
 
@@ -691,6 +718,7 @@ async def _create(
                 slave_id,
                 product_info,
                 update_lock,
+                connected_via_emma=connected_via_emma,
             )
 
     _LOGGER.warning("Unknown product model '%s'. Defaulting to a SUN2000 device.", product_info.model_name)

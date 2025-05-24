@@ -502,6 +502,7 @@ EMMA_MAXIMUM_FEED_GRID_POWER_PERCENT = "emma_maximum_feed_grid_power_percent"
 EMMA_3PHASE_IMBALANCE_CONTROL = "emma_3phase_imbalance_control"
 EMMA_POWER_SUPPLY_CONFIGURATION = "emma_power_supply_configuration"
 EMMA_CONSIDER_MAINS_FAULTY_IF = "emma_consider_mains_faulty_if"
+EMMA_SYSTEM_TIME = "emma_system_time"
 LOCAL_TIME_YEAR = "local_time_year"
 
 DAYLIGHT_SAVING_TIME = "daylight_saving_time"
