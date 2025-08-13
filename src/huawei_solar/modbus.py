@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import struct
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient, ModbusBaseClient
 from pymodbus.pdu import ExceptionResponse, ModbusPDU
@@ -23,17 +23,17 @@ class ModbusConnectionMixin(_Base):
 
     connected_event = asyncio.Event()
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
         """Add support for the custom Huawei modbus messages."""
         super().__init__(*args, **kwargs, trace_connect=self._trace_connect)  # forward all unused arguments
         super().register(PrivateHuaweiModbusResponse)
         super().register(ReadDeviceIdentifierResponse)
         super().register(AbnormalDeviceDescriptionResponse)
 
-    def _trace_connect(self, connected: bool):
+    def _trace_connect(self, connected: bool) -> None:  # noqa: FBT001
         if connected:
 
-            async def _made_connection_task():
+            async def _made_connection_task() -> None:
                 LOGGER.debug(
                     "Waiting for %d milliseconds after connection before performing operations",
                     WAIT_ON_CONNECT,
@@ -41,7 +41,7 @@ class ModbusConnectionMixin(_Base):
                 await asyncio.sleep(WAIT_ON_CONNECT / 1000)
                 self.connected_event.set()
 
-            asyncio.create_task(_made_connection_task())
+            self._connection_made_task = asyncio.create_task(_made_connection_task())
         else:
             self.connected_event.clear()
 
@@ -52,7 +52,7 @@ class AsyncHuaweiSolarModbusSerialClient(
 ):
     """Custom SerialClient with support for custom Huawei modbus messages."""
 
-    def __init__(self, port, baudrate, timeout: int, **serial_kwargs):
+    def __init__(self, port: str, baudrate: int, timeout: int, **serial_kwargs: Any) -> None:  # noqa: ANN401
         """Create AsyncHuaweiSolarModbusSerialClient."""
         super().__init__(port, baudrate=baudrate, timeout=timeout, **serial_kwargs)
 
@@ -60,7 +60,7 @@ class AsyncHuaweiSolarModbusSerialClient(
 class AsyncHuaweiSolarModbusTcpClient(ModbusConnectionMixin, AsyncModbusTcpClient):
     """Custom TcpClient that supports wait after connect and custom Huawei modbus messages."""
 
-    def __init__(self, host, port, timeout):
+    def __init__(self, host: str, port: int, timeout: int) -> None:
         """Create AsyncHuaweiSolarModbusTcpClient."""
         super().__init__(host, port=port, timeout=timeout, reconnect_delay=RECONNECT_DELAY)
 
@@ -74,16 +74,16 @@ class PrivateHuaweiModbusResponse(ModbusPDU):
     sub_command: int | None = None
     content: bytes = b""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
         """Create PrivateHuaweiModbusResponse."""
         ModbusPDU.__init__(self, **kwargs)
 
-    def decode(self, data) -> None:
+    def decode(self, data: bytes) -> None:
         """Decode PrivateHuaweiModbusResponse into subcommand and data."""
         self.sub_command = int(data[0])
         self.content = data[1:]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return string representation including subcommand."""
         return f"{self.__class__.__name__}({self.sub_command})"
 
@@ -94,22 +94,22 @@ class PrivateHuaweiModbusRequest(ModbusPDU):
     function_code = 0x41
     rtu_byte_count_pos = 3
 
-    def __init__(self, sub_command, content: bytes, **kwargs):
+    def __init__(self, sub_command: int, content: bytes, **kwargs: Any) -> None:  # noqa: ANN401
         """Create PrivateHuaweiModbusRequest."""
         ModbusPDU.__init__(self, **kwargs)
         self.sub_command = sub_command
         self.content = content
 
-    def encode(self):
+    def encode(self) -> bytes:
         """Encode PrivateHuaweiModbusRequest to bytes."""
         return bytes([self.sub_command, *self.content])
 
-    def decode(self, data) -> None:
+    def decode(self, data: bytes) -> None:
         """Decode PrivateHuaweiModbusRequest into subcommand and data."""
         self.sub_command = int(data[0])
         self.content = data[1:]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return string representation including subcommand."""
         return f"{self.__class__.__name__}({self.sub_command})"
 
@@ -120,7 +120,7 @@ class StartUploadModbusRequest(ModbusPDU):
     function_code = 0x41
     sub_function_code = 0x05
 
-    def __init__(self, file_type, customized_data: bytes | None = None, **kwargs):
+    def __init__(self, file_type: int, customized_data: bytes | None = None, **kwargs: Any) -> None:  # noqa: ANN401
         """Create StartUploadModbusRequest."""
         ModbusPDU.__init__(self, **kwargs)
         self.file_type = file_type
@@ -130,12 +130,12 @@ class StartUploadModbusRequest(ModbusPDU):
         else:
             self.customised_data = customized_data
 
-    def encode(self):
+    def encode(self) -> bytes:
         """Encode request."""
         data_length = 1 + len(self.customised_data)
         return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type) + self.customised_data
 
-    def decode(self, data):
+    def decode(self, data: bytes) -> None:
         """Decode request."""
         sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
         self.customised_data = data[3:]
@@ -150,7 +150,7 @@ class StartUploadModbusResponse(ModbusPDU):
     function_code = 0x41
     sub_function_code = 0x05
 
-    def __init__(self, data):
+    def __init__(self, data: bytes) -> None:
         """Create StartUploadModbusResponse."""
         ModbusPDU.__init__(self)
 
@@ -171,13 +171,13 @@ class UploadModbusRequest(ModbusPDU):
     function_code = 0x41
     sub_function_code = 0x06
 
-    def __init__(self, file_type, frame_no, **kwargs):
+    def __init__(self, file_type: int, frame_no: int, **kwargs: Any) -> None:  # noqa: ANN401
         """Create UploadModbusRequest."""
         ModbusPDU.__init__(self, **kwargs)
         self.file_type = file_type
         self.frame_no = frame_no
 
-    def encode(self):
+    def encode(self) -> bytes:
         """Encode UploadModbusRequest."""
         data_length = 3
         return struct.pack(
@@ -188,7 +188,7 @@ class UploadModbusRequest(ModbusPDU):
             self.frame_no,
         )
 
-    def decode(self, data):
+    def decode(self, data: bytes) -> None:
         """Decode UploadModbusRequest."""
         sub_function_code, data_length, self.file_type, self.frame_no = struct.unpack(
             ">BBBH",
@@ -205,7 +205,7 @@ class UploadModbusResponse(ModbusPDU):
     function_code = 0x41
     sub_function_code = 0x06
 
-    def __init__(self, data):
+    def __init__(self, data: bytes) -> None:
         """Create UploadModbusResponse."""
         ModbusPDU.__init__(self)
 
@@ -225,17 +225,17 @@ class CompleteUploadModbusRequest(ModbusPDU):
     function_code = 0x41
     sub_function_code = 0x0C
 
-    def __init__(self, file_type, **kwargs):
+    def __init__(self, file_type: int, **kwargs: Any) -> None:  # noqa: ANN401
         """Create CompleteUploadModbusRequest."""
         ModbusPDU.__init__(self, **kwargs)
         self.file_type = file_type
 
-    def encode(self):
+    def encode(self) -> bytes:
         """Encode CompleteUploadModbusRequest."""
         data_length = 1
         return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type)
 
-    def decode(self, data):
+    def decode(self, data: bytes) -> None:
         """Decode CompleteUploadModbusRequest."""
         sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
 
@@ -248,7 +248,7 @@ class CompleteUploadModbusResponse(ModbusPDU):
     function_code = 0x41
     sub_function_code = 0x0C
 
-    def __init__(self, data):
+    def __init__(self, data: bytes) -> None:
         """Create CompleteUploadModbusResponse."""
         ModbusPDU.__init__(self)
         (
@@ -284,19 +284,19 @@ class ReadDeviceIdentifierRequest(ModbusPDU):
 
     MEI_type = 0x0E
 
-    def __init__(self, read_dev_id_code, object_id, **kwargs) -> None:
+    def __init__(self, read_dev_id_code: int, object_id: int, **kwargs: Any) -> None:  # noqa: ANN401
         """Create ReadDeviceIdentifierRequest."""
         ModbusPDU.__init__(self, **kwargs)
         self.read_dev_id_code = read_dev_id_code
         self.object_id = object_id
 
-    def encode(self):
+    def encode(self) -> bytes:
         """Encode CompleteUploadModbusRequest."""
         return struct.pack(">BBB", self.MEI_type, self.read_dev_id_code, self.object_id)
 
-    def decode(self, data):
+    def decode(self, data: bytes) -> None:
         """Decode CompleteUploadModbusRequest."""
-        MEI_type, self.read_dev_id_code, self.object_id = struct.unpack(">BBB", data)
+        MEI_type, self.read_dev_id_code, self.object_id = struct.unpack(">BBB", data)  # noqa: N806
 
         assert MEI_type == self.MEI_type
 
@@ -315,10 +315,10 @@ class ReadDeviceIdentifierResponse(ModbusPDU):
 
     objects: dict[int, bytes]
 
-    def decode(self, data) -> None:
+    def decode(self, data: bytes) -> None:
         """Decode ReadDeviceIdentifierResponse."""
         (
-            MEI_type,
+            MEI_type,  # noqa: N806
             self.device_id_code,
             self.consistency_level,
             self.more,

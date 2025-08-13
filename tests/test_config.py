@@ -17,10 +17,11 @@ def test_register_config():
             # skip these registers, as they have multiple entries
             continue
         if registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:
-            raise ValueError(
+            msg = (
                 f"Requested registers must be in monotonically increasing order, "
-                f"but {registers[idx-1].register} + {registers[idx-1].length} > {registers[idx].register}!",
+                f"but {registers[idx - 1].register} + {registers[idx - 1].length} > {registers[idx].register}!"
             )
+            raise ValueError(msg)
         if registers[idx - 1].register + registers[idx - 1].length < registers[idx].register:
             _LOGGER.info(
                 "There is a gap between %s and %s!",
@@ -39,10 +40,11 @@ def test_register_config_emma():
             # skip these registers, as they have multiple entries
             continue
         if registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:
-            raise ValueError(
+            msg = (
                 f"Requested registers must be in monotonically increasing order, "
-                f"but {registers[idx-1].register} + {registers[idx-1].length} > {registers[idx].register}!",
+                f"but {registers[idx - 1].register} + {registers[idx - 1].length} > {registers[idx].register}!"
             )
+            raise ValueError(msg)
         if registers[idx - 1].register + registers[idx - 1].length < registers[idx].register:
             _LOGGER.info(
                 "There is a gap between %s and %s!",

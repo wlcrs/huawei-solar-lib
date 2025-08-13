@@ -1,7 +1,5 @@
 """Register definitions from the Huawei inverter."""
 
-# pyright: reportIncompatibleMethodOverride=false
-
 import struct
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -9,10 +7,9 @@ from datetime import datetime
 from enum import Flag, IntEnum, auto
 from functools import partial
 from inspect import isclass
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, Generic, Never, TypeVar, cast
 
 from pymodbus.client.mixin import ModbusClientMixin
-from typing_extensions import override
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
@@ -48,10 +45,11 @@ class RegisterDefinition(Generic[T]):
         self,
         register: int,
         length: int,
+        *,
         writeable: bool = False,
         readable: bool = True,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create RegisterDefinition."""
         self.register = register
         self.length = length
@@ -61,13 +59,13 @@ class RegisterDefinition(Generic[T]):
 
     def encode(self, data: T) -> list[int]:
         """Encode register to bytes."""
-        return ModbusClientMixin.convert_to_registers(data, self.datatype)  # type: ignore
+        return ModbusClientMixin.convert_to_registers(data, self.datatype)  # type: ignore[report-argument-type]
 
     def decode(self, registers: list[int]) -> T:
         """Decode register to value."""
-        return ModbusClientMixin.convert_from_registers(registers, self.datatype)  # type: ignore
+        return ModbusClientMixin.convert_from_registers(registers, self.datatype)  # type: ignore[report-argument-type]
 
-    def _validate(self, data: T):
+    def _validate(self, data: T) -> Never:
         """Validate data type."""
         raise NotImplementedError
 
@@ -99,21 +97,22 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
 
     def __init__(  # noqa: PLR0913
         self,
-        unit: str | Callable[[int], T] | dict[int, T] | None,
+        unit: UnitType,
         gain: int,
         register: int,
         length: int,
+        *,
         writeable: bool = False,
         readable: bool = True,
         invalid_value: int | None = None,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Initialize NumberRegister."""
         super().__init__(
             register,
             length,
-            writeable,
-            readable,
+            writeable=writeable,
+            readable=readable,
             target_device=target_device,
         )
         self.unit = unit
@@ -123,7 +122,7 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
 
     def decode(self, registers: list[int]) -> T | None:
         """Decode number register."""
-        result = cast(int, ModbusClientMixin.convert_from_registers(registers, self.datatype))
+        result = cast("int", ModbusClientMixin.convert_from_registers(registers, self.datatype))
 
         if self._invalid_value is not None and result == self._invalid_value:
             return None
@@ -131,21 +130,21 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
         if callable(self.unit):
             assert self.gain == 1
             try:
-                result = cast(T, self.unit(result))
+                result = cast("T", self.unit(result))
             except ValueError as err:
                 raise DecodeError from err
         elif isinstance(self.unit, dict):
             assert self.gain == 1
             try:
-                result = cast(T, self.unit[result])
+                result = cast("T", self.unit[result])
             except KeyError as err:
                 raise DecodeError from err
 
         if self.gain != 1:
-            result /= self.gain  # type: ignore
-        return result  # type: ignore
+            result /= self.gain  # type: ignore[report-operator-issue]
+        return result  # type: ignore[report-return-type]
 
-    def encode(self, data: T):
+    def encode(self, data: T) -> list[int]:
         """Encode number register."""
         if isinstance(data, int):
             int_data = data * self.gain
@@ -160,11 +159,13 @@ class NumberRegister(RegisterDefinition[T], Generic[T]):
             int_data = int(data)
             assert self.gain == 1
         elif isclass(self.unit) and not isinstance(data, self.unit):
+            msg = f"Expected data of type {self.unit}, but got {type(data)}"
             raise WriteException(
-                f"Expected data of type {self.unit}, but got {type(data)}",
+                msg,
             )
         else:
-            raise WriteException(f"Unsupported type: {type(data)}.")
+            msg = f"Unsupported type: {type(data)}."
+            raise WriteException(msg)
 
         return ModbusClientMixin.convert_to_registers(int_data, self.datatype)
 
@@ -176,14 +177,15 @@ class U16Register(NumberRegister[T], Generic[T]):
 
     def __init__(  # noqa: PLR0913
         self,
-        unit,
-        gain,
-        register,
-        writeable=False,
-        readable=True,
-        ignore_invalid=False,
+        unit: UnitType,
+        gain: int,
+        register: int,
+        *,
+        writeable: bool = False,
+        readable: bool = True,
+        ignore_invalid: bool = False,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create Unsigned 16-bit register."""
         super().__init__(
             unit=unit,
@@ -204,12 +206,13 @@ class U32Register(NumberRegister[T], Generic[T]):
 
     def __init__(
         self,
-        unit,
-        gain,
-        register,
-        writeable=False,
+        unit: UnitType,
+        gain: int,
+        register: int,
+        *,
+        writeable: bool = False,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create Unsigned 32-bit register."""
         super().__init__(
             unit=unit,
@@ -229,12 +232,13 @@ class U64Register(NumberRegister[T], Generic[T]):
 
     def __init__(
         self,
-        unit,
-        gain,
-        register,
-        writeable=False,
+        unit: UnitType,
+        gain: int,
+        register: int,
+        *,
+        writeable: bool = False,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create Unsigned 64-bit register."""
         super().__init__(
             unit=unit,
@@ -254,12 +258,13 @@ class I16Register(NumberRegister[T], Generic[T]):
 
     def __init__(
         self,
-        unit,
-        gain,
-        register,
-        writeable=False,
+        unit: UnitType,
+        gain: int,
+        register: int,
+        *,
+        writeable: bool = False,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create Signed 16-bit register."""
         super().__init__(
             unit=unit,
@@ -279,12 +284,13 @@ class I32Register(NumberRegister[T], Generic[T]):
 
     def __init__(
         self,
-        unit,
-        gain,
-        register,
-        writeable=False,
+        unit: UnitType,
+        gain: int,
+        register: int,
+        *,
+        writeable: bool = False,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create Signed 32-bit register."""
         super().__init__(
             unit=unit,
@@ -304,12 +310,13 @@ class I64Register(NumberRegister[T], Generic[T]):
 
     def __init__(
         self,
-        unit,
-        gain,
-        register,
-        writeable=False,
+        unit: UnitType,
+        gain: int,
+        register: int,
+        *,
+        writeable: bool = False,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create Signed 64-bit register."""
         super().__init__(
             unit=unit,
@@ -335,12 +342,13 @@ class I32AbsoluteValueRegister(I32Register):
 
     def __init__(
         self,
-        unit,
-        gain,
-        register,
-        writeable=False,
+        unit: UnitType,
+        gain: int,
+        register: int,
+        *,
+        writeable: bool = False,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create Absolute value 32-bit register."""
         super().__init__(
             unit,
@@ -350,13 +358,13 @@ class I32AbsoluteValueRegister(I32Register):
             target_device=target_device,
         )
 
-    def decode(self, registers: list[int]):
+    def decode(self, registers: list[int]) -> int | None:
         """Decode 32-bit signed integer into absolute value."""
         value = super().decode(registers)
         return abs(value) if value is not None else None
 
 
-def bitfield_decoder(definition, bitfield):
+def bitfield_decoder(definition: dict[int, T], bitfield: int) -> list[T]:
     """Decode a bitfield into a list of statuses."""
     result = []
     for key, value in definition.items():
@@ -373,10 +381,11 @@ class TimestampRegister(U32Register[datetime]):
 
     def __init__(
         self,
-        register,
-        writeable=False,
+        register: int,
+        *,
+        writeable: bool = False,
         target_device: TargetDevice = TargetDevice.SUN2000,
-    ):
+    ) -> None:
         """Create timestamp register."""
         super().__init__(
             unit=None,
@@ -393,26 +402,14 @@ class TimestampRegister(U32Register[datetime]):
             return None
 
         assert isinstance(value, int)
-        return datetime.fromtimestamp(value)
-        # if inverter.time_zone:
-        #     value = value - 60 * inverter.time_zone
 
-        # # if DST is in effect, we need to shift another hour. However, the inverter
-        # # does not expose a register to check that.
-        # # Workaround: check the local time on the machine running the library if DST
-        # # is in effect there. We assume that both inverter and client are in the same time zone.
-
-        # if time.localtime(value).tm_isdst:
-        #     value = value - 60 * 60
-
-        # try:
-        #     return datetime.fromtimestamp(value, timezone.utc)
-        # except OverflowError as err:
-        #     raise DecodeError(f"Received invalid timestamp {value}") from err
+        # I was unable to come up with a good way of determining in which time
+        # zone this value is. So we return it without one.
+        return datetime.fromtimestamp(value)  # noqa: DTZ006
 
 
 @dataclass
-class LG_RESU_TimeOfUsePeriod:
+class LG_RESU_TimeOfUsePeriod:  # noqa: N801
     """Time of use period of LG RESU."""
 
     start_time: int  # minutes since midnight
@@ -428,7 +425,7 @@ class ChargeFlag(IntEnum):
 
 
 @dataclass
-class HUAWEI_LUNA2000_TimeOfUsePeriod:
+class HUAWEI_LUNA2000_TimeOfUsePeriod:  # noqa: N801
     """Time of use period of Huawei LUNA2000."""
 
     start_time: int  # minutes since midnight
@@ -448,18 +445,18 @@ class HUAWEI_LUNA2000_TimeOfUsePeriod:
 LG_RESU_TOU_PERIODS = 10
 
 
-class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod]]):
+class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod]]):  # noqa: N801
     """Time of use register."""
 
-    def decode(self, registers: list[int]):
+    def decode(self, registers: list[int]) -> list[LG_RESU_TimeOfUsePeriod]:
         """Decode time of use register."""
         number_of_periods = cast(
-            int,
+            "int",
             ModbusClientMixin.convert_from_registers(registers[0:1], ModbusClientMixin.DATATYPE.UINT16),
         )
         assert number_of_periods <= LG_RESU_TOU_PERIODS
 
-        def _decode_lg_resu_tou_period(r: list[int]):
+        def _decode_lg_resu_tou_period(r: list[int]) -> LG_RESU_TimeOfUsePeriod:
             start_time, end_time, electricity_price = struct.unpack(">HHI", registers_to_bytearray(r))
             return LG_RESU_TimeOfUsePeriod(
                 start_time,
@@ -474,7 +471,7 @@ class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod
     def _validate(
         self,
         data: list[LG_RESU_TimeOfUsePeriod],
-    ):
+    ) -> None:
         """Validate data type."""
         if len(data) == 0:
             return  # nothing to check
@@ -482,14 +479,17 @@ class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod
         # Sanity check of each period individually
         for tou_period in data:
             if tou_period.start_time < 0 or tou_period.end_time < 0:
-                raise TimeOfUsePeriodsException("TOU period is invalid (Below zero)")
+                msg = "TOU period is invalid (Below zero)"
+                raise TimeOfUsePeriodsException(msg)
             if tou_period.start_time > 24 * 60 or tou_period.end_time > 24 * 60:
+                msg = "TOU period is invalid (Spans over more than one day)"
                 raise TimeOfUsePeriodsException(
-                    "TOU period is invalid (Spans over more than one day)",
+                    msg,
                 )
             if tou_period.start_time >= tou_period.end_time:
+                msg = "TOU period is invalid (start-time is greater than end-time)"
                 raise TimeOfUsePeriodsException(
-                    "TOU period is invalid (start-time is greater than end-time)",
+                    msg,
                 )
 
         # make a copy of the data to sort
@@ -504,9 +504,10 @@ class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod
                 prev_period.start_time <= current_period.start_time < prev_period.end_time
                 or prev_period.start_time < current_period.end_time <= prev_period.end_time
             ):
-                raise TimeOfUsePeriodsException("TOU periods are overlapping")
+                msg = "TOU periods are overlapping"
+                raise TimeOfUsePeriodsException(msg)
 
-    def encode(self, data: list[LG_RESU_TimeOfUsePeriod]):
+    def encode(self, data: list[LG_RESU_TimeOfUsePeriod]) -> list[int]:
         """Encode Time Of Use Period registers."""
         self._validate(data)
 
@@ -546,18 +547,18 @@ def bytearray_to_registers(data: bytearray) -> list[int]:
     return [int.from_bytes(data[i : i + 2], "big") for i in range(0, len(data), 2)]
 
 
-class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000_TimeOfUsePeriod]]):
+class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000_TimeOfUsePeriod]]):  # noqa: N801
     """Time of use register."""
 
-    def decode(self, registers: list[int]):
+    def decode(self, registers: list[int]) -> list[HUAWEI_LUNA2000_TimeOfUsePeriod]:
         """Decode time of use register."""
         number_of_periods = cast(
-            int,
+            "int",
             ModbusClientMixin.convert_from_registers(registers[0:1], ModbusClientMixin.DATATYPE.UINT16),
         )
         assert number_of_periods <= HUAWEI_LUNA2000_TOU_PERIODS
 
-        def _days_effective_parser(value):
+        def _days_effective_parser(value: int) -> tuple[bool, bool, bool, bool, bool, bool, bool]:
             result = []
             mask = 0x1
             for _ in range(7):
@@ -566,7 +567,7 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
 
             return tuple(result)
 
-        def _decode_huawei_luna2000_tou_period(r: list[int]):
+        def _decode_huawei_luna2000_tou_period(r: list[int]) -> HUAWEI_LUNA2000_TimeOfUsePeriod:
             start_time, end_time, charge, days_effective = struct.unpack(">HHBB", registers_to_bytearray(r))
 
             return HUAWEI_LUNA2000_TimeOfUsePeriod(
@@ -586,7 +587,7 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
     def _validate(
         self,
         data: list[HUAWEI_LUNA2000_TimeOfUsePeriod],
-    ):
+    ) -> None:
         """Validate data type."""
         if len(data) == 0:
             return  # nothing to check
@@ -594,16 +595,20 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
         # Sanity check of each period individually
         for tou_period in data:
             if not isinstance(tou_period, HUAWEI_LUNA2000_TimeOfUsePeriod):
-                raise TimeOfUsePeriodsException("TOU period is of an unexpected type")
+                msg = "TOU period is of an unexpected type"
+                raise TimeOfUsePeriodsException(msg)
             if tou_period.start_time < 0 or tou_period.end_time < 0:
-                raise TimeOfUsePeriodsException("TOU period is invalid (Below zero)")
+                msg = "TOU period is invalid (Below zero)"
+                raise TimeOfUsePeriodsException(msg)
             if tou_period.start_time > 24 * 60 or tou_period.end_time > 24 * 60:
+                msg = "TOU period is invalid (Spans over more than one day)"
                 raise TimeOfUsePeriodsException(
-                    "TOU period is invalid (Spans over more than one day)",
+                    msg,
                 )
             if tou_period.start_time >= tou_period.end_time:
+                msg = "TOU period is invalid (start-time is greater than end-time)"
                 raise TimeOfUsePeriodsException(
-                    "TOU period is invalid (start-time is greater than end-time)",
+                    msg,
                 )
 
         for day_idx in range(7):
@@ -621,7 +626,8 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
                     prev_period.start_time <= current_period.start_time < prev_period.end_time
                     or prev_period.start_time < current_period.end_time <= prev_period.end_time
                 ):
-                    raise TimeOfUsePeriodsException("TOU periods are overlapping")
+                    msg = "TOU periods are overlapping"
+                    raise TimeOfUsePeriodsException(msg)
 
     def encode(
         self,
@@ -635,7 +641,7 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
         b = bytearray(43 * 2)
         struct.pack_into(">H", b, 0, len(data))
 
-        def _days_effective_builder(days_tuple):
+        def _days_effective_builder(days_tuple: tuple[bool, bool, bool, bool, bool, bool, bool]) -> int:
             result = 0
             mask = 0x1
             for i in range(7):
@@ -674,16 +680,15 @@ CHARGE_DISCHARGE_PERIODS = 10
 class ChargeDischargePeriodRegisters(RegisterDefinition[list[ChargeDischargePeriod]]):
     """Charge or discharge period registers."""
 
-    @override
     def decode(self, registers: list[int]) -> list[ChargeDischargePeriod]:
         """Decode ChargeDischargePeriodRegisters."""
         number_of_periods = cast(
-            int,
+            "int",
             ModbusClientMixin.convert_from_registers(registers[0:1], ModbusClientMixin.DATATYPE.UINT16),
         )
         assert number_of_periods <= CHARGE_DISCHARGE_PERIODS
 
-        def _decode_charge_discharge_period(r: list[int]):
+        def _decode_charge_discharge_period(r: list[int]) -> ChargeDischargePeriod:
             start_time, end_time, power = struct.unpack(">HHI", registers_to_bytearray(r))
             return ChargeDischargePeriod(start_time, end_time, power)
 
@@ -694,7 +699,7 @@ class ChargeDischargePeriodRegisters(RegisterDefinition[list[ChargeDischargePeri
 
         return periods[:number_of_periods]
 
-    def encode(self, data: list[ChargeDischargePeriod]):
+    def encode(self, data: list[ChargeDischargePeriod]) -> list[int]:
         """Encode ChargeDischargePeriodRegisters."""
         assert len(data) <= CHARGE_DISCHARGE_PERIODS
 
@@ -732,7 +737,7 @@ class PeakSettingPeriod:
 PEAK_SETTING_PERIODS = 14
 
 
-def _days_effective_builder(days_tuple):
+def _days_effective_builder(days_tuple: tuple[bool, bool, bool, bool, bool, bool, bool]) -> int:
     result = 0
     mask = 0x1
     for i in range(7):
@@ -743,7 +748,7 @@ def _days_effective_builder(days_tuple):
     return result
 
 
-def _days_effective_parser(value):
+def _days_effective_parser(value: int) -> tuple[bool, bool, bool, bool, bool, bool, bool]:
     result = []
     mask = 0x1
     for _ in range(7):
@@ -759,7 +764,7 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
     def decode(self, registers: list[int]) -> list[PeakSettingPeriod]:
         """Decode PeakSettingPeriodRegisters."""
         number_of_periods = cast(
-            int,
+            "int",
             ModbusClientMixin.convert_from_registers(registers[0:1], ModbusClientMixin.DATATYPE.UINT16),
         )
 
@@ -787,23 +792,25 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
 
         return periods[:number_of_periods]
 
-    def _validate(self, data: list[PeakSettingPeriod]):
+    def _validate(self, data: list[PeakSettingPeriod]) -> None:
         for day_idx in range(7):
             # find all ranges that are valid for the given day
             active_periods: list[PeakSettingPeriod] = list(
                 filter(lambda period: period.days_effective[day_idx], data),
             )
 
-            if not len(active_periods):
+            if not active_periods:
+                msg = "All days of the week need to be covered"
                 raise PeakPeriodsValidationError(
-                    "All days of the week need to be covered",
+                    msg,
                 )
 
             # require full day to be covered
             active_periods.sort(key=lambda a: a.start_time)
 
             if active_periods[0].start_time != 0:
-                raise PeakPeriodsValidationError("Every day must be covered from 00:00")
+                msg = "Every day must be covered from 00:00"
+                raise PeakPeriodsValidationError(msg)
 
             for period_idx in range(1, len(active_periods)):
                 current_period = active_periods[period_idx]
@@ -812,16 +819,18 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
                     prev_period.end_time,
                     prev_period.end_time + 1,
                 ):
+                    msg = "All moments of each day need to be covered"
                     raise PeakPeriodsValidationError(
-                        "All moments of each day need to be covered",
+                        msg,
                     )
 
             if active_periods[-1].end_time not in ((24 * 60) - 1, 24 * 60):
+                msg = "Every day must be covered until 23:59"
                 raise PeakPeriodsValidationError(
-                    "Every day must be covered until 23:59",
+                    msg,
                 )
 
-    def encode(self, data: list[PeakSettingPeriod]):
+    def encode(self, data: list[PeakSettingPeriod]) -> list[int]:
         """Encode PeakSettingPeriodRegisters."""
         if len(data) > PEAK_SETTING_PERIODS:
             data = data[:PEAK_SETTING_PERIODS]

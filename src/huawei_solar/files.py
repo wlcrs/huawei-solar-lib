@@ -86,7 +86,7 @@ class OptimizerRealTimeDataFile:
 
     OPTIMIZER_DATA = "<3hI6hI"
 
-    def __init__(self, file_data: bytes):
+    def __init__(self, file_data: bytes) -> None:
         """Create an OptimizerRealTimeDataFile from the byte-reprenstation."""
         self.data_units: list[OptimizerHistoryRealTimeDataUnit] = []
 
@@ -168,7 +168,7 @@ class OptimizerRealTimeDataFile:
         return f"OptimizerHistoryDataFile(file_version=f{self.file_version}, data_units=f{self.data_units})"
 
     @staticmethod
-    def query_within_timespan(start_time: int, end_time: int):
+    def query_within_timespan(start_time: int, end_time: int) -> bytes:
         """Create a query for values within a given timeframe."""
         # the values below were deduced from observing network traffic and reverse-engineering the app
         tag = 0x10
@@ -204,7 +204,7 @@ class OptimizerSystemInformation:
     model: str
 
     # following fields only available in V103, which is undocumented for the moment:
-    # machine_id: Optional[str] = None # machine_id looks like gibberish?
+    # machine_id: Optional[str] = None # machine_id looks like gibberish?  # noqa: ERA001
     rated_power: int | None = None
     one_to_more: bool | None = None
     cpu_type: int | None = None
@@ -228,7 +228,7 @@ class OptimizerSystemInformationDataFile:
 
     V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s2sHHH"
 
-    def __init__(self, file_data):
+    def __init__(self, file_data: bytes) -> None:
         """Create Optimizer System Information Data File."""
         self.optimizers: list[OptimizerSystemInformation] = []
 
@@ -322,19 +322,20 @@ class OptimizerSystemInformationDataFile:
                         _to_string(software_version),
                         _to_string(alias),
                         _to_string(model),
-                        # machine_id=_to_string(machine_id), # looks like gibberish? ignoring...
+                        # machine_id=_to_string(machine_id), # looks like gibberish? ignoring...  # noqa: ERA001
                         one_to_more=bool(one_to_more),
                         rated_power=rated_power,
                         cpu_type=cpu_type,
                     ),
                 )
         else:
+            msg = f"Unsupported OptimizerSystemInformation file version: {self.file_version}"
             raise HuaweiSolarException(
-                f"Unsupported OptimizerSystemInformation file version: {self.file_version}",
+                msg,
             )
 
 
-def _to_string(data: bytes):
+def _to_string(data: bytes) -> str:
     try:
         return data.decode("ascii").rstrip("\x00")
     except ValueError:

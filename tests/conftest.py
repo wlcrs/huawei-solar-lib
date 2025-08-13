@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import pytest
 from pymodbus.pdu.register_message import ReadHoldingRegistersResponse
@@ -109,30 +110,33 @@ MOCK_REGISTERS = {
 
 
 class MockModbusClient:
+    time_zone = 60
+    battery_type = StorageProductModel.HUAWEI_LUNA2000
+
     def __init__(self) -> None:
         self.connected = True
         self.connected_event = asyncio.Event()
         self.connected_event.set()
 
-    async def read_holding_registers(self, register, count, *args, **kwargs):
+    async def read_holding_registers(
+        self,
+        register: int,
+        count: int,
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
+    ) -> ReadHoldingRegistersResponse:
         return ReadHoldingRegistersResponse(registers=MOCK_REGISTERS[(register, count)])
 
 
 @pytest.fixture
-def huawei_solar():
-    hs = AsyncHuaweiSolar(client=MockModbusClient(), cooldown_time=0)
-    hs.time_zone = 60
-    hs.battery_type = StorageProductModel.HUAWEI_LUNA2000
-    return hs
+def huawei_solar() -> AsyncHuaweiSolar:
+    return AsyncHuaweiSolar(client=MockModbusClient(), cooldown_time=0)  # type: ignore[report-argument-type]
 
 
 @pytest.fixture
-def huawei_bridge():
-    hs = AsyncHuaweiSolar(client=MockModbusClient(), cooldown_time=0)
-    hs.time_zone = 60
-    hs.battery_type = StorageProductModel.HUAWEI_LUNA2000
+def huawei_bridge(huawei_solar: AsyncHuaweiSolar) -> HuaweiSUN2000Bridge:
     return HuaweiSUN2000Bridge(
-        client=hs,
+        client=huawei_solar,
         device_id=1,
         product_info=HuaweiSolarProductInfo("SUN2000-9KTL-123", "SN123", "PN456", "FW789", "SW123"),
         update_lock=asyncio.Lock(),

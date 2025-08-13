@@ -8,8 +8,7 @@ from abc import ABC, abstractmethod
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-
-from typing_extensions import override
+from typing import Any, Self
 
 from . import register_names as rn
 from . import register_values as rv
@@ -56,7 +55,7 @@ class HuaweiSolarProductInfo:
     software_version: str
 
     @classmethod
-    async def retrieve_from_device(cls, client: AsyncHuaweiSolar, device_id: int):
+    async def retrieve_from_device(cls, client: AsyncHuaweiSolar, device_id: int) -> Self:
         """Retrieve product info from device."""
         (
             model_name_result,
@@ -108,6 +107,7 @@ class HuaweiSolarBridge(ABC):
         device_id: int,
         product_info: HuaweiSolarProductInfo,
         update_lock: asyncio.Lock | None = None,
+        *,
         connected_via_emma: bool = False,
     ) -> None:
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use create() method instead."""
@@ -131,8 +131,9 @@ class HuaweiSolarBridge(ABC):
         device_id: int,
         product_info: HuaweiSolarProductInfo,
         update_lock: asyncio.Lock | None,
+        *,
         connected_via_emma: bool = False,
-    ):
+    ) -> Self:
         """Create instance with the necessary information."""
         bridge = cls(
             client,
@@ -257,7 +258,7 @@ class HuaweiSolarBridge(ABC):
 
             return result
 
-    async def _read_file(self, file_type, customized_data=None) -> bytes:
+    async def _read_file(self, file_type: int, customized_data: bytes | None = None) -> bytes:
         """Wrap `get_file` from `AsyncHuaweiSolar` in a retry-logic for when the login-sequence needs to be repeated."""
         logged_in = await self.ensure_logged_in()
 
@@ -310,7 +311,7 @@ class HuaweiSolarBridge(ABC):
         else:
             return True
 
-    async def ensure_logged_in(self, *, force=False) -> bool:
+    async def ensure_logged_in(self, *, force: bool = False) -> bool:
         """Check if it is necessary to login and performs the necessary login sequence if needed."""
         async with self.__login_lock:
             if force:
@@ -358,7 +359,7 @@ class HuaweiSolarBridge(ABC):
         if self.__heartbeat_task:
             self.stop_heartbeat()
 
-        async def heartbeat():
+        async def heartbeat() -> None:
             while self.__heartbeat_enabled:
                 try:
                     self.__heartbeat_enabled = await self.client.heartbeat(
@@ -372,7 +373,7 @@ class HuaweiSolarBridge(ABC):
         self.__heartbeat_enabled = True
         self.__heartbeat_task = asyncio.create_task(heartbeat())
 
-    async def set(self, name: str, value) -> bool:
+    async def set(self, name: str, value: Any) -> bool:  # noqa: ANN401
         """Set a register to a certain value."""
         logged_in = await self.ensure_logged_in()  # we must login again before trying to set the value
 
@@ -424,7 +425,6 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
     _previous_device_status: str | None = None
 
     @classmethod
-    @override
     def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
         """Check if this class support the given device."""
         return product_info.model_name.startswith(
@@ -436,8 +436,7 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
             ),
         )
 
-    @override
-    async def _populate_additional_fields(self):
+    async def _populate_additional_fields(self) -> None:
         self.pv_string_count = (await self.client.get(rn.NB_PV_STRINGS, self.device_id)).value
         self._pv_registers = self._compute_pv_registers()
 
@@ -495,7 +494,6 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
         self._dst = (await self.client.get(rn.DAYLIGHT_SAVING_TIME, self.device_id)).value
         self._time_zone = (await self.client.get(rn.TIME_ZONE, self.device_id)).value
 
-    @override
     def _handle_batch_read_error(self, queried_register_names: list[str], exc: HuaweiSolarException) -> None:
         """Handle read errors in batch_update."""
         if any(regname in METER_REGISTERS for regname in queried_register_names):
@@ -509,7 +507,6 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
 
         raise exc
 
-    @override
     def _detect_state_changes(self, new_values: dict[str, Result]) -> None:
         """Update state based on result of batch_update query.
 
@@ -533,13 +530,12 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
 
             self._previous_device_status = new_device_status
 
-    @override
     async def _filter_registers(self, register_names: list[str]) -> list[str]:
         result = register_names
 
         # Filter out power meter registers if the power meter is offline
         power_meter_register_names = {rn for rn in register_names if rn in METER_REGISTERS}
-        if len(power_meter_register_names):
+        if power_meter_register_names:
             # Do a check of the METER_STATUS register only if the power meter is marked offline
             if not self.power_meter_online:
                 power_meter_online_register = await self.client.get(
@@ -564,7 +560,6 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
 
         return result
 
-    @override
     def _transform_register_values(self, register_name: str, result: Result) -> Result:
         if isinstance(REGISTERS[register_name], TimestampRegister) and result.value is not None:
             assert isinstance(result.value, datetime)
@@ -596,7 +591,8 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
         # emulates behavior from FusionSolar app when current status of optimizers is queried
         end_time = await self._get_system_time()
         if end_time is None:
-            raise ReadException("Could not retrieve system time. Cannot proceed with reading optimizer data.")
+            msg = "Could not retrieve system time. Cannot proceed with reading optimizer data."
+            raise ReadException(msg)
         start_time = end_time - 600
 
         file_data = await self._read_file(
@@ -654,7 +650,6 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
     model: str
 
     @classmethod
-    @override
     def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
         """Check if this class support the given device."""
         return product_info.model_name.startswith("SmartHEMS")
@@ -663,8 +658,7 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
         """EMMA always gives write access."""
         return True
 
-    @override
-    async def _populate_additional_fields(self):
+    async def _populate_additional_fields(self) -> None:
         self.model = (await self.client.get(rn.EMMA_MODEL, self.device_id)).value
 
 
@@ -699,7 +693,7 @@ async def create_sub_bridge(
         primary_bridge.client,
         device_id,
         primary_bridge.update_lock,
-        isinstance(primary_bridge, HuaweiEMMABridge),
+        connected_via_emma=isinstance(primary_bridge, HuaweiEMMABridge),
     )
 
 
@@ -707,6 +701,7 @@ async def _create(
     client: AsyncHuaweiSolar,
     device_id: int,
     update_lock: asyncio.Lock | None = None,
+    *,
     connected_via_emma: bool = False,
 ) -> HuaweiSolarBridge:
     product_info = await HuaweiSolarProductInfo.retrieve_from_device(client, device_id)

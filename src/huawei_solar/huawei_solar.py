@@ -7,11 +7,11 @@ import secrets
 import struct
 import sys
 import time
-import typing as t
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import cast
+from typing import TYPE_CHECKING, Any, NamedTuple, Self, TypeVar, cast
 
 import backoff
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
@@ -49,13 +49,18 @@ from .modbus import (
 )
 from .registers import REGISTERS, RegisterDefinition
 
+if TYPE_CHECKING:
+    from backoff.types import Details
+
 LOGGER = logging.getLogger(__name__)
 
+RT = TypeVar("RT")
 
-class Result(t.NamedTuple):
+
+class Result(NamedTuple):
     """Modbus register value."""
 
-    value: t.Any
+    value: Any
     unit: str | None
 
 
@@ -82,7 +87,7 @@ DEVICE_BUSY_EXCEPTION_CODE = 0x06
 ILLEGAL_ADDRESS_EXCEPTION_CODE = 0x02
 
 
-def _compute_digest(password, seed):
+def _compute_digest(password: bytes, seed: bytes) -> bytes:
     hashed_password = sha256(password).digest()
 
     return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
@@ -124,7 +129,7 @@ class AsyncHuaweiSolar:
         device_id: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
-    ):
+    ) -> None:
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use AsyncHuaweiSolar.create() instead."""
         self._client = client
         self._timeout = timeout
@@ -136,7 +141,7 @@ class AsyncHuaweiSolar:
         self.__communication_lock = asyncio.Lock()
 
     @asynccontextmanager
-    async def _communication_lock(self):
+    async def _communication_lock(self) -> AsyncGenerator[None]:
         async with self.__communication_lock:
             if not self._client.connected_event.is_set():
                 LOGGER.info("Waiting for connection")
@@ -170,12 +175,12 @@ class AsyncHuaweiSolar:
     @classmethod
     async def create(
         cls,
-        host,
+        host: str,
         port: int = DEFAULT_TCP_PORT,
         device_id: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
-    ):
+    ) -> Self:
         """Create an AsyncHuaweiSolar instance."""
         client = None
         try:
@@ -197,13 +202,13 @@ class AsyncHuaweiSolar:
     @classmethod
     async def create_rtu(
         cls,
-        port,
+        port: str,
         baudrate: int = DEFAULT_BAUDRATE,
         device_id: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
-        **serial_kwargs,
-    ):
+        **serial_kwargs: dict[str, Any],
+    ) -> Self:
         """Create a serial client."""
         client = None
         try:
@@ -227,14 +232,14 @@ class AsyncHuaweiSolar:
         else:
             return huawei_solar
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the modbus client."""
         if self._reconnect_task:
             self._reconnect_task.cancel()
 
         self._client.close()
 
-    async def _reconnect(self):
+    async def _reconnect(self) -> None:
         """Reconnect to the inverter."""
         self._client.close()
         await self._client.connect()
@@ -243,7 +248,7 @@ class AsyncHuaweiSolar:
         self,
         reg: RegisterDefinition,
         registers: list[int],
-    ):
+    ) -> Result:
         """Decode a modbus register and puts it into a Result object."""
         result = reg.decode(registers)
 
@@ -251,45 +256,49 @@ class AsyncHuaweiSolar:
             return Result(result, None)
         return Result(result, reg.unit)
 
-    async def get(self, name, device_id=None):
+    async def get(self, name: str, device_id: int | None = None) -> Result:
         """Get named register from device."""
         return (await self.get_multiple([name], device_id))[0]
 
-    async def get_multiple(self, names: list[str], device_id=None):
+    async def get_multiple(self, names: list[str], device_id: int | None = None) -> list[Result]:
         """Read multiple registers at the same time.
 
         This is only possible if the registers are consecutively available in the
         inverters' memory.
         """
         if len(names) == 0:
-            raise ValueError("Expected at least one register name")
+            msg = "Expected at least one register name"
+            raise ValueError(msg)
 
         registers = list(map(REGISTERS.get, names))
 
         if None in registers:
             missing_registers = set(names) - set(REGISTERS.keys())
             if missing_registers:
-                raise ValueError(f"Did not recognize register names: {', '.join(missing_registers)}")
-            raise ValueError("Did not recognize all register names")
-        registers = t.cast(list[RegisterDefinition], registers)
+                msg = f"Did not recognize register names: {', '.join(missing_registers)}"
+                raise ValueError(msg)
+            msg = "Did not recognize all register names"
+            raise ValueError(msg)
+        registers = cast("list[RegisterDefinition]", registers)
 
         for register, register_name in zip(registers, names, strict=False):
             if not register.readable:
-                raise ValueError(f"Trying to read unreadable register {register_name}")
+                msg = f"Trying to read unreadable register {register_name}"
+                raise ValueError(msg)
 
         for idx in range(1, len(names)):
             if registers[idx - 1].register + registers[idx - 1].length > registers[idx].register:
-                raise ValueError(
+                msg = (
                     f"Requested registers must be in monotonically increasing order, "
-                    f"but {registers[idx - 1].register} + {registers[idx - 1].length} > {registers[idx].register}!",
+                    f"but {registers[idx - 1].register} + {registers[idx - 1].length} > {registers[idx].register}!"
                 )
+                raise ValueError(msg)
 
             register_distance = registers[idx - 1].register + registers[idx - 1].length - registers[idx].register
 
             if register_distance > MAX_BATCHED_REGISTERS_COUNT:
-                raise ValueError(
-                    "Gap between requested registers is too large. Split it in two requests",
-                )
+                msg = "Gap between requested registers is too large. Split it in two requests"
+                raise ValueError(msg)
 
         total_length = registers[-1].register + registers[-1].length - registers[0].register
 
@@ -314,7 +323,7 @@ class AsyncHuaweiSolar:
         register: int,
         length: int,
         device_id: int | None,
-    ):
+    ) -> ModbusPDU:
         """Async read register from device.
 
         The device needs a bit of time between the connection and the first request
@@ -326,35 +335,34 @@ class AsyncHuaweiSolar:
         It seems to only support connections from one device at the same time.
         """
 
-        def on_backoff(details):
+        def on_backoff(details: "Details") -> None:
             LOGGER.debug(
                 "Received %s: backing off reading for %0.1f seconds after %d tries",
                 sys.exc_info()[0],
-                details["wait"],
+                details.get("wait"),
                 details["tries"],
             )
 
-        def on_backoff_with_reconnect(details):
+        def on_backoff_with_reconnect(details: "Details") -> None:
             if details["tries"] % 3 == 0:
                 self._reconnect_task = asyncio.create_task(self._reconnect())
                 LOGGER.debug(
                     "Received %s: reconnecting and backing off reading for %0.1f seconds after %d tries",
                     sys.exc_info()[0],
-                    details["wait"],
+                    details.get("wait"),
                     details["tries"],
                 )
             else:
                 LOGGER.debug(
                     "Received %s: backing off reading for %0.1f seconds after %d tries",
                     sys.exc_info()[0],
-                    details["wait"],
+                    details.get("wait"),
                     details["tries"],
                 )
 
-        def backoff_giveup(details):
-            raise ReadException(
-                f"Failed to read register {register} after {details['tries']} tries",
-            )
+        def backoff_giveup(details: "Details") -> None:
+            msg = f"Failed to read register {register} after {details['tries']} tries"
+            raise ReadException(msg)
 
         @backoff.on_exception(
             backoff.expo,
@@ -372,7 +380,7 @@ class AsyncHuaweiSolar:
             on_backoff=on_backoff,
             on_giveup=backoff_giveup,
         )
-        async def _do_read():
+        async def _do_read() -> ModbusPDU:
             if not self._client.connected:
                 message = "Modbus client is not connected to the inverter"
                 LOGGER.exception(message)
@@ -405,16 +413,15 @@ class AsyncHuaweiSolar:
                         raise DeviceFailureException
 
                     # Not a SlaveBusy or SlaveFailure exception
-                    raise ReadException(
-                        f"Got error while reading from register {register} with length {length}: {response}",
-                        modbus_exception_code=response.exception_code,
-                    )
+                    msg = f"Got error while reading from register {register} with length {length}: {response}"
+                    raise ReadException(msg, modbus_exception_code=response.exception_code)
 
                 if len(response.registers) != length:
-                    raise DeviceBusyException(
+                    msg = (
                         f"Mismatch between number of requested registers ({length}) "
-                        f"and number of received registers ({len(response.registers)})",
+                        f"and number of received registers ({len(response.registers)})"
                     )
+                    raise DeviceBusyException(msg)
 
             except ModbusConnectionException as err:
                 message = "Could not read register value, has another device interrupted the connection?"
@@ -432,7 +439,7 @@ class AsyncHuaweiSolar:
             )
             return await _do_read()
 
-    async def _read_device_identifier_objects(self, read_dev_id_code: int, object_id: int):
+    async def _read_device_identifier_objects(self, read_dev_id_code: int, object_id: int) -> dict[int, bytes]:
         """Read all the objects of a certain ReadDevId code."""
         next_object_id: int | None = object_id
 
@@ -449,16 +456,16 @@ class AsyncHuaweiSolar:
 
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
-                    raise PermissionDenied("Permission denied")
+                    raise PermissionDenied
                 if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
                     raise DeviceBusyException
                 if response.exception_code == DEVICE_FAILURE_EXCEPTION_CODE:
                     raise DeviceFailureException
-                raise ReadException(
+                msg = (
                     f"Exception occurred while trying to read device infos "
-                    f"{hex(response.exception_code) if response.exception_code else 'no exception code'}",
-                    modbus_exception_code=response.exception_code,
+                    f"{hex(response.exception_code) if response.exception_code else 'no exception code'}"
                 )
+                raise ReadException(msg, modbus_exception_code=response.exception_code)
 
             assert isinstance(response, ReadDeviceIdentifierResponse)
             objects.update(response.objects)
@@ -466,7 +473,7 @@ class AsyncHuaweiSolar:
 
         return objects
 
-    async def get_device_identifiers(self):
+    async def get_device_identifiers(self) -> DeviceIdentifier:
         """Read the device identifiers from the inverter."""
         objects = await self._read_device_identifier_objects(0x01, 0x00)
 
@@ -477,7 +484,7 @@ class AsyncHuaweiSolar:
             other_data=objects,
         )
 
-    async def get_device_infos(self):
+    async def get_device_infos(self) -> list[DeviceInfo]:
         """Read the device infos from the inverter."""
         objects = await self._read_device_identifier_objects(0x03, DEVICE_INFOS_START_OBJECT_ID)
 
@@ -519,8 +526,8 @@ class AsyncHuaweiSolar:
 
     async def get_file(
         self,
-        file_type,
-        customized_data=None,
+        file_type: int,
+        customized_data: bytes | None = None,
         device_id: int | None = None,
     ) -> bytes:
         """Read a 'file' via Modbus.
@@ -529,10 +536,9 @@ class AsyncHuaweiSolar:
         the Solar Inverter Modbus Interface Definitions PDF.
         """
 
-        def backoff_giveup(details):
-            raise ReadException(
-                f"Failed to read file {file_type} after {details['tries']} tries",
-            )
+        def backoff_giveup(details: "Details") -> None:
+            msg = f"Failed to read file {file_type} after {details['tries']} tries"
+            raise ReadException(msg)
 
         @backoff.on_exception(
             backoff.constant,
@@ -548,28 +554,28 @@ class AsyncHuaweiSolar:
             ),
             on_giveup=backoff_giveup,
         )
-        async def _perform_request(request: ModbusPDU, response_type):
+        async def _perform_request(request: ModbusPDU, response_type: type[RT]) -> RT:
             response = cast(
-                PrivateHuaweiModbusResponse,
+                "PrivateHuaweiModbusResponse",
                 await self._client.execute(no_response_expected=False, request=request),
             )
 
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
-                    raise PermissionDenied("Permission denied")
+                    raise PermissionDenied
                 if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
                     raise DeviceBusyException
                 if response.exception_code == DEVICE_FAILURE_EXCEPTION_CODE:
                     raise DeviceFailureException
-                raise ReadException(
+                msg = (
                     f"Exception occurred while trying to read file {hex(file_type)}: "
-                    f"{hex(response.exception_code) if response.exception_code else 'no exception code'}",
-                    modbus_exception_code=response.exception_code,
+                    f"{hex(response.exception_code) if response.exception_code else 'no exception code'}"
                 )
+                raise ReadException(msg, modbus_exception_code=response.exception_code)
 
-            return response_type(response.content)
+            return response_type(response.content)  # type: ignore[report-call-issue]
 
-        async def _do_read_file():
+        async def _do_read_file() -> bytes:
             # Start the upload
             start_upload_response = await _perform_request(
                 StartUploadModbusRequest(
@@ -585,7 +591,7 @@ class AsyncHuaweiSolar:
 
             # Request the data in 'frames'
 
-            file_data = b""
+            file_data: bytes = b""
             next_frame_no = 0
 
             while (next_frame_no * data_frame_length) < file_length:
@@ -612,10 +618,11 @@ class AsyncHuaweiSolar:
             swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
 
             if not FramerRTU.check_CRC(file_data, swapped_crc):
-                raise ReadException(
+                msg = (
                     f"Computed CRC {FramerRTU.compute_CRC(file_data):x} for file {file_type} "
-                    f"does not match expected value {swapped_crc}",
+                    f"does not match expected value {swapped_crc}"
                 )
+                raise ReadException(msg)
 
             return file_data
 
@@ -627,25 +634,32 @@ class AsyncHuaweiSolar:
             )
             return await _do_read_file()
 
-    async def set(self, name, value, device_id=None):
+    async def set(
+        self,
+        name: str,
+        value: Any,  # noqa: ANN401
+        device_id: int | None = None,
+    ) -> bool:
         """Set named register on device."""
         try:
             reg = REGISTERS[name]
         except KeyError as err:
-            raise ValueError("Invalid Register Name") from err
+            msg = "Invalid Register Name"
+            raise ValueError(msg) from err
 
         if not reg.writeable:
-            raise WriteException("Register is not writable")
+            msg = "Register is not writable"
+            raise WriteException(msg)
 
         registers = reg.encode(value)
 
         if len(registers) != reg.length:
-            raise WriteException("Wrong number of registers to write")
+            msg = "Wrong number of registers to write"
+            raise WriteException(msg)
 
-        def backoff_giveup(details):
-            raise ReadException(
-                f"Failed to write to register after {details['tries']} tries",
-            )
+        def backoff_giveup(details: "Details") -> None:
+            msg = f"Failed to write to register after {details['tries']} tries"
+            raise ReadException(msg)
 
         @backoff.on_exception(
             backoff.expo,
@@ -660,7 +674,7 @@ class AsyncHuaweiSolar:
             ),
             on_giveup=backoff_giveup,
         )
-        async def _do_set():
+        async def _do_set() -> bool:
             return await self._write_registers(
                 reg.register,
                 registers,
@@ -680,7 +694,7 @@ class AsyncHuaweiSolar:
         self,
         register: int,
         value: list[int],
-        device_id=None,
+        device_id: int | None = None,
     ) -> bool:
         """Async write register to device."""
         if not self._client.connected:
@@ -712,17 +726,16 @@ class AsyncHuaweiSolar:
 
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
-                    raise PermissionDenied("Permission denied")
+                    raise PermissionDenied
                 if response.exception_code == ILLEGAL_ADDRESS_EXCEPTION_CODE:
                     # cfr. https://github.com/wlcrs/huawei_solar/issues/587
-                    raise PermissionDenied(
+                    msg = (
                         f"Failed to write value {value} to register {register} due to IllegalAddress. "
-                        "Assuming permission problem.",
+                        "Assuming permission problem."
                     )
-                raise WriteException(
-                    f"Failed to write value {value} to register {register}: {response.exception_code:02x}",
-                    modbus_exception_code=response.exception_code,
-                )
+                    raise PermissionDenied(msg)
+                msg = f"Failed to write value {value} to register {register}: {response.exception_code:02x}"
+                raise WriteException(msg, modbus_exception_code=response.exception_code)
 
             if single_register:
                 assert isinstance(response, WriteSingleRegisterResponse)
@@ -736,8 +749,9 @@ class AsyncHuaweiSolar:
     async def login(self, username: str, password: str, device_id: int | None = None) -> bool:
         """Login into the inverter."""
 
-        def backoff_giveup(details):
-            raise ReadException(f"Failed to login after {details['tries']} tries")
+        def backoff_giveup(details: "Details") -> None:
+            msg = f"Failed to login after {details['tries']} tries"
+            raise ReadException(msg)
 
         @backoff.on_exception(
             backoff.expo,
@@ -766,7 +780,7 @@ class AsyncHuaweiSolar:
             )
 
             challenge_response = cast(
-                PrivateHuaweiModbusResponse,
+                "PrivateHuaweiModbusResponse",
                 await self._client.execute(no_response_expected=False, request=challenge_request),
             )
 
@@ -798,7 +812,7 @@ class AsyncHuaweiSolar:
                 dev_id=device_id or self.device_id,
             )
             login_response = cast(
-                PrivateHuaweiModbusResponse,
+                "PrivateHuaweiModbusResponse",
                 await self._client.execute(no_response_expected=False, request=login_request),
             )
 
@@ -820,7 +834,7 @@ class AsyncHuaweiSolar:
             LOGGER.debug("Logging in")
             return await _do_login()
 
-    async def heartbeat(self, device_id):
+    async def heartbeat(self, device_id: int | None = None) -> bool:
         """Perform the heartbeat command. Only useful when maintaining a session."""
         if not self._client.connected:
             return False

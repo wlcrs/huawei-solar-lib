@@ -27,7 +27,6 @@ requires-python = ">= 3.11"
 dependencies = [
     "pymodbus>=3.11.0,<4",
     "pyserial-asyncio>=0.6",
-    "typing-extensions>=4.12.2",
     "backoff",
     "pytz",
 ]
@@ -35,14 +34,11 @@ dependencies = [
 [project.urls]
 Homepage = "https://gitlab.com/EmilV2/huawei-solar"
 
-[project.optional-dependencies]
+[dependency-groups]
 
 dev = [
-    "ruff", # Code linter and formatter
     "tox>=4.15",
-]
-
-test = [
+    "pre-commit",
     "pytest",
     "pytest-asyncio",
 ]
@@ -61,41 +57,7 @@ line-length = 120
 
 [tool.ruff.lint]
 select = [
-    "ARG", # flake8-unused-arguments
-    "ASYNC", # flake8-async
-    "B", # bugbear
-    "C", # complexity
-    "COM", # flake8-commas
-    "C4", # flake8-comprehensions
-    "D", # docstrings
-    "DTZ003", # Use datetime.now(tz=) instead of datetime.utcnow()
-    "DTZ004", # Use datetime.fromtimestamp(ts, tz=) instead of datetime.utcfromtimestamp(ts)
-    "E",  # pycodestyle
-    "F", # pyflakes/autoflake
-    "G", # flake8-logging-format
-    "I", # isort
-    "ICN", # flake8-import-conventions
-    "INP", # flake8-no-pep420
-    "INT", # flake8-gettext
-    "ISC", # flake8-implicit-str-concat
-    "LOG", # flake8-logging
-    "PERF", # perflint
-    "PIE", # flake8-pie
-    "PL", # pylint
-    "PYI", # flake8-pyi
-    "PT", # flake8-pytest-style
-    "PTH", # flake8-use-pathlib
-    "Q", # flake8-quotes
-    "RET", # flake8-return
-    "RSE", # flake8-raise
-    "S", # flake8-bandit
-    "SIM", # flake8-simplify
-    "TCH", # flake8-type-checking
-    "TID", # flake8-tidy-imports
-    "TRY", # tryceratops,
-    "T20", # flake8-print
-    "UP", # pyupgrade
-    "W", # pycodestyle
+    "ALL"
 ]
 
 ignore = [
@@ -112,12 +74,18 @@ pylint.max-args = 6
 "tests/*" = [
     "D",
     "S101", # asserts allowed in tests...
+    "ANN201", 
     "ARG", # Unused function args -> fixtures nevertheless are functionally relevant...
     "FBT", # Don't care about booleans as positional arguments in tests, e.g. via @pytest.mark.parametrize()
     # The below are debatable
     "PLR2004", # Magic value used in comparison, ...
+    "SLF001", # access to private members
+    "N802"
 ]
 
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
+
+[tool.pytest.ini_options]
+asyncio_mode="auto"

@@ -1,7 +1,9 @@
 """Exceptions from the Huawei Solar library."""
 
+from typing import Any
 
-class HuaweiSolarException(Exception):
+
+class HuaweiSolarException(Exception):  # noqa: N818
     """Base class for Huawei Solar exceptions."""
 
 
@@ -28,7 +30,7 @@ class ConnectionException(HuaweiSolarException):
 class ReadException(HuaweiSolarException):
     """Exception reading register from device."""
 
-    def __init__(self, *args, modbus_exception_code: int | None = None, **kwargs):
+    def __init__(self, *args: Any, modbus_exception_code: int | None = None, **kwargs: Any) -> None:  # noqa: ANN401
         """Create ReadException."""
         super().__init__(*args, **kwargs)
         self.modbus_exception_code = modbus_exception_code
@@ -49,7 +51,7 @@ class DeviceFailureException(HuaweiSolarException):
 class WriteException(HuaweiSolarException):
     """Exception writing register to device."""
 
-    def __init__(self, *args, modbus_exception_code: int | None = None, **kwargs):
+    def __init__(self, *args: Any, modbus_exception_code: int | None = None, **kwargs: Any) -> None:  # noqa: ANN401
         """Create WriteException."""
         super().__init__(*args, **kwargs)
         self.modbus_exception_code = modbus_exception_code
