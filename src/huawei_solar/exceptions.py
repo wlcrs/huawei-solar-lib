@@ -38,11 +38,11 @@ class ConnectionInterruptedException(HuaweiSolarException):
     """Connection to the inverter was interrupted."""
 
 
-class SlaveBusyException(HuaweiSolarException):
+class DeviceBusyException(HuaweiSolarException):
     """Non-fatal exception while trying to read from device."""
 
 
-class SlaveFailureException(HuaweiSolarException):
+class DeviceFailureException(HuaweiSolarException):
     """Possibly fatal exception while trying to read from device."""
 
 

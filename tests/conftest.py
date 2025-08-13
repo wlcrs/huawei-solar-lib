@@ -133,7 +133,7 @@ def huawei_bridge():
     hs.battery_type = StorageProductModel.HUAWEI_LUNA2000
     return HuaweiSUN2000Bridge(
         client=hs,
-        slave_id=1,
+        device_id=1,
         product_info=HuaweiSolarProductInfo("SUN2000-9KTL-123", "SN123", "PN456", "FW789", "SW123"),
         update_lock=asyncio.Lock(),
     )
