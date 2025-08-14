@@ -14,13 +14,7 @@ from hashlib import sha256
 from typing import TYPE_CHECKING, Any, NamedTuple, Self, TypeVar, cast
 
 import backoff
-from pymodbus.exceptions import ConnectionException as ModbusConnectionException
-from pymodbus.framer import FramerRTU
-from pymodbus.pdu import ExceptionResponse, ModbusPDU
-from pymodbus.pdu.register_message import (
-    WriteMultipleRegistersResponse,
-    WriteSingleRegisterResponse,
-)
+from tmodbus.exceptions import ModbusConnectionError
 
 from .const import DEVICE_INFOS_START_OBJECT_ID, MAX_BATCHED_REGISTERS_COUNT
 from .exceptions import (
@@ -423,7 +417,7 @@ class AsyncHuaweiSolar:
                     )
                     raise DeviceBusyException(msg)
 
-            except ModbusConnectionException as err:
+            except ModbusConnectionError as err:
                 message = "Could not read register value, has another device interrupted the connection?"
                 LOGGER.exception(message)
                 raise ConnectionInterruptedException(message) from err
@@ -742,7 +736,7 @@ class AsyncHuaweiSolar:
                 return response.address == register and response.registers == [value[0]]
             assert isinstance(response, WriteMultipleRegistersResponse)
             return response.address == register and response.count == len(value)
-        except ModbusConnectionException as err:
+        except ModbusConnectionError as err:
             LOGGER.exception("Failed to connect to device, is the host correct?")
             raise ConnectionInterruptedException(err) from err
 
