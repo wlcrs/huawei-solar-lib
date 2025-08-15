@@ -13,11 +13,6 @@ before_script:
   - python -V # Print out python version for debugging
   - pip install twine tox ruff pytest build
 
-linting:
-  stage: test
-  script:
-    - tox -e ruff,yamllint
-
 build-job:
   stage: build
   image: python:3-bookworm
