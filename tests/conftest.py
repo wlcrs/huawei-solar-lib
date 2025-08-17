@@ -137,7 +137,7 @@ def huawei_solar() -> AsyncHuaweiSolar:
 def huawei_bridge(huawei_solar: AsyncHuaweiSolar) -> HuaweiSUN2000Bridge:
     return HuaweiSUN2000Bridge(
         client=huawei_solar,
-        device_id=1,
+        slave_id=1,
         product_info=HuaweiSolarProductInfo("SUN2000-9KTL-123", "SN123", "PN456", "FW789", "SW123"),
         update_lock=asyncio.Lock(),
     )
