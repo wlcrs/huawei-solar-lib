@@ -20,11 +20,11 @@ from .const import DEVICE_INFOS_START_OBJECT_ID, MAX_BATCHED_REGISTERS_COUNT
 from .exceptions import (
     ConnectionException,
     ConnectionInterruptedException,
-    DeviceBusyException,
-    DeviceFailureException,
     HuaweiSolarException,
     PermissionDenied,
     ReadException,
+    SlaveBusyException,
+    SlaveFailureException,
     WriteException,
 )
 from .modbus import (
@@ -120,7 +120,7 @@ class AsyncHuaweiSolar:
     def __init__(
         self,
         client: AsyncHuaweiSolarModbusSerialClient | AsyncHuaweiSolarModbusTcpClient,
-        device_id: int = DEFAULT_SLAVE_ID,
+        slave_id: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ) -> None:
@@ -128,7 +128,7 @@ class AsyncHuaweiSolar:
         self._client = client
         self._timeout = timeout
         self._cooldown_time = cooldown_time
-        self.device_id = device_id
+        self.slave_id = slave_id
 
         # use this lock to prevent concurrent requests, as the
         # Huawei inverters can't cope with those
@@ -171,7 +171,7 @@ class AsyncHuaweiSolar:
         cls,
         host: str,
         port: int = DEFAULT_TCP_PORT,
-        device_id: int = DEFAULT_SLAVE_ID,
+        slave_id: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ) -> Self:
@@ -181,7 +181,7 @@ class AsyncHuaweiSolar:
             client = AsyncHuaweiSolarModbusTcpClient(host, port, timeout)
             await client.connect()
 
-            huawei_solar = cls(client, device_id, timeout, cooldown_time)
+            huawei_solar = cls(client, slave_id, timeout, cooldown_time)
         except Exception as err:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
@@ -198,7 +198,7 @@ class AsyncHuaweiSolar:
         cls,
         port: str,
         baudrate: int = DEFAULT_BAUDRATE,
-        device_id: int = DEFAULT_SLAVE_ID,
+        slave_id: int = DEFAULT_SLAVE_ID,
         timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
         **serial_kwargs: dict[str, Any],
@@ -217,7 +217,7 @@ class AsyncHuaweiSolar:
             # wait a little bit to prevent a timeout on the first request
             await asyncio.sleep(1)
 
-            huawei_solar = cls(client, device_id, timeout, cooldown_time)
+            huawei_solar = cls(client, slave_id, timeout, cooldown_time)
         except Exception as err:
             # if an error occurs, we need to make sure that the Modbus-client is stopped,
             # otherwise it can stay active and cause even more problems ...
@@ -250,11 +250,11 @@ class AsyncHuaweiSolar:
             return Result(result, None)
         return Result(result, reg.unit)
 
-    async def get(self, name: str, device_id: int | None = None) -> Result:
+    async def get(self, name: str, slave_id: int | None = None) -> Result:
         """Get named register from device."""
-        return (await self.get_multiple([name], device_id))[0]
+        return (await self.get_multiple([name], slave_id))[0]
 
-    async def get_multiple(self, names: list[str], device_id: int | None = None) -> list[Result]:
+    async def get_multiple(self, names: list[str], slave_id: int | None = None) -> list[Result]:
         """Read multiple registers at the same time.
 
         This is only possible if the registers are consecutively available in the
@@ -299,7 +299,7 @@ class AsyncHuaweiSolar:
         response = await self._read_registers(
             registers[0].register,
             total_length,
-            device_id,
+            slave_id,
         )
 
         start_register = registers[0].register
@@ -316,7 +316,7 @@ class AsyncHuaweiSolar:
         self,
         register: int,
         length: int,
-        device_id: int | None,
+        slave_id: int | None,
     ) -> ModbusPDU:
         """Async read register from device.
 
@@ -368,7 +368,7 @@ class AsyncHuaweiSolar:
         )
         @backoff.on_exception(
             backoff.expo,
-            (DeviceBusyException, DeviceFailureException),
+            (SlaveBusyException, SlaveFailureException),
             max_tries=6,
             jitter=None,
             on_backoff=on_backoff,
@@ -383,7 +383,7 @@ class AsyncHuaweiSolar:
                 response = await self._client.read_holding_registers(
                     register,
                     count=length,
-                    device_id=device_id or self.device_id,
+                    device_id=slave_id or self.slave_id,
                 )
 
                 # trigger a backoff if we get a SlaveBusy-exception
@@ -393,18 +393,18 @@ class AsyncHuaweiSolar:
                             "Got a Device Busy Modbus Exception while reading %d (length %d) from server %d",
                             register,
                             length,
-                            device_id or self.device_id,
+                            slave_id or self.slave_id,
                         )
-                        raise DeviceBusyException
+                        raise SlaveBusyException
 
                     if response.exception_code == DEVICE_FAILURE_EXCEPTION_CODE:
                         LOGGER.debug(
                             "Got a SlaveFailure Modbus Exception while reading %d (length %d) from server %d",
                             register,
                             length,
-                            device_id or self.device_id,
+                            slave_id or self.slave_id,
                         )
-                        raise DeviceFailureException
+                        raise SlaveFailureException
 
                     # Not a SlaveBusy or SlaveFailure exception
                     msg = f"Got error while reading from register {register} with length {length}: {response}"
@@ -415,7 +415,7 @@ class AsyncHuaweiSolar:
                         f"Mismatch between number of requested registers ({length}) "
                         f"and number of received registers ({len(response.registers)})"
                     )
-                    raise DeviceBusyException(msg)
+                    raise SlaveBusyException(msg)
 
             except ModbusConnectionError as err:
                 message = "Could not read register value, has another device interrupted the connection?"
@@ -429,7 +429,7 @@ class AsyncHuaweiSolar:
                 "Reading register %d with length %d from server %s",
                 register,
                 length,
-                device_id or self.device_id,
+                slave_id or self.slave_id,
             )
             return await _do_read()
 
@@ -452,9 +452,9 @@ class AsyncHuaweiSolar:
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied
                 if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
-                    raise DeviceBusyException
+                    raise SlaveBusyException
                 if response.exception_code == DEVICE_FAILURE_EXCEPTION_CODE:
-                    raise DeviceFailureException
+                    raise SlaveFailureException
                 msg = (
                     f"Exception occurred while trying to read device infos "
                     f"{hex(response.exception_code) if response.exception_code else 'no exception code'}"
@@ -522,7 +522,7 @@ class AsyncHuaweiSolar:
         self,
         file_type: int,
         customized_data: bytes | None = None,
-        device_id: int | None = None,
+        slave_id: int | None = None,
     ) -> bytes:
         """Read a 'file' via Modbus.
 
@@ -536,7 +536,7 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.constant,
-            (asyncio.TimeoutError, DeviceBusyException, DeviceFailureException),
+            (asyncio.TimeoutError, SlaveBusyException, SlaveFailureException),
             interval=FILE_UPLOAD_RETRY_TIMEOUT,
             max_tries=FILE_UPLOAD_MAX_RETRIES,
             jitter=None,
@@ -558,9 +558,9 @@ class AsyncHuaweiSolar:
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied
                 if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
-                    raise DeviceBusyException
+                    raise SlaveBusyException
                 if response.exception_code == DEVICE_FAILURE_EXCEPTION_CODE:
-                    raise DeviceFailureException
+                    raise SlaveFailureException
                 msg = (
                     f"Exception occurred while trying to read file {hex(file_type)}: "
                     f"{hex(response.exception_code) if response.exception_code else 'no exception code'}"
@@ -575,7 +575,7 @@ class AsyncHuaweiSolar:
                 StartUploadModbusRequest(
                     file_type,
                     customized_data,
-                    dev_id=device_id or self.device_id,
+                    dev_id=slave_id or self.slave_id,
                 ),
                 StartUploadModbusResponse,
             )
@@ -593,7 +593,7 @@ class AsyncHuaweiSolar:
                     UploadModbusRequest(
                         file_type,
                         next_frame_no,
-                        dev_id=device_id or self.device_id,
+                        dev_id=slave_id or self.slave_id,
                     ),
                     UploadModbusResponse,
                 )
@@ -603,7 +603,7 @@ class AsyncHuaweiSolar:
 
             # Complete the upload and check the CRC
             complete_upload_response = await _perform_request(
-                CompleteUploadModbusRequest(file_type, dev_id=device_id or self.device_id),
+                CompleteUploadModbusRequest(file_type, dev_id=slave_id or self.slave_id),
                 CompleteUploadModbusResponse,
             )
 
@@ -622,9 +622,9 @@ class AsyncHuaweiSolar:
 
         async with self._communication_lock():
             LOGGER.debug(
-                "Reading file %#x from device_id %d",
+                "Reading file %#x from server %d",
                 file_type,
-                device_id or self.device_id,
+                slave_id or self.slave_id,
             )
             return await _do_read_file()
 
@@ -632,7 +632,7 @@ class AsyncHuaweiSolar:
         self,
         name: str,
         value: Any,  # noqa: ANN401
-        device_id: int | None = None,
+        slave_id: int | None = None,
     ) -> bool:
         """Set named register on device."""
         try:
@@ -657,7 +657,7 @@ class AsyncHuaweiSolar:
 
         @backoff.on_exception(
             backoff.expo,
-            (asyncio.TimeoutError, DeviceBusyException, ConnectionInterruptedException),
+            (asyncio.TimeoutError, SlaveBusyException, ConnectionInterruptedException),
             max_tries=3,
             jitter=None,
             on_backoff=lambda details: LOGGER.debug(
@@ -672,7 +672,7 @@ class AsyncHuaweiSolar:
             return await self._write_registers(
                 reg.register,
                 registers,
-                device_id,
+                slave_id,
             )
 
         async with self._communication_lock():
@@ -680,7 +680,7 @@ class AsyncHuaweiSolar:
                 "Writing to register %s value %s on server %s",
                 name,
                 registers,
-                device_id or self.device_id,
+                slave_id or self.slave_id,
             )
             return await _do_set()
 
@@ -688,7 +688,7 @@ class AsyncHuaweiSolar:
         self,
         register: int,
         value: list[int],
-        device_id: int | None = None,
+        slave_id: int | None = None,
     ) -> bool:
         """Async write register to device."""
         if not self._client.connected:
@@ -700,7 +700,7 @@ class AsyncHuaweiSolar:
                 "Writing to %d: %s on server %d",
                 register,
                 value,
-                device_id or self.device_id,
+                slave_id or self.slave_id,
             )
 
             single_register = len(value) == 1
@@ -708,14 +708,14 @@ class AsyncHuaweiSolar:
                 response = await self._client.write_register(
                     register,
                     value[0],
-                    device_id=device_id or self.device_id,
+                    device_id=slave_id or self.slave_id,
                 )
 
             else:
                 response = await self._client.write_registers(
                     register,
                     value,
-                    device_id=device_id or self.device_id,
+                    device_id=slave_id or self.slave_id,
                 )
 
             if isinstance(response, ExceptionResponse):
@@ -740,7 +740,7 @@ class AsyncHuaweiSolar:
             LOGGER.exception("Failed to connect to device, is the host correct?")
             raise ConnectionInterruptedException(err) from err
 
-    async def login(self, username: str, password: str, device_id: int | None = None) -> bool:
+    async def login(self, username: str, password: str, slave_id: int | None = None) -> bool:
         """Login into the inverter."""
 
         def backoff_giveup(details: "Details") -> None:
@@ -751,9 +751,9 @@ class AsyncHuaweiSolar:
             backoff.expo,
             (
                 asyncio.TimeoutError,
-                DeviceBusyException,
-                DeviceFailureException,
-                DeviceFailureException,
+                SlaveBusyException,
+                SlaveFailureException,
+                SlaveFailureException,
             ),
             max_tries=4,
             jitter=None,
@@ -770,7 +770,7 @@ class AsyncHuaweiSolar:
             challenge_request = PrivateHuaweiModbusRequest(
                 36,
                 bytes([1, 0]),
-                dev_id=device_id or self.device_id,
+                dev_id=slave_id or self.slave_id,
             )
 
             challenge_response = cast(
@@ -803,7 +803,7 @@ class AsyncHuaweiSolar:
             login_request = PrivateHuaweiModbusRequest(
                 37,
                 login_bytes,
-                dev_id=device_id or self.device_id,
+                dev_id=slave_id or self.slave_id,
             )
             login_response = cast(
                 "PrivateHuaweiModbusResponse",
@@ -828,7 +828,7 @@ class AsyncHuaweiSolar:
             LOGGER.debug("Logging in")
             return await _do_login()
 
-    async def heartbeat(self, device_id: int | None = None) -> bool:
+    async def heartbeat(self, slave_id: int | None = None) -> bool:
         """Perform the heartbeat command. Only useful when maintaining a session."""
         if not self._client.connected:
             return False
@@ -837,7 +837,7 @@ class AsyncHuaweiSolar:
             response = await self._client.write_register(
                 HEARTBEAT_REGISTER,
                 0x1,
-                device_id=device_id or self.device_id,
+                device_id=slave_id or self.slave_id,
             )
             if isinstance(response, ExceptionResponse):
                 LOGGER.warning("Received an error after sending the heartbeat command: %02x", response.exception_code)
