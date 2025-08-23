@@ -39,6 +39,9 @@ Homepage = "https://gitlab.com/EmilV2/huawei-solar"
 dev = [
     "tox>=4.15",
     "pre-commit",
+]
+
+test = [
     "pytest",
     "pytest-asyncio",
 ]
