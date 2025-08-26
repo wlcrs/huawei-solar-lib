@@ -1628,6 +1628,14 @@ EMMA_REGISTERS = {
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
+    rn.CHARGER_SOFTWARE_VERSION: StringRegister(30031, 16, target_device=TargetDevice.EMMA),
+    rn.CHARGER_MODEL: StringRegister(30078, 14, target_device=TargetDevice.EMMA),
+    rn.CHARGER_RATED_POWER: U32Register("kW", 10, 30076, target_device=TargetDevice.EMMA),
+    rn.CHARGER_PHASE_A_VOLTAGE_SENSOR: U32Register("V", 10, 30500, target_device=TargetDevice.EMMA),
+    rn.CHARGER_PHASE_B_VOLTAGE_SENSOR: U32Register("V", 10, 30502, target_device=TargetDevice.EMMA),
+    rn.CHARGER_PHASE_C_VOLTAGE_SENSOR: U32Register("V", 10, 30504, target_device=TargetDevice.EMMA),
+    rn.CHARGER_TOTAL_ENERGY_CHARGED_SENSOR: U32Register("kWh", 1000, 30506, target_device=TargetDevice.EMMA),
+    rn.CHARGER_TEMPERATURE_SENSOR: I32Register("°C", 10, 30508, target_device=TargetDevice.EMMA),
 }
 
 REGISTERS.update(EMMA_REGISTERS)
