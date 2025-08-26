@@ -3,6 +3,7 @@
 from . import register_names, register_values, registers
 from .bridge import (
     HuaweiEMMABridge,
+    HuaweiChargerBridge,
     HuaweiSolarBridge,
     HuaweiSUN2000Bridge,
     create_rtu_bridge,
@@ -33,6 +34,7 @@ __all__ = [
     "DecodeError",
     "EncodeError",
     "HuaweiEMMABridge",
+    "HuaweiChargerBridge",
     "HuaweiSUN2000Bridge",
     "HuaweiSolarBridge",
     "HuaweiSolarException",

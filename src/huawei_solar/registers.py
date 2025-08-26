@@ -30,6 +30,7 @@ class TargetDevice(Flag):
 
     SUN2000 = auto()
     EMMA = auto()
+    SCHARGER = auto()
     SDONGLE = auto()
     SMARTLOGGER = auto()
 
@@ -857,7 +858,11 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
 
 
 REGISTERS: dict[str, RegisterDefinition] = {
-    rn.MODEL_NAME: StringRegister(30000, 15, target_device=TargetDevice.SUN2000 | TargetDevice.EMMA),
+    rn.MODEL_NAME: StringRegister(
+        30000,
+        15,
+        target_device=TargetDevice.SUN2000 | TargetDevice.EMMA | TargetDevice.SCHARGER,
+    ),
     rn.SERIAL_NUMBER: StringRegister(
         30015,
         10,
@@ -1632,6 +1637,19 @@ EMMA_REGISTERS = {
 
 REGISTERS.update(EMMA_REGISTERS)
 
+SCHARGER_REGISTERS = {
+    rn.CHARGER_SOFTWARE_VERSION: StringRegister(30031, 16, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_ESN: StringRegister(30015, 16, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_MODEL: StringRegister(30078, 14, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_RATED_POWER: U32Register("kW", 10, 30076, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_PHASE_A_VOLTAGE_SENSOR: U32Register("V", 10, 30500, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_PHASE_B_VOLTAGE_SENSOR: U32Register("V", 10, 30502, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_PHASE_C_VOLTAGE_SENSOR: U32Register("V", 10, 30504, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_TOTAL_ENERGY_CHARGED_SENSOR: U32Register("kWh", 1000, 30506, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_TEMPERATURE_SENSOR: I32Register("°C", 10, 30508, target_device=TargetDevice.SCHARGER),
+}
+
+REGISTERS.update(SCHARGER_REGISTERS)
 
 METER_REGISTERS = {
     rn.METER_STATUS: U16Register(rv.MeterStatus, 1, 37100),
