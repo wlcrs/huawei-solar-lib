@@ -662,7 +662,21 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
         self.model = (await self.client.get(rn.EMMA_MODEL, self.slave_id)).value
 
 
-BRIDGE_CLASSES: list[type[HuaweiSolarBridge]] = [HuaweiSUN2000Bridge, HuaweiEMMABridge]
+class HuaweiChargerBridge(HuaweiSolarBridge):
+    """Bridge for Huawei SCharger devices."""
+
+    model: str
+
+    @classmethod
+    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+        """Check if this class support the given device."""
+        return product_info.model_name.startswith("SCharger-22KT-S0")
+
+    async def _populate_additional_fields(self) -> None:
+        self.model = (await self.client.get(rn.CHARGER_MODEL, self.slave_id)).value
+
+
+BRIDGE_CLASSES: list[type[HuaweiSolarBridge]] = [HuaweiSUN2000Bridge, HuaweiEMMABridge, HuaweiChargerBridge]
 
 
 async def create_tcp_bridge(
