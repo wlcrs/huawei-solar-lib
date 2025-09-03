@@ -670,7 +670,7 @@ class HuaweiChargerBridge(HuaweiSolarBridge):
     @classmethod
     def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
         """Check if this class support the given device."""
-        return product_info.model_name.startswith("SCharger-22KT-S0")
+        return product_info.model_name.startswith("SCharger")
 
     async def _populate_additional_fields(self) -> None:
         self.model = (await self.client.get(rn.CHARGER_MODEL, self.slave_id)).value
