@@ -858,7 +858,7 @@ class PeakSettingPeriodRegisters(RegisterDefinition[list[PeakSettingPeriod]]):
 
 
 REGISTERS: dict[str, RegisterDefinition] = {
-    rn.MODEL_NAME: StringRegister(30000, 15, target_device=TargetDevice.SUN2000 | TargetDevice.EMMA),
+    rn.MODEL_NAME: StringRegister(30000, 15, target_device=TargetDevice.SUN2000 | TargetDevice.EMMA | TargetDevice.SCHARGER),
     rn.SERIAL_NUMBER: StringRegister(
         30015,
         10,
@@ -1635,6 +1635,7 @@ REGISTERS.update(EMMA_REGISTERS)
 
 SCHARGER_REGISTERS = {
     rn.CHARGER_SOFTWARE_VERSION: StringRegister(30031, 16, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_ESN: StringRegister(30015, 16, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_MODEL: StringRegister(30078, 14, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_RATED_POWER: U32Register("kW", 10, 30076, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_PHASE_A_VOLTAGE_SENSOR: U32Register("V", 10, 30500, target_device=TargetDevice.SCHARGER),
