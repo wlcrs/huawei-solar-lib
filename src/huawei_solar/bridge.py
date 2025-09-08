@@ -622,6 +622,8 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
     Also called 'SmartHEMS' by Huawei.
     """
 
+    serial_number: str
+    software_version: str
     model: str
 
     @classmethod
@@ -634,12 +636,27 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
         return True
 
     async def _populate_additional_fields(self) -> None:
+        (
+            serial_number_result,
+            software_version_result,
+        ) = await self.client.get_multiple(
+            [
+                rn.SERIAL_NUMBER,
+                rn.SOFTWARE_VERSION,
+            ],
+            self.slave_id,
+        )
+        self.serial_number = serial_number_result.value
+        self.software_version = software_version_result.value
+
         self.model = (await self.client.get(rn.EMMA_MODEL, self.slave_id)).value
 
 
 class HuaweiChargerBridge(HuaweiSolarBridge):
     """Bridge for Huawei SCharger devices."""
 
+    serial_number: str
+    software_version: str
     model: str
 
     @classmethod
@@ -648,6 +665,19 @@ class HuaweiChargerBridge(HuaweiSolarBridge):
         return model_name.startswith("SCharger")
 
     async def _populate_additional_fields(self) -> None:
+        (
+            serial_number_result,
+            software_version_result,
+        ) = await self.client.get_multiple(
+            [
+                rn.CHARGER_ESN,
+                rn.CHARGER_SOFTWARE_VERSION,
+            ],
+            self.slave_id,
+        )
+        self.serial_number = serial_number_result.value
+        self.software_version = software_version_result.value
+
         self.model = (await self.client.get(rn.CHARGER_MODEL, self.slave_id)).value
 
 
