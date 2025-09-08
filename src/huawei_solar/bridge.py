@@ -6,7 +6,6 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from contextlib import suppress
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Self
 
@@ -44,53 +43,10 @@ _LOGGER = logging.getLogger(__name__)
 HEARTBEAT_INTERVAL = 15
 
 
-@dataclass(frozen=True)
-class HuaweiSolarProductInfo:
-    """Contains information on Huawei Solar Product."""
-
-    model_name: str
-    serial_number: str
-    product_number: str
-    firmware_version: str
-    software_version: str
-
-    @classmethod
-    async def retrieve_from_device(cls, client: AsyncHuaweiSolar, slave_id: int) -> Self:
-        """Retrieve product info from device."""
-        (
-            model_name_result,
-            serial_number_result,
-            pn_result,
-            firmware_version_result,
-            software_version_result,
-        ) = await client.get_multiple(
-            [
-                rn.MODEL_NAME,
-                rn.SERIAL_NUMBER,
-                rn.PN,
-                rn.FIRMWARE_VERSION,
-                rn.SOFTWARE_VERSION,
-            ],
-            slave_id,
-        )
-
-        return cls(
-            model_name=model_name_result.value,
-            serial_number=serial_number_result.value,
-            product_number=pn_result.value,
-            firmware_version=firmware_version_result.value,
-            software_version=software_version_result.value,
-        )
-
-
 class HuaweiSolarBridge(ABC):
     """A higher-level interface making it easier to interact with a Huawei Solar inverter."""
 
     model_name: str
-    serial_number: str
-    product_number: str
-    firmware_version: str
-    software_version: str
 
     __login_lock = asyncio.Lock()
     __heartbeat_enabled = False
@@ -105,7 +61,7 @@ class HuaweiSolarBridge(ABC):
         self,
         client: AsyncHuaweiSolar,
         slave_id: int,
-        product_info: HuaweiSolarProductInfo,
+        model_name: str,
         update_lock: asyncio.Lock | None = None,
         *,
         connected_via_emma: bool = False,
@@ -113,14 +69,9 @@ class HuaweiSolarBridge(ABC):
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use create() method instead."""
         self.client = client
         self.slave_id = slave_id
+        self.model_name = model_name
         self.update_lock = update_lock or asyncio.Lock()
         self.connected_via_emma = connected_via_emma
-
-        self.model_name = product_info.model_name
-        self.serial_number = product_info.serial_number
-        self.product_number = product_info.product_number
-        self.firmware_version = product_info.firmware_version
-        self.software_version = product_info.software_version
 
         self._primary = slave_id == client.slave_id
 
@@ -129,7 +80,7 @@ class HuaweiSolarBridge(ABC):
         cls,
         client: AsyncHuaweiSolar,
         slave_id: int,
-        product_info: HuaweiSolarProductInfo,
+        model_name: str,
         update_lock: asyncio.Lock | None,
         *,
         connected_via_emma: bool = False,
@@ -138,7 +89,7 @@ class HuaweiSolarBridge(ABC):
         bridge = cls(
             client,
             slave_id,
-            product_info,
+            model_name,
             update_lock,
             connected_via_emma=connected_via_emma,
         )
@@ -154,7 +105,7 @@ class HuaweiSolarBridge(ABC):
 
     @classmethod
     @abstractmethod
-    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+    def supports_device(cls, model_name: str) -> bool:
         """Check if this class support the given device."""
         raise NotImplementedError
 
@@ -408,6 +359,11 @@ class HuaweiSolarBridge(ABC):
 class HuaweiSUN2000Bridge(HuaweiSolarBridge):
     """Bridge for Huawei SUN2000 devices."""
 
+    serial_number: str
+    product_number: str
+    firmware_version: str
+    software_version: str
+
     pv_string_count: int = 0
     has_optimizers: bool = False
 
@@ -425,9 +381,9 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
     _previous_device_status: str | None = None
 
     @classmethod
-    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+    def supports_device(cls, model_name: str) -> bool:
         """Check if this class support the given device."""
-        return product_info.model_name.startswith(
+        return model_name.startswith(
             (
                 "SUN2000",
                 "EDF ESS",
@@ -437,6 +393,25 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
         )
 
     async def _populate_additional_fields(self) -> None:
+        (
+            serial_number_result,
+            pn_result,
+            firmware_version_result,
+            software_version_result,
+        ) = await self.client.get_multiple(
+            [
+                rn.SERIAL_NUMBER,
+                rn.PN,
+                rn.FIRMWARE_VERSION,
+                rn.SOFTWARE_VERSION,
+            ],
+            self.slave_id,
+        )
+        self.serial_number = serial_number_result.value
+        self.product_number = pn_result.value
+        self.firmware_version = firmware_version_result.value
+        self.software_version = software_version_result.value
+
         self.pv_string_count = (await self.client.get(rn.NB_PV_STRINGS, self.slave_id)).value
         self._pv_registers = self._compute_pv_registers()
 
@@ -650,9 +625,9 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
     model: str
 
     @classmethod
-    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+    def supports_device(cls, model_name: str) -> bool:
         """Check if this class support the given device."""
-        return product_info.model_name.startswith("SmartHEMS")
+        return model_name.startswith("SmartHEMS")
 
     async def has_write_permission(self) -> bool:
         """EMMA always gives write access."""
@@ -668,9 +643,9 @@ class HuaweiChargerBridge(HuaweiSolarBridge):
     model: str
 
     @classmethod
-    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+    def supports_device(cls, model_name: str) -> bool:
         """Check if this class support the given device."""
-        return product_info.model_name.startswith("SCharger")
+        return model_name.startswith("SCharger")
 
     async def _populate_additional_fields(self) -> None:
         self.model = (await self.client.get(rn.CHARGER_MODEL, self.slave_id)).value
@@ -718,22 +693,23 @@ async def _create(
     *,
     connected_via_emma: bool = False,
 ) -> HuaweiSolarBridge:
-    product_info = await HuaweiSolarProductInfo.retrieve_from_device(client, slave_id)
+    model_name_result = await client.get(rn.MODEL_NAME, slave_id)
+    model_name = model_name_result.value
 
     for candidate_bridge_class in BRIDGE_CLASSES:
-        if candidate_bridge_class.supports_device(product_info):
+        if candidate_bridge_class.supports_device(model_name):
             return await candidate_bridge_class.create(
                 client,
                 slave_id,
-                product_info,
+                model_name,
                 update_lock,
                 connected_via_emma=connected_via_emma,
             )
 
-    _LOGGER.warning("Unknown product model '%s'. Defaulting to a SUN2000 device.", product_info.model_name)
+    _LOGGER.warning("Unknown product model '%s'. Defaulting to a SUN2000 device.", model_name)
     return await HuaweiSUN2000Bridge.create(
         client,
         slave_id,
-        product_info,
+        model_name,
         update_lock,
     )

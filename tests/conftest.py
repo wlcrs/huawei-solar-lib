@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 from pymodbus.pdu.register_message import ReadHoldingRegistersResponse
 
-from huawei_solar.bridge import HuaweiSolarProductInfo, HuaweiSUN2000Bridge
+from huawei_solar.bridge import HuaweiSUN2000Bridge
 from huawei_solar.huawei_solar import AsyncHuaweiSolar
 from huawei_solar.register_values import StorageProductModel
 
@@ -138,6 +138,6 @@ def huawei_bridge(huawei_solar: AsyncHuaweiSolar) -> HuaweiSUN2000Bridge:
     return HuaweiSUN2000Bridge(
         client=huawei_solar,
         slave_id=1,
-        product_info=HuaweiSolarProductInfo("SUN2000-9KTL-123", "SN123", "PN456", "FW789", "SW123"),
+        model_name="SUN2000-9KTL-123",
         update_lock=asyncio.Lock(),
     )
