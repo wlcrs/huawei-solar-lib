@@ -725,6 +725,8 @@ class AsyncHuaweiSolar:
                 )
 
             if isinstance(response, ExceptionResponse):
+                if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
+                    raise SlaveBusyException
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied
                 if response.exception_code == ILLEGAL_ADDRESS_EXCEPTION_CODE:
