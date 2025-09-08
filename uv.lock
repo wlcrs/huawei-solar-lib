@@ -78,9 +78,11 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "pre-commit" },
+    { name = "tox" },
+]
+test = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "tox" },
 ]
 
 [package.metadata]
@@ -94,9 +96,11 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "pre-commit" },
+    { name = "tox", specifier = ">=4.15" },
+]
+test = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "tox", specifier = ">=4.15" },
 ]
 
 [[package]]
