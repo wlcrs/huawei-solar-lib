@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient, ModbusBaseClient
 from pymodbus.pdu import ExceptionResponse, ModbusPDU
 
-RECONNECT_DELAY = 1000  # in milliseconds
+RECONNECT_DELAY = 1  # in seconds
 WAIT_ON_CONNECT = 1500  # in milliseconds
 
 LOGGER = logging.getLogger(__name__)
