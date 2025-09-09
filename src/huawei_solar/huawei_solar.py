@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Self, TypeVar, cast
 import backoff
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
 from pymodbus.framer import FramerRTU
-from pymodbus.pdu import ExceptionResponse, ModbusPDU
+from pymodbus.pdu import ModbusPDU
 from pymodbus.pdu.register_message import (
     WriteMultipleRegistersResponse,
     WriteSingleRegisterResponse,
@@ -393,7 +393,9 @@ class AsyncHuaweiSolar:
                 )
 
                 # trigger a backoff if we get a SlaveBusy-exception
-                if isinstance(response, ExceptionResponse):
+                # workaround for bug https://github.com/pymodbus-dev/pymodbus/issues/2767
+                # if isinstance(response, ExceptionResponse):
+                if response.exception_code:
                     if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
                         LOGGER.debug(
                             "Got a Device Busy Modbus Exception while reading %d (length %d) from server %d",
@@ -454,7 +456,9 @@ class AsyncHuaweiSolar:
                 ),
             )
 
-            if isinstance(response, ExceptionResponse):
+            # workaround for bug https://github.com/pymodbus-dev/pymodbus/issues/2767
+            # if isinstance(response, ExceptionResponse):
+            if response.exception_code:
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied
                 if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
@@ -560,7 +564,9 @@ class AsyncHuaweiSolar:
                 await self._client.execute(no_response_expected=False, request=request),
             )
 
-            if isinstance(response, ExceptionResponse):
+            # workaround for bug https://github.com/pymodbus-dev/pymodbus/issues/2767
+            # if isinstance(response, ExceptionResponse):
+            if response.exception_code:
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied
                 if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
@@ -724,7 +730,9 @@ class AsyncHuaweiSolar:
                     device_id=slave_id or self.slave_id,
                 )
 
-            if isinstance(response, ExceptionResponse):
+            # workaround for bug https://github.com/pymodbus-dev/pymodbus/issues/2767
+            # if isinstance(response, ExceptionResponse):
+            if response.exception_code:
                 if response.exception_code == DEVICE_BUSY_EXCEPTION_CODE:
                     raise SlaveBusyException
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
@@ -847,7 +855,10 @@ class AsyncHuaweiSolar:
                 0x1,
                 device_id=slave_id or self.slave_id,
             )
-            if isinstance(response, ExceptionResponse):
+
+            # workaround for bug https://github.com/pymodbus-dev/pymodbus/issues/2767
+            # if isinstance(response, ExceptionResponse):
+            if response.exception_code:
                 LOGGER.warning("Received an error after sending the heartbeat command: %02x", response.exception_code)
                 return False
             LOGGER.debug("Heartbeat succeeded")
