@@ -1570,7 +1570,8 @@ EMMA_REGISTERS = {
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
-    rn.EMMA_TOU_MAXIMUNM_POWER_FOR_CHARGING_BATTERIES_FROM_GRID: U32Register("W", 1, 40002, writeable=True),
+    rn.EMMA_TOU_MAXIMUM_POWER_FOR_CHARGING_BATTERIES_FROM_GRID: U32Register("W", 1, 40002, writeable=True),
+    rn.EMMA_TOU_PERIODS: HUAWEI_LUNA2000_TimeOfUseRegisters(40004, 43, writeable=True),
     rn.EMMA_POWER_CONTROL_MODE_AT_GRID_CONNECTION_POINT: U16Register(
         rv.ActivePowerControlMode,
         1,
