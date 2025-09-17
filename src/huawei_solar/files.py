@@ -105,7 +105,7 @@ class OptimizerRealTimeDataFile:
 
         has_next_optimizer_data_unit = True
         while has_next_optimizer_data_unit:
-            (time, length, number_of_optimizers) = struct.unpack_from(
+            (time, _length, number_of_optimizers) = struct.unpack_from(
                 OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT,
                 file_data,
                 offset,
@@ -236,9 +236,9 @@ class OptimizerSystemInformationDataFile:
 
         (
             self.file_version,
-            feature_data_sequence_number,
-            length,
-            reserved,
+            _feature_data_sequence_number,
+            _length,
+            _reserved,
             number_of_optimizers,
         ) = struct.unpack_from(
             OptimizerSystemInformationDataFile.HEADER,
@@ -295,7 +295,7 @@ class OptimizerSystemInformationDataFile:
                     software_version,
                     alias,
                     model,
-                    machine_id,
+                    _machine_id,
                     one_to_more,
                     rated_power,
                     cpu_type,

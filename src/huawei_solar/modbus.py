@@ -237,7 +237,7 @@ class CompleteUploadModbusRequest(ModbusPDU):
 
     def decode(self, data: bytes) -> None:
         """Decode CompleteUploadModbusRequest."""
-        sub_function_code, data_length, self.file_type = struct.unpack(">BBB", data)
+        sub_function_code, _data_length, self.file_type = struct.unpack(">BBB", data)
 
         assert sub_function_code == self.sub_function_code
 
@@ -318,12 +318,12 @@ class ReadDeviceIdentifierResponse(ModbusPDU):
     def decode(self, data: bytes) -> None:
         """Decode ReadDeviceIdentifierResponse."""
         (
-            MEI_type,  # noqa: N806
+            _MEI_type,  # noqa: N806
             self.device_id_code,
             self.consistency_level,
             self.more,
             self.next_object_id,
-            number_of_objects,
+            _number_of_objects,
         ) = struct.unpack_from(">BBBBBB", data, 0)
 
         self.objects = {}
