@@ -1,74 +1,22 @@
 """Custom classes for pyModbus."""
 
-import asyncio
 import hmac
 import logging
 import secrets
 import struct
 from dataclasses import dataclass, field
 from hashlib import sha256
-from typing import Any, Literal, Self, TypedDict
 
-from tmodbus.client import AsyncModbusClient
 from tmodbus.exceptions import ModbusResponseError, register_custom_exception
 from tmodbus.pdu import BaseClientPDU, register_pdu_class
-from tmodbus.transport import AsyncRtuTransport, AsyncTcpTransport
 
 RECONNECT_DELAY = 1000  # in milliseconds
 WAIT_ON_CONNECT = 1500  # in milliseconds
 
 LOGGER = logging.getLogger(__name__)
 
+
 # Register custom Huawei Modbus PDUs
-
-
-class ModbusConnectionMixin(_Base):
-    """Mixin that adds support for custom Huawei modbus messages and delays upon reconnect."""
-
-    connected_event = asyncio.Event()
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-        """Add support for the custom Huawei modbus messages."""
-        super().__init__(*args, **kwargs, trace_connect=self._trace_connect)  # forward all unused arguments
-        super().register(PrivateHuaweiModbusResponse)
-        super().register(ReadDeviceIdentifierResponse)
-        super().register(AbnormalDeviceDescriptionResponse)
-
-    def _trace_connect(self, connected: bool) -> None:  # noqa: FBT001
-        if connected:
-
-            async def _made_connection_task() -> None:
-                LOGGER.debug(
-                    "Waiting for %d milliseconds after connection before performing operations",
-                    WAIT_ON_CONNECT,
-                )
-                await asyncio.sleep(WAIT_ON_CONNECT / 1000)
-                self.connected_event.set()
-
-            self._connection_made_task = asyncio.create_task(_made_connection_task())
-        else:
-            self.connected_event.clear()
-
-
-class AsyncHuaweiSolarModbusSerialClient(
-    ModbusConnectionMixin,
-    AsyncModbusSerialClient,
-):
-    """Custom SerialClient with support for custom Huawei modbus messages."""
-
-    def __init__(self, port: str, baudrate: int, timeout: int, **serial_kwargs: Any) -> None:  # noqa: ANN401
-        """Create AsyncHuaweiSolarModbusSerialClient."""
-        super().__init__(port, baudrate=baudrate, timeout=timeout, **serial_kwargs)
-
-
-class AsyncHuaweiSolarModbusTcpClient(ModbusConnectionMixin, AsyncModbusTcpClient):
-    """Custom TcpClient that supports wait after connect and custom Huawei modbus messages."""
-
-    def __init__(self, host: str, port: int, timeout: int) -> None:
-        """Create AsyncHuaweiSolarModbusTcpClient."""
-        super().__init__(host, port=port, timeout=timeout, reconnect_delay=RECONNECT_DELAY)
-
-
 @dataclass(frozen=True)
 class LoginRequestChallengePDU(BaseClientPDU[bytes]):
     """Modbus PDU to request a login challenge."""
@@ -101,6 +49,9 @@ class LoginRequestChallengePDU(BaseClientPDU[bytes]):
         return response[response_header_struct.size : response_header_struct.size + inverter_challenge_length]
 
 
+register_pdu_class(LoginRequestChallengePDU)
+
+
 def _compute_digest(password: bytes, seed: bytes) -> bytes:
     hashed_password = sha256(password).digest()
 
@@ -118,7 +69,7 @@ class LoginPDU(BaseClientPDU[bool]):
 
     username: str
     password: str
-    inverter_challenge: str
+    inverter_challenge: bytes
 
     client_challenge: bytes = field(default_factory=lambda: secrets.token_bytes(16))
 
@@ -160,6 +111,9 @@ class LoginPDU(BaseClientPDU[bool]):
         return True
 
 
+register_pdu_class(LoginPDU)
+
+
 @dataclass(frozen=True)
 class StartFileUpload:
     """Contents of StartFileUpload response."""
@@ -184,7 +138,7 @@ class StartFileUploadPDU(BaseClientPDU[StartFileUpload]):
         data_length = 1 + len(self.customised_data)
         return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type) + self.customised_data
 
-    def decode_response(self, response: bytes) -> None:
+    def decode_response(self, response: bytes) -> StartFileUpload:
         """Decode response."""
         response_header_struct = struct.Struct(">BBBLB")
         (
@@ -217,6 +171,9 @@ class StartFileUploadPDU(BaseClientPDU[StartFileUpload]):
         )
 
 
+register_pdu_class(StartFileUploadPDU)
+
+
 @dataclass(frozen=True)
 class UploadFileFrame:
     """Represents a frame of file data."""
@@ -233,6 +190,9 @@ class UploadFileFramePDU(BaseClientPDU[UploadFileFrame]):
     rtu_byte_count_pos = 3
 
     sub_function_code = 0x06
+
+    file_type: int
+    frame_no: int
 
     def encode_request(self) -> bytes:
         """Encode UploadFileFramePDU."""
@@ -273,9 +233,15 @@ class UploadFileFramePDU(BaseClientPDU[UploadFileFrame]):
         return UploadFileFrame(frame_no=frame_no, frame_data=frame_data)
 
 
+register_pdu_class(UploadFileFramePDU)
+
+
 @dataclass(frozen=True)
 class CompleteUploadPDU(BaseClientPDU[int]):
-    """Modbus Request to complete a file upload."""
+    """Modbus Request to complete a file upload.
+
+    Returns the file CRC value.
+    """
 
     function_code = 0x41
     rtu_byte_count_pos = 3
@@ -308,88 +274,16 @@ class CompleteUploadPDU(BaseClientPDU[int]):
         return file_crc
 
 
-class DeviceIdentifiersRequestType(TypedDict):
-    """Device identifiers request type."""
-
-    read_dev_id_code: int
-    object_id: int
+register_pdu_class(CompleteUploadPDU)
 
 
-DEVICE_IDENTIFIERS: DeviceIdentifiersRequestType = {
-    "read_dev_id_code": 0x01,
-    "object_id": 0x00,
-}
-DEVICE_INFO: DeviceIdentifiersRequestType = {
-    "read_dev_id_code": 0x03,
-    "object_id": 0x87,
-}
+class PermissionDeniedError(ModbusResponseError):
+    """Permission Denied exception.
+
+    Raised when the device returns a permission denied error.
+    """
+
+    error_code = 0x80
 
 
-@dataclass(frozen=True)
-class ReadDeviceInfoResponse:
-    """Contents of the ReadDeviceInfo response."""
-
-    device_id_code: Literal[0x01 | 0x03]
-    consistency_level: int
-    more: bool
-    next_object_id: int | None
-
-    objects: dict[int, bytes]
-
-
-class ReadDeviceInfoPDU(BaseClientPDU[ReadDeviceInfoResponse]):
-    """Modbus Request to read a device identifier."""
-
-    function_code = 0x2B
-
-    sub_function_code = 0x0E
-    read_dev_id_code: Literal[0x01 | 0x03]
-    object_id: int
-
-    def encode_request(self) -> bytes:
-        """Encode ReadDeviceIdentifierPDU."""
-        return struct.pack(">BBB", self.sub_function_code, self.read_dev_id_code, self.object_id)
-
-    def decode_response(self, response: bytes) -> ReadDeviceInfoResponse:
-        """Decode Device Identifier PDU response."""
-        response_header_struct = struct.Struct(">BBBBBB")
-        (
-            sub_function_code,
-            device_id_code,
-            consistency_level,
-            more,
-            next_object_id,
-            number_of_objects,
-        ) = response_header_struct.unpack_from(response, 0)
-
-        if sub_function_code != self.sub_function_code:
-            msg = f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
-            raise ValueError(msg)
-
-        objects: dict[int, bytes] = {}
-        offset = response_header_struct.size
-        while offset < len(response):
-            obj_id, obj_length = struct.unpack_from(">BB", response, offset)
-            offset += 2
-            objects[obj_id] = response[offset : offset + obj_length]
-            offset += obj_length
-
-        return ReadDeviceInfoResponse(
-            device_id_code=device_id_code,
-            consistency_level=consistency_level,
-            more=more,
-            next_object_id=next_object_id,
-            objects=objects,
-        )
-
-
-register_pdu_class(ReadDeviceInfoResponse)
-
-
-class AbnormalDeviceDescriptionError(ModbusResponseError):
-    """The device description definition call returned a response."""
-
-    error_code = 0xAB
-
-
-register_custom_exception(AbnormalDeviceDescriptionError)
+register_custom_exception(PermissionDeniedError)
