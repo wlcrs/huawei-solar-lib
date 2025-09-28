@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from hashlib import sha256
 
 from tmodbus.exceptions import ModbusResponseError, register_custom_exception
-from tmodbus.pdu import BaseClientPDU, register_pdu_class
+from tmodbus.pdu import BaseSubFunctionClientPDU, register_pdu_class
 
 RECONNECT_DELAY = 1000  # in milliseconds
 WAIT_ON_CONNECT = 1500  # in milliseconds
@@ -18,30 +18,39 @@ LOGGER = logging.getLogger(__name__)
 
 # Register custom Huawei Modbus PDUs
 @dataclass(frozen=True)
-class LoginRequestChallengePDU(BaseClientPDU[bytes]):
+class LoginRequestChallengePDU(BaseSubFunctionClientPDU[bytes]):
     """Modbus PDU to request a login challenge."""
 
     function_code = 0x41
-    rtu_byte_count_pos = 3
-
     sub_function_code = 0x24
+    rtu_byte_count_pos = 3
 
     def encode_request(self) -> bytes:
         """Encode LoginRequestChallengePDU."""
         data_length = 1
         value = 0
-        return struct.pack(">BBB", self.sub_function_code, data_length, value)
+        return struct.pack(">BBBB", self.function_code, self.sub_function_code, data_length, value)
 
     def decode_response(self, response: bytes) -> bytes:
         """Decode LoginRequestChallengePDU response."""
-        response_header_struct = struct.Struct(">B")
-        (sub_function_code,) = response_header_struct.unpack_from(response, 0)
+        response_header_struct = struct.Struct(">BBB")
+        (function_code, sub_function_code, response_content_length) = response_header_struct.unpack_from(response, 0)
 
-        expected_response_sub_function_code = 0x11
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
+
         if sub_function_code != self.sub_function_code:
             msg = (
-                f"Invalid sub function code: expected {expected_response_sub_function_code:02x}, "
-                f"received {sub_function_code:02x}"
+                f"Unexpected sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
+            )
+            raise ValueError(msg)
+
+        expected_response_content_length = 17
+        if expected_response_content_length != response_content_length:
+            msg = (
+                f"Invalid response content length length: expected {expected_response_content_length}, "
+                f"received {response_content_length}"
             )
             raise ValueError(msg)
 
@@ -59,13 +68,12 @@ def _compute_digest(password: bytes, seed: bytes) -> bytes:
 
 
 @dataclass(frozen=True)
-class LoginPDU(BaseClientPDU[bool]):
+class LoginPDU(BaseSubFunctionClientPDU[bool]):
     """Login PDU."""
 
     function_code = 0x41
-    rtu_byte_count_pos = 3
-
     sub_function_code = 0x25
+    rtu_byte_count_pos = 3
 
     username: str
     password: str
@@ -85,6 +93,8 @@ class LoginPDU(BaseClientPDU[bool]):
 
         return bytes(
             [
+                self.function_code,
+                self.sub_function_code,
                 total_length,
                 *self.client_challenge,
                 len(encoded_username),
@@ -96,13 +106,29 @@ class LoginPDU(BaseClientPDU[bool]):
 
     def decode_response(self, response: bytes) -> bool:
         """Decode LoginPDU response and check the returned MAC."""
-        response_header_struct = struct.Struct(">?H")
-        (success, data_length) = response_header_struct.unpack_from(response, 0)
+        response_header_struct = struct.Struct(">BBB?B")
+        (
+            function_code,
+            sub_function_code,
+            _response_content_length,
+            failure,
+            inverter_mac_response_length,
+        ) = response_header_struct.unpack_from(response, 0)
 
-        if not success:
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
+
+        if sub_function_code != self.sub_function_code:
+            msg = f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
+            raise ValueError(msg)
+
+        if failure:
             return False
 
-        inverter_mac_response = response[response_header_struct.size : response_header_struct.size + data_length]
+        inverter_mac_response = response[
+            response_header_struct.size : response_header_struct.size + inverter_mac_response_length
+        ]
 
         if _compute_digest(self.password.encode("utf-8"), self.client_challenge) != inverter_mac_response:
             msg = "Inverter response contains an invalid challenge answer. This could indicate a MitM-attack!"
@@ -124,7 +150,7 @@ class StartFileUpload:
 
 
 @dataclass(frozen=True)
-class StartFileUploadPDU(BaseClientPDU[StartFileUpload]):
+class StartFileUploadPDU(BaseSubFunctionClientPDU[StartFileUpload]):
     """Modbus file upload request."""
 
     function_code = 0x41
@@ -136,18 +162,26 @@ class StartFileUploadPDU(BaseClientPDU[StartFileUpload]):
     def encode_request(self) -> bytes:
         """Encode request."""
         data_length = 1 + len(self.customised_data)
-        return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type) + self.customised_data
+        return (
+            struct.pack(">BBBB", self.function_code, self.sub_function_code, data_length, self.file_type)
+            + self.customised_data
+        )
 
     def decode_response(self, response: bytes) -> StartFileUpload:
         """Decode response."""
-        response_header_struct = struct.Struct(">BBBLB")
+        response_header_struct = struct.Struct(">BBBBLB")
         (
+            function_code,
             sub_function_code,
             data_length,
             file_type,
             file_length,
             data_frame_length,
         ) = response_header_struct.unpack_from(response, 0)
+
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
 
         if sub_function_code != self.sub_function_code:
             msg = f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
@@ -183,7 +217,7 @@ class UploadFileFrame:
 
 
 @dataclass(frozen=True)
-class UploadFileFramePDU(BaseClientPDU[UploadFileFrame]):
+class UploadFileFramePDU(BaseSubFunctionClientPDU[UploadFileFrame]):
     """Modbus Request for (a part of) a file."""
 
     function_code = 0x41
@@ -198,7 +232,8 @@ class UploadFileFramePDU(BaseClientPDU[UploadFileFrame]):
         """Encode UploadFileFramePDU."""
         data_length = 3
         return struct.pack(
-            ">BBBH",
+            ">BBBBH",
+            self.function_code,
             self.sub_function_code,
             data_length,
             self.file_type,
@@ -207,8 +242,9 @@ class UploadFileFramePDU(BaseClientPDU[UploadFileFrame]):
 
     def decode_response(self, response: bytes) -> UploadFileFrame:
         """Decode UploadPDU response."""
-        response_header_struct = struct.Struct(">BBBH")
+        response_header_struct = struct.Struct(">BBBBH")
         (
+            function_code,
             sub_function_code,
             data_length,
             file_type,
@@ -216,6 +252,10 @@ class UploadFileFramePDU(BaseClientPDU[UploadFileFrame]):
         ) = response_header_struct.unpack_from(response, 0)
 
         frame_data = response[response_header_struct.size :]
+
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
 
         if sub_function_code != self.sub_function_code:
             msg = f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
@@ -237,7 +277,7 @@ register_pdu_class(UploadFileFramePDU)
 
 
 @dataclass(frozen=True)
-class CompleteUploadPDU(BaseClientPDU[int]):
+class CompleteUploadPDU(BaseSubFunctionClientPDU[int]):
     """Modbus Request to complete a file upload.
 
     Returns the file CRC value.
@@ -253,11 +293,15 @@ class CompleteUploadPDU(BaseClientPDU[int]):
     def encode_request(self) -> bytes:
         """Encode CompleteUploadModbusRequest."""
         data_length = 1
-        return struct.pack(">BBB", self.sub_function_code, data_length, self.file_type)
+        return struct.pack(">BBBB", self.function_code, self.sub_function_code, data_length, self.file_type)
 
     def decode_response(self, response: bytes) -> None:
         """Decode CompleteUploadModbusResponse."""
-        sub_function_code, data_length, file_type, file_crc = struct.unpack(">BBBH", response)
+        function_code, sub_function_code, data_length, file_type, file_crc = struct.unpack(">BBBBH", response)
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
+
         if sub_function_code != self.sub_function_code:
             msg = f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
             raise ValueError(msg)

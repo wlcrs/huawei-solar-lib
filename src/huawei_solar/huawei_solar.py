@@ -1,16 +1,13 @@
 """Low-level Modbus logic."""
 
-import asyncio
 import logging
 import struct
-import sys
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Self, TypeVar, cast
+from typing import Any, Literal, NamedTuple, Self, TypeVar, Unpack, cast
 
-import backoff
-from tmodbus.client import AsyncModbusClient
+import tenacity
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, stop_after_delay, wait_exponential
+from tmodbus import AsyncModbusClient, create_async_rtu_client, create_async_tcp_client
 from tmodbus.exceptions import (
     IllegalDataAddressError,
     ModbusConnectionError,
@@ -19,8 +16,8 @@ from tmodbus.exceptions import (
     ServerDeviceFailureError,
     TModbusError,
 )
-from tmodbus.transport import AsyncRtuTransport, AsyncTcpTransport
 from tmodbus.transport.async_rtu import PySerialOptions
+from tmodbus.transport.async_smart import AsyncSmartTransport
 from tmodbus.utils.crc import calculate_crc16
 
 from .const import DEVICE_INFOS_START_OBJECT_ID, MAX_BATCHED_REGISTERS_COUNT
@@ -40,9 +37,6 @@ from .modbus import (
     UploadFileFramePDU,
 )
 from .registers import REGISTERS, RegisterDefinition
-
-if TYPE_CHECKING:
-    from backoff.types import Details
 
 LOGGER = logging.getLogger(__name__)
 
@@ -95,40 +89,61 @@ class DeviceIdentifier:
     other_data: dict[int, bytes]
 
 
+RECONNECT_RETRY_STRATEGY = AsyncRetrying(
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    # Stop trying to reconnect if the connection has not been re-established within 1 minute
+    stop=stop_after_delay(60),
+    after=lambda retry_call_state: LOGGER.debug(
+        "Backing off before reconnect for %0.1fs after %d tries",
+        retry_call_state.upcoming_sleep,
+        retry_call_state.attempt_number,
+    ),
+)
+
+
+def log_invalid_response(retry_state: "tenacity.RetryCallState") -> None:
+    """Log an invalid response."""
+    if retry_state.outcome:
+        if e := retry_state.outcome.exception():
+            LOGGER.debug(
+                "Backing off for %0.1fs after exception response %s",
+                retry_state.upcoming_sleep,
+                e,
+            )
+        else:
+            LOGGER.debug(
+                "Backing off for %0.1fs after invalid response %s",
+                retry_state.upcoming_sleep,
+                retry_state.outcome.result(),
+            )
+    else:
+        LOGGER.debug(
+            "Backing off for %0.1fs before retrying request",
+            retry_state.upcoming_sleep,
+        )
+
+
+RESPONSE_RETRY_STRATEGY = AsyncRetrying(
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    # Retry up to 3 times on invalid response
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(TimeoutError),
+    reraise=True,
+    after=log_invalid_response,
+)
+
+
 class AsyncHuaweiSolar:
     """Async interface to the Huawei solar inverter."""
-
-    _reconnect_task: asyncio.Task | None = None
 
     def __init__(
         self,
         client: AsyncModbusClient,
         slave_id: int = DEFAULT_SLAVE_ID,
-        timeout: int = DEFAULT_TIMEOUT,
-        cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ) -> None:
         """DO NOT USE THIS CONSTRUCTOR DIRECTLY. Use AsyncHuaweiSolar.create() instead."""
         self._client = client
-        self._timeout = timeout
-        self._cooldown_time = cooldown_time
         self.slave_id = slave_id
-
-        # use this lock to prevent concurrent requests, as the
-        # Huawei inverters can't cope with those
-        self.__communication_lock = asyncio.Lock()
-
-    @asynccontextmanager
-    async def _communication_lock(self) -> AsyncGenerator[None]:
-        async with self.__communication_lock:
-            if not self._client.connected:
-                LOGGER.warning("Client not connected, trying to (re)connect")
-                try:
-                    await self._client.connect()
-                except TimeoutError:
-                    LOGGER.exception("Failed to reconnect with %.2fs", self._timeout)
-                    raise
-
-            yield
 
     @classmethod
     async def create(
@@ -140,8 +155,17 @@ class AsyncHuaweiSolar:
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ) -> Self:
         """Create an AsyncHuaweiSolar instance."""
-        transport = AsyncTcpTransport(host, port, timeout=timeout, wait_between_requests=cooldown_time)
-        client = AsyncModbusClient(transport)
+        client = create_async_tcp_client(
+            host,
+            port,
+            timeout=timeout,
+            wait_between_requests=cooldown_time,
+            wait_after_connect=1.0,
+            auto_reconnect=RECONNECT_RETRY_STRATEGY,
+            response_retry_strategy=RESPONSE_RETRY_STRATEGY,
+            retry_on_device_busy=True,
+            retry_on_device_failure=True,
+        )
 
         try:
             await client.connect()
@@ -157,7 +181,7 @@ class AsyncHuaweiSolar:
 
             raise ConnectionException from err
         else:
-            return cls(client, slave_id, timeout, cooldown_time)
+            return cls(client, slave_id)
 
     @classmethod
     async def create_rtu(
@@ -165,16 +189,14 @@ class AsyncHuaweiSolar:
         port: str,
         slave_id: int = DEFAULT_SLAVE_ID,
         *,
-        timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
-        **serial_kwargs: PySerialOptions,
+        **serial_kwargs: Unpack[PySerialOptions],
     ) -> Self:
         """Create a serial client."""
         if "baudrate" not in serial_kwargs:
             serial_kwargs["baudrate"] = DEFAULT_BAUDRATE
 
-        transport = AsyncRtuTransport(port, wait_between_requests=cooldown_time, **serial_kwargs)
-        client = AsyncModbusClient(transport)
+        client = create_async_rtu_client(port, wait_between_requests=cooldown_time, **serial_kwargs)
         try:
             await client.connect()
         except Exception as err:
@@ -189,18 +211,11 @@ class AsyncHuaweiSolar:
 
             raise ConnectionException from err
         else:
-            return cls(client, slave_id, timeout, cooldown_time)
+            return cls(client, slave_id)
 
     async def stop(self) -> None:
         """Stop the modbus client."""
-        async with self.__communication_lock:
-            await self._client.close()
-
-    async def _reconnect(self) -> None:
-        """Reconnect to the inverter."""
-        async with self.__communication_lock:
-            await self._client.close()
-            await self._client.connect()
+        await self._client.close()
 
     async def _decode_response(
         self,
@@ -292,101 +307,53 @@ class AsyncHuaweiSolar:
 
         It seems to only support connections from one device at the same time.
         """
+        LOGGER.debug(
+            "Reading register %d with length %d from server %s",
+            register,
+            length,
+            slave_id or self.slave_id,
+        )
 
-        def on_backoff(details: "Details") -> None:
-            LOGGER.debug(
-                "Received %s: backing off reading for %0.1f seconds after %d tries",
-                sys.exc_info()[0],
-                details.get("wait"),
-                details["tries"],
+        try:
+            response_registers = await self._client.read_holding_registers(
+                register,
+                quantity=length,
+                unit_id=slave_id or self.slave_id,
             )
-
-        def on_backoff_with_reconnect(details: "Details") -> None:
-            if details["tries"] % 3 == 0:
-                self._reconnect_task = asyncio.create_task(self._reconnect())
-                LOGGER.debug(
-                    "Received %s: reconnecting and backing off reading for %0.1f seconds after %d tries",
-                    sys.exc_info()[0],
-                    details.get("wait"),
-                    details["tries"],
-                )
-            else:
-                LOGGER.debug(
-                    "Received %s: backing off reading for %0.1f seconds after %d tries",
-                    sys.exc_info()[0],
-                    details.get("wait"),
-                    details["tries"],
-                )
-
-        def backoff_giveup(details: "Details") -> None:
-            msg = f"Failed to read register {register} after {details['tries']} tries"
-            raise ReadException(msg)
-
-        @backoff.on_exception(
-            backoff.expo,
-            (asyncio.TimeoutError, ConnectionInterruptedException, UnexpectedResponseContent),
-            max_tries=6,
-            jitter=None,
-            on_backoff=on_backoff_with_reconnect,
-            on_giveup=backoff_giveup,
-        )
-        @backoff.on_exception(
-            backoff.expo,
-            (ServerDeviceFailureError, ServerDeviceBusyError),
-            max_tries=6,
-            jitter=None,
-            on_backoff=on_backoff,
-            on_giveup=backoff_giveup,
-        )
-        async def _do_read() -> list[int]:
-            try:
-                response_registers = await self._client.read_holding_registers(
-                    register,
-                    quantity=length,
-                    unit_id=slave_id or self.slave_id,
-                )
-            # trigger a backoff if we get a SlaveBusy-exception
-            except (ServerDeviceBusyError, ServerDeviceFailureError) as e:
-                LOGGER.debug(
-                    "Got a %s while reading %d (length %d) from server %d",
-                    type(e).__name__,
-                    register,
-                    length,
-                    slave_id or self.slave_id,
-                )
-                raise
-            except ModbusResponseError as e:
-                LOGGER.exception(
-                    "Got a ModbusResponseError while reading %d (length %d) from server %d",
-                    register,
-                    length,
-                    slave_id or self.slave_id,
-                )
-                msg = f"Got error while reading from register {register} with length {length}: {e}"
-                raise ReadException(msg, modbus_exception_code=e.error_code) from e
-
-            except ModbusConnectionError as err:
-                message = "Could not read register value, has another device interrupted the connection?"
-                LOGGER.exception(message)
-                raise ConnectionInterruptedException(message) from err
-            else:
-                if len(response_registers) != length:
-                    msg = (
-                        f"Mismatch between number of requested registers ({length}) "
-                        f"and number of received registers ({len(response_registers)})"
-                    )
-                    raise UnexpectedResponseContent(msg)
-
-                return response_registers
-
-        async with self._communication_lock():
+        # trigger a backoff if we get a SlaveBusy-exception
+        except (ServerDeviceBusyError, ServerDeviceFailureError) as e:
             LOGGER.debug(
-                "Reading register %d with length %d from server %s",
+                "Got a %s while reading %d (length %d) from server %d",
+                type(e).__name__,
                 register,
                 length,
                 slave_id or self.slave_id,
             )
-            return await _do_read()
+            msg = f"Got a {type(e).__name__}  while reading from register {register} with length {length}"
+            raise ReadException(msg) from e
+        except ModbusResponseError as e:
+            LOGGER.exception(
+                "Got a ModbusResponseError while reading %d (length %d) from server %d",
+                register,
+                length,
+                slave_id or self.slave_id,
+            )
+            msg = f"Got error while reading from register {register} with length {length}: {e}"
+            raise ReadException(msg, modbus_exception_code=e.error_code) from e
+
+        except ModbusConnectionError as err:
+            message = "Could not read register value, has another device interrupted the connection?"
+            LOGGER.exception(message)
+            raise ConnectionInterruptedException(message) from err
+        else:
+            if len(response_registers) != length:
+                msg = (
+                    f"Mismatch between number of requested registers ({length}) "
+                    f"and number of received registers ({len(response_registers)})"
+                )
+                raise UnexpectedResponseContent(msg)
+
+            return response_registers
 
     async def _read_device_identifier_objects(
         self,
@@ -476,60 +443,54 @@ class AsyncHuaweiSolar:
         As defined by the 'Uploading Files' process described in 6.3.7.1 of
         the Solar Inverter Modbus Interface Definitions PDF.
         """
+        LOGGER.debug(
+            "Reading file %#x from server %d",
+            file_type,
+            slave_id or self.slave_id,
+        )
+        # Start the upload
+        start_upload_response = await self._client.execute(
+            StartFileUploadPDU(
+                file_type=file_type,
+                customised_data=customized_data or b"",
+            ),
+            unit_id=slave_id or self.slave_id,
+        )
 
-        # TODO: add backoff and retry
-        async def _do_read_file() -> bytes:
-            # Start the upload
-            start_upload_response = await self._client.execute(
-                StartFileUploadPDU(
-                    file_type=file_type,
-                    customised_data=customized_data or b"",
-                ),
+        file_length = start_upload_response.file_length
+        data_frame_length = start_upload_response.data_frame_length
+
+        # Request the data in 'frames'
+
+        file_data: bytes = b""
+        next_frame_no = 0
+
+        while (next_frame_no * data_frame_length) < file_length:
+            data_upload_response = await self._client.execute(
+                UploadFileFramePDU(file_type=file_type, frame_no=next_frame_no),
                 unit_id=slave_id or self.slave_id,
             )
 
-            file_length = start_upload_response.file_length
-            data_frame_length = start_upload_response.data_frame_length
+            file_data += data_upload_response.frame_data
+            next_frame_no += 1
 
-            # Request the data in 'frames'
+        # Complete the upload and check the CRC
+        file_crc = await self._client.execute(
+            CompleteUploadPDU(file_type=file_type),
+            unit_id=slave_id or self.slave_id,
+        )
 
-            file_data: bytes = b""
-            next_frame_no = 0
+        # swap upper and lower two bytes to match how computeCRC works
+        swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
 
-            while (next_frame_no * data_frame_length) < file_length:
-                data_upload_response = await self._client.execute(
-                    UploadFileFramePDU(file_type=file_type, frame_no=next_frame_no),
-                    unit_id=slave_id or self.slave_id,
-                )
-
-                file_data += data_upload_response.frame_data
-                next_frame_no += 1
-
-            # Complete the upload and check the CRC
-            file_crc = await self._client.execute(
-                CompleteUploadPDU(file_type=file_type),
-                unit_id=slave_id or self.slave_id,
+        if (calculated_crc := int.from_bytes(calculate_crc16(file_data))) != swapped_crc:
+            msg = (
+                f"Computed CRC {calculated_crc:04x} for file {file_type} "
+                f"does not match expected value {swapped_crc:04x}"
             )
+            raise ReadException(msg)
 
-            # swap upper and lower two bytes to match how computeCRC works
-            swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
-
-            if calculate_crc16(file_data) != swapped_crc:
-                msg = (
-                    f"Computed CRC {calculate_crc16(file_data):x} for file {file_type} "
-                    f"does not match expected value {swapped_crc}"
-                )
-                raise ReadException(msg)
-
-            return file_data
-
-        async with self._communication_lock():
-            LOGGER.debug(
-                "Reading file %#x from server %d",
-                file_type,
-                slave_id or self.slave_id,
-            )
-            return await _do_read_file()
+        return file_data
 
     async def set(
         self,
@@ -554,38 +515,11 @@ class AsyncHuaweiSolar:
             msg = "Wrong number of registers to write"
             raise WriteException(msg)
 
-        def backoff_giveup(details: "Details") -> None:
-            msg = f"Failed to write to register after {details['tries']} tries"
-            raise ReadException(msg)
-
-        @backoff.on_exception(
-            backoff.expo,
-            (asyncio.TimeoutError, ServerDeviceBusyError, ConnectionInterruptedException),
-            max_tries=3,
-            jitter=None,
-            on_backoff=lambda details: LOGGER.debug(
-                "Received %s: backing off writing for %0.1f seconds after %d tries",
-                sys.exc_info()[0],
-                details.get("wait"),
-                details["tries"],
-            ),
-            on_giveup=backoff_giveup,
+        return await self._write_registers(
+            reg.register,
+            registers,
+            slave_id,
         )
-        async def _do_set() -> bool:
-            return await self._write_registers(
-                reg.register,
-                registers,
-                slave_id,
-            )
-
-        async with self._communication_lock():
-            LOGGER.debug(
-                "Writing to register %s value %s on server %s",
-                name,
-                registers,
-                slave_id or self.slave_id,
-            )
-            return await _do_set()
 
     async def _write_registers(
         self,
@@ -594,10 +528,6 @@ class AsyncHuaweiSolar:
         slave_id: int | None = None,
     ) -> bool:
         """Async write register to device."""
-        if not self._client.connected:
-            message = "Modbus client is not connected to the inverter."
-            LOGGER.exception(message)
-            raise ConnectionInterruptedException(message)
         try:
             LOGGER.debug(
                 "Writing to %d: %s on server %d",
@@ -628,7 +558,7 @@ class AsyncHuaweiSolar:
                 f"Failed to write value {value} to register {register} due to IllegalDataAddress. "
                 "Assuming permission problem."
             )
-            raise PermissionDeniedError(e.error_code, e.function_code) from e
+            raise PermissionDeniedError(PermissionDeniedError.error_code, e.function_code) from e
         except ModbusResponseError as e:
             msg = f"Failed to write value {value} to register {register}: {e.error_code:02x}"
             raise WriteException(msg, modbus_exception_code=e.error_code) from e
@@ -637,24 +567,33 @@ class AsyncHuaweiSolar:
             raise ConnectionInterruptedException(err) from err
 
     async def login(self, username: str, password: str, slave_id: int | None = None) -> bool:
-        """Login into the inverter."""
+        """Login onto the inverter."""
+        LOGGER.debug("Logging in '%s'", username)
+        inverter_challenge = await self._client.execute(
+            LoginRequestChallengePDU(),
+            unit_id=slave_id or self.slave_id,
+        )
 
-        # TODO: add tenacity
-        async def _do_login() -> bool:
-            # Get challenge
-            inverter_challenge = await self._client.execute(
-                LoginRequestChallengePDU(),
-                unit_id=slave_id or self.slave_id,
-            )
+        logged_in = await self._client.execute(
+            LoginPDU(username, password, inverter_challenge),
+            unit_id=slave_id or self.slave_id,
+        )
+        if logged_in:
+            # Make sure we re-login after a reconnect
+            assert isinstance(self._client.transport, AsyncSmartTransport)
 
-            return await self._client.execute(
-                LoginPDU(username, password, inverter_challenge),
-                unit_id=slave_id or self.slave_id,
-            )
+            async def login_on_reconnect() -> None:
+                """Login again after a reconnect."""
+                LOGGER.info("Reconnected to inverter, logging in again")
+                logged_in_again = await self.login(username, password, slave_id)
+                if not logged_in_again:
+                    LOGGER.error("Failed to login after reconnect. Will not try again.")
+                    assert isinstance(self._client.transport, AsyncSmartTransport)
+                    self._client.transport.on_reconnected = None
 
-        async with self._communication_lock():
-            LOGGER.debug("Logging in")
-            return await _do_login()
+            self._client.transport.on_reconnected = login_on_reconnect
+
+        return logged_in
 
     async def heartbeat(self, slave_id: int | None = None) -> bool:
         """Perform the heartbeat command. Only useful when maintaining a session."""

@@ -17,10 +17,10 @@ from .const import (
     MAX_BATCHED_REGISTERS_GAP,
     MAX_NUMBER_OF_PV_STRINGS,
 )
+from .modbus import PermissionDeniedError
 from .exceptions import (
     HuaweiSolarException,
     InvalidCredentials,
-    PermissionDenied,
     ReadException,
 )
 from .files import (
@@ -270,7 +270,7 @@ class HuaweiSolarBridge(ABC):
 
         try:
             return await self.client.get_file(file_type, customized_data, self.slave_id)
-        except PermissionDenied:
+        except PermissionDeniedError:
             if self.__username:
                 logged_in = await self.ensure_logged_in(force=True)
 

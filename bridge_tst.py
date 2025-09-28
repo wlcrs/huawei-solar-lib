@@ -16,17 +16,23 @@ logging.basicConfig(level=logging.DEBUG)
 async def test():
     """Run test."""
     bridge = await create_tcp_bridge(host="192.168.1.1", port=503)
+
+    print(await bridge.client.get_device_identifiers())
+    print(await bridge.client.get_device_infos())
+
     assert isinstance(bridge, HuaweiSUN2000Bridge)
     # print(await bridge.has_write_permission())
     await bridge.login("installer", "00000a")
-    await bridge.batch_update(
-        [
-            rn.ACTIVE_POWER_FIXED_VALUE_DERATING,
-            rn.ACTIVE_POWER_PERCENTAGE_DERATING,
-            rn.STORAGE_CAPACITY_CONTROL_MODE,
-            rn.STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING,
-            rn.STORAGE_CAPACITY_CONTROL_PERIODS,
-        ],
+    print(
+        await bridge.batch_update(
+            [
+                rn.ACTIVE_POWER_FIXED_VALUE_DERATING,
+                rn.ACTIVE_POWER_PERCENTAGE_DERATING,
+                rn.STORAGE_CAPACITY_CONTROL_MODE,
+                rn.STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING,
+                rn.STORAGE_CAPACITY_CONTROL_PERIODS,
+            ],
+        )
     )
     print(await bridge.client.get(rn.ACTIVE_POWER_FIXED_VALUE_DERATING))
     print(await bridge.client.get(rn.ACTIVE_POWER_PERCENTAGE_DERATING))
