@@ -11,7 +11,7 @@ from huawei_solar import register_names as rn
 from huawei_solar.const import MAX_BATCHED_REGISTERS_COUNT
 from huawei_solar.exceptions import (
     ConnectionInterruptedException,
-    HuaweiSolarException,
+    ReadException,
     WriteException,
 )
 from huawei_solar.modbus_pdu import PermissionDeniedError
@@ -101,9 +101,16 @@ class RegisterAwareModbusClient(AsyncModbusClient):
         struct_format = self._construct_struct_format(registers)
         try:
             response_tuple = await self.read_struct_format(start_address, format_struct=struct_format)
+        except ModbusResponseError as err:
+            msg = f"Failed to read registers {', '.join(names)}: received {type(err).__name__}"
+            raise ReadException(msg, modbus_exception_code=err.error_code) from err
+        except ModbusConnectionError as err:
+            LOGGER.exception("Connection error while reading registers %s", names)
+            msg = f"Connection failed when trying to read registers {', '.join(names)}"
+            raise ConnectionInterruptedException(msg) from err
         except TModbusError as err:
-            msg = f"Failed to read registers: {err}"
-            raise HuaweiSolarException(msg) from err
+            msg = f"Failed to read registers {', '.join(names)}: {err}"
+            raise ReadException(msg) from err
         else:
             return self._decode_response_tuple(registers, response_tuple)
 
@@ -197,6 +204,6 @@ class RegisterAwareModbusClient(AsyncModbusClient):
             msg = f"Failed to write value {values} to register {register}: {e.error_code:02x}"
             raise WriteException(msg, modbus_exception_code=e.error_code) from e
         except ModbusConnectionError as err:
-            LOGGER.exception("Failed to connect to device, is the host correct?")
+            LOGGER.exception("Connection error while writing to register %s", register)
             raise ConnectionInterruptedException(err) from err
         return success

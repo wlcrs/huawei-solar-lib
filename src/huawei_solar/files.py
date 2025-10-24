@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
 
-from huawei_solar.exceptions import HuaweiSolarException
+from huawei_solar.exceptions import DecodeError
 from huawei_solar.register_definitions.string import bytes_to_string
 from huawei_solar.utils import get_local_timezone
 
@@ -330,6 +330,6 @@ class OptimizerSystemInformationDataFile:
                 )
         else:
             msg = f"Unsupported OptimizerSystemInformation file version: {self.file_version}"
-            raise HuaweiSolarException(
+            raise DecodeError(
                 msg,
             )
