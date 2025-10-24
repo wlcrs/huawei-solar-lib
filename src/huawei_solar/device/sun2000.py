@@ -22,6 +22,7 @@ from huawei_solar.registers import METER_REGISTERS, REGISTERS
 
 from .base import HuaweiSolarDeviceWithLogin
 from .emma import EMMADevice
+from .smartlogger import SmartLoggerDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             )
 
         if self.battery_type != rv.StorageProductModel.NONE and (
-            self.primary_device is None or not isinstance(self.primary_device, EMMADevice)
+            self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice))
         ):
             try:
                 await self.get(rn.STORAGE_CAPACITY_CONTROL_MODE)
