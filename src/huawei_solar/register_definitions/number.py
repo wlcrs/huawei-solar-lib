@@ -139,7 +139,7 @@ class U64Register(NumberRegister[int]):
 
     format = "Q"
     length = 4
-    invalid_value = 2**63 - 1
+    invalid_value = 2**64 - 1
 
 
 class I16Register(NumberRegister[int]):
