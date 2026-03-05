@@ -124,8 +124,11 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         if self.power_meter_online:
             self.power_meter_type = (await self.get(rn.METER_TYPE)).value
 
-        self._dst = (await self.get(rn.DAYLIGHT_SAVING_TIME)).value
-        self._time_zone = (await self.get(rn.TIME_ZONE)).value
+        # reading these registers fails on some firmware versions (cfr. https://github.com/wlcrs/huawei_solar/issues/1264)
+        with suppress(ReadException):
+            self._dst = (await self.get(rn.DAYLIGHT_SAVING_TIME)).value
+        with suppress(ReadException):
+            self._time_zone = (await self.get(rn.TIME_ZONE)).value
 
     def _handle_batch_read_error(
         self,
