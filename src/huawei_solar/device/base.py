@@ -296,7 +296,8 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
             )
 
         try:
-            return await self.client.get_file(file_type, customized_data)
+            async with self.update_lock:
+                return await self.client.get_file(file_type, customized_data)
         except PermissionDeniedError:
             if self.__username:
                 logged_in = await self.ensure_logged_in(force=True)
@@ -305,10 +306,11 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
                     _LOGGER.exception("Could not login to read file %x", file_type)
                     raise
 
-                return await self.client.get_file(
-                    file_type,
-                    customized_data,
-                )
+                async with self.update_lock:
+                    return await self.client.get_file(
+                        file_type,
+                        customized_data,
+                    )
 
             # we have no login-credentials available, pass on permission error
             raise
