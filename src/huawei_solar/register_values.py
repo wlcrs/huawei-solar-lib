@@ -874,6 +874,14 @@ SMARTLOGGER_ALARM_CODES_6 = {
     0b0000_0000_0001_0000: Alarm("Inconsistent PCS Parameters - GFM", 1165, "Major"),
 }
 
+SMARTLOGGER_ALARM_CODES_7 = {
+    0b0000_0000_0000_0001: Alarm("PV Array Topology Abnormal - Cable Check", 1163, "Minor"),
+    0b0000_0000_0000_0010: Alarm("PV Array Topology Abnormal - DC Bus PCS Mismatch", 1163, "Major"),
+    0b0000_0000_0000_0100: Alarm("ESS Control Abnormal", 1164, "Minor"),
+    0b0000_0000_0000_1000: Alarm("Inconsistent PCS Parameters - VSG", 1165, "Major"),
+    0b0000_0000_0001_0000: Alarm("Inconsistent PCS Parameters - GFM", 1165, "Major"),
+}
+
 
 class SmartLoggerReactivePowerControl(IntEnum):
     """Reactive Power Control Mode."""
