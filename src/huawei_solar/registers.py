@@ -1436,12 +1436,24 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         writeable=True,
         target_device=TargetDevice.SMARTLOGGER,
     ),
-    rn.SMARTLOGGER_ALARM_1: U16Register(None, 1, 50000, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_2: U16Register(None, 1, 50001, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_3: U16Register(None, 1, 50002, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_4: U16Register(None, 1, 50003, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_5: U16Register(None, 1, 50004, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_6: U16Register(None, 1, 50005, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_ALARM_1: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_1), 1, 50000, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_2: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_2), 1, 50001, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_3: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_3), 1, 50002, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_4: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_4), 1, 50003, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_5: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_5), 1, 50004, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_6: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_6), 1, 50005, target_device=TargetDevice.SMARTLOGGER,
+    ),
 }
 
 REGISTERS.update(SMARTLOGGER_REGISTERS)
