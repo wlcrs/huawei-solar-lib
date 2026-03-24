@@ -1111,7 +1111,9 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.SMARTLOGGER_ACTIVE_POWER_ADJUSTMENT: I32Register("kW", 10, 40420, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_REACTIVE_POWER_ADJUSTMENT: I32Register("kVar", 10, 40422, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_ACTIVE_POWER_ADJUSTMENT_TARGET: U32Register("kW", 10, 40424, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_REACTIVE_POWER_ADJUSTMENT_TARGET: I32Register("kVar", 10, 40426, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_REACTIVE_POWER_ADJUSTMENT_TARGET: I32Register(
+        "kVar", 10, 40426, target_device=TargetDevice.SMARTLOGGER,
+    ),
     rn.SMARTLOGGER_ACTIVE_POWER_ADJUSTMENT_IN_PERCENTAGE: I16Register(
         "%",
         10,
@@ -1458,6 +1460,7 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_7), 1, 50006, target_device=TargetDevice.SMARTLOGGER,
     ),
     # Public Registers (Section 2.4, registers 65521-65534)
+    rn.SMARTLOGGER_DEVICE_LIST_CHANGE: U16Register(None, 1, 65521, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DEVICE_NAME: StringRegister(65524, 10, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DEVICE_CONNECTION_STATUS: U16Register(None, 1, 65534, target_device=TargetDevice.SMARTLOGGER),
 }
