@@ -871,5 +871,6 @@ SMARTLOGGER_EXTERNAL_METER_POSITIVE_REACTIVE_ELECTRICITY_TOTAL = RegisterName(
 )
 
 # SmartLogger Public Registers (Section 2.4, registers 65521-65534)
+SMARTLOGGER_DEVICE_LIST_CHANGE = RegisterName("smartlogger_device_list_change")
 SMARTLOGGER_DEVICE_NAME = RegisterName("smartlogger_device_name")
 SMARTLOGGER_DEVICE_CONNECTION_STATUS = RegisterName("smartlogger_device_connection_status")
