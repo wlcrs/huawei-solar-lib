@@ -1012,7 +1012,7 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         writeable=True,
         target_device=TargetDevice.SMARTLOGGER,
     ),
-    rn.SMARTLOGGER_STARTUP_SHUTDOWN: U16Register(
+    rn.SMARTLOGGER_STARTUP_SHUTDOWN_ESS: U16Register(
         None,
         1,
         40203,
@@ -1110,8 +1110,10 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     ),
     rn.SMARTLOGGER_ACTIVE_POWER_ADJUSTMENT: I32Register("kW", 10, 40420, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_REACTIVE_POWER_ADJUSTMENT: I32Register("kVar", 10, 40422, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ACTIVE_POWER_ADJUSTMENT: U32Register("kW", 10, 40424, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_REACTIVE_POWER_ADJUSTMENT: I32Register("kVar", 10, 40426, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_ACTIVE_POWER_ADJUSTMENT_TARGET: U32Register("kW", 10, 40424, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_REACTIVE_POWER_ADJUSTMENT_TARGET: I32Register(
+        "kVar", 10, 40426, target_device=TargetDevice.SMARTLOGGER,
+    ),
     rn.SMARTLOGGER_ACTIVE_POWER_ADJUSTMENT_IN_PERCENTAGE: I16Register(
         "%",
         10,
@@ -1199,17 +1201,17 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         40540,
         target_device=TargetDevice.SMARTLOGGER,
     ),
-    rn.SMARTLOGGER_PLANT_STATUS: U16Register(None, 1, 40541, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_PLANT_STATUS: U16Register(None, 1, 40542, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_PLANT_STATUS_QINGHAI: U16Register(None, 1, 40541, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_PLANT_STATUS_SHAANXI: U16Register(None, 1, 40542, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_PLANT_STATUS: U16Register(None, 1, 40543, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_REACTIVE_POWER: I32Register("kVar", 1000, 40544, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_CO2_REDUCED: U64Register("kg", 100, 40550, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_CO2_REDUCED_TOTAL: U64Register("kg", 100, 40550, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DC_CURRENT_2: I32Register("A", 10, 40554, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_TOTAL_ENERGY_YIELD: U32Register("kWh", 10, 40560, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_YIELD_TODAY: U32Register("kWh", 10, 40562, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_TODAYS_POWER_GENERATION_HOURS: U32Register("h", 10, 40564, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_PLANT_STATUS: U16Register(None, 1, 40566, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_PLANT_STATUS: U16Register(None, 1, 40567, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_PLANT_STATUS_GANSU: U16Register(None, 1, 40566, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_PLANT_STATUS_NINGXIA: U16Register(None, 1, 40567, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_ACTIVE_ALARM_SEQUENCE_NUMBER: U32Register(None, 1, 40568, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_HISTORICAL_ALARM_SEQUENCE_NUMBER: U32Register(
         None,
@@ -1288,7 +1290,7 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         41124,
         target_device=TargetDevice.SMARTLOGGER,
     ),
-    rn.SMARTLOGGER_ACTIVE_POWER_CONTROL_MODE: U16Register(None, 1, 41889, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_ACTIVE_POWER_CONTROL_MODE_PLANT: U16Register(None, 1, 41889, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_PV_MODULE_CAPACITY: U32Register("kW", 1000, 41934, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_RATED_PLANT_CAPACITY: U32Register("kW", 1000, 41936, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_TOTAL_RATED_CAPACITY_OF_GRID_TIED_INVERTERS: U32Register(
@@ -1385,7 +1387,7 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         writeable=True,
         target_device=TargetDevice.SMARTLOGGER,
     ),
-    rn.SMARTLOGGER_REACTIVE_POWER_CONTROL_MODE: U16Register(
+    rn.SMARTLOGGER_REACTIVE_POWER_CONTROL_MODE_SUBARRAY: U16Register(
         None,
         1,
         44165,
@@ -1436,12 +1438,31 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         writeable=True,
         target_device=TargetDevice.SMARTLOGGER,
     ),
-    rn.SMARTLOGGER_ALARM_1: U16Register(None, 1, 50000, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_2: U16Register(None, 1, 50001, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_3: U16Register(None, 1, 50002, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_4: U16Register(None, 1, 50003, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_5: U16Register(None, 1, 50004, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_ALARM_6: U16Register(None, 1, 50005, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_ALARM_1: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_1), 1, 50000, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_2: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_2), 1, 50001, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_3: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_3), 1, 50002, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_4: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_4), 1, 50003, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_5: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_5), 1, 50004, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_6: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_6), 1, 50005, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    rn.SMARTLOGGER_ALARM_7: U16Register(
+        partial(bitfield_decoder, rv.SMARTLOGGER_ALARM_CODES_7), 1, 50006, target_device=TargetDevice.SMARTLOGGER,
+    ),
+    # Public Registers (Section 2.4, registers 65521-65534)
+    rn.SMARTLOGGER_DEVICE_LIST_CHANGE: U16Register(None, 1, 65521, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_DEVICE_NAME: StringRegister(65524, 10, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_DEVICE_CONNECTION_STATUS: U16Register(None, 1, 65534, target_device=TargetDevice.SMARTLOGGER),
 }
 
 REGISTERS.update(SMARTLOGGER_REGISTERS)
@@ -1609,13 +1630,13 @@ SMARTLOGGER_POWER_METER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]
         32353,
         target_device=TargetDevice.SMARTLOGGER,
     ),
-    rn.SMARTLOGGER_EXTERNAL_METER_POSITIVE_ACTIVE_ELECTRICITY: I64Register(
+    rn.SMARTLOGGER_EXTERNAL_METER_POSITIVE_ACTIVE_ELECTRICITY_TOTAL: I64Register(
         "kW h",
         100,
         32357,
         target_device=TargetDevice.SMARTLOGGER,
     ),
-    rn.SMARTLOGGER_EXTERNAL_METER_POSITIVE_REACTIVE_ELECTRICITY: I64Register(
+    rn.SMARTLOGGER_EXTERNAL_METER_POSITIVE_REACTIVE_ELECTRICITY_TOTAL: I64Register(
         "kvar h",
         100,
         32361,

@@ -6,7 +6,9 @@ from .base import HuaweiSolarDevice
 
 
 class SmartLoggerDevice(HuaweiSolarDevice):
-    """An SmartLogger device."""
+    """A SmartLogger device."""
+
+    software_version: str | None = None
 
     @classmethod
     def supports_device(cls, model_name: str) -> bool:
@@ -14,7 +16,6 @@ class SmartLoggerDevice(HuaweiSolarDevice):
         return model_name.startswith("SmartLogger")
 
     async def _populate_additional_fields(self) -> None:
-        model_name_result, serial_number_result = await self.client.get_multiple([rn.MODEL_NAME, rn.SERIAL_NUMBER])
-
-        self.model_name = model_name_result.value
-        self.serial_number = serial_number_result.value
+        esn_result = await self.client.get(rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN)
+        self.serial_number = esn_result.value
+        # model_name is already set by create_device_instance() via constructor

@@ -811,12 +811,75 @@ class SDongleConnectionPort(IntEnum):
 
 
 SMARTLOGGER_ALARM_CODES_1 = {
-    0b0001_0001_0000_0000: Alarm("Abnormal Active Schedule", 2088, "Major"),
-    0b0001_0001_0000_0001: Alarm("Abnormal Reactive Schedule", 2088, "Major"),
-    0b0001_0001_0000_0011: Alarm("MCB Disconnect", 2088, "Major"),
-    0b0001_0001_0000_0100: Alarm("Abnormal Cubicle", 2088, "Major"),
-    0b0001_0001_0000_0101: Alarm("Device Address Conflict", 2088, "Major"),
-    0b0001_0001_0000_0110: Alarm("AC SPD fault", 2088, "Major"),
+    0b0000_0000_0000_1000: Alarm("Abnormal Active Schedule", 1100, "Major"),
+    0b0000_1000_0000_0000: Alarm("Abnormal Reactive Schedule", 1101, "Major"),
+}
+
+SMARTLOGGER_ALARM_CODES_2 = {
+    0b0000_0000_0000_0010: Alarm("MCB Disconnect", 1103, "Major"),
+    0b0000_0000_0000_0100: Alarm("Abnormal Cubicle", 1104, "Major"),
+    0b0000_0000_0000_1000: Alarm("Device Address Conflict", 1105, "Major"),
+    0b0000_0000_0001_0000: Alarm("AC SPD Fault", 1106, "Major"),
+    0b0000_0000_0010_0000: Alarm("DI1 Custom Alarm", 1107, "Adaptable"),
+    0b0000_0000_0100_0000: Alarm("DI2 Custom Alarm", 1108, "Adaptable"),
+    0b0000_0000_1000_0000: Alarm("DI3 Custom Alarm", 1109, "Adaptable"),
+    0b0000_0001_0000_0000: Alarm("DI4 Custom Alarm", 1110, "Adaptable"),
+    0b0000_0010_0000_0000: Alarm("DI5 Custom Alarm", 1111, "Adaptable"),
+    0b0000_0100_0000_0000: Alarm("DI6 Custom Alarm", 1112, "Adaptable"),
+    0b0000_1000_0000_0000: Alarm("DI7 Custom Alarm", 1113, "Adaptable"),
+    0b0001_0000_0000_0000: Alarm("DI8 Custom Alarm", 1114, "Adaptable"),
+    0b0010_0000_0000_0000: Alarm("24V Power Failure", 1115, "Major"),
+    0b0100_0000_0000_0000: Alarm("License Expired", 1119, "Warning"),
+}
+
+SMARTLOGGER_ALARM_CODES_3 = {
+    0b0000_0000_0000_0001: Alarm("WebUI Certificate Invalid", 1116, "Warning"),
+    0b0000_0000_0000_0010: Alarm("WebUI Certificate To Expire", 1117, "Warning"),
+    0b0000_0000_0000_0100: Alarm("WebUI Certificate Expired", 1118, "Major"),
+    0b0000_0000_0000_1000: Alarm("Mgmt System Certificate Invalid", 1120, "Warning"),
+    0b0000_0000_0001_0000: Alarm("Mgmt System Certificate To Expire", 1121, "Warning"),
+    0b0000_0000_0010_0000: Alarm("Mgmt System Certificate Expired", 1122, "Major"),
+    0b0001_0000_0000_0000: Alarm("SmartLogger Certificate Invalid", 1129, "Warning"),
+    0b0010_0000_0000_0000: Alarm("SmartLogger Certificate About To Expire", 1130, "Warning"),
+    0b0100_0000_0000_0000: Alarm("SmartLogger Certificate Expired", 1131, "Major"),
+    0b1000_0000_0000_0000: Alarm("Smart Rack Controller Cables Not Connected", 1132, "Major"),
+}
+
+SMARTLOGGER_ALARM_CODES_4 = {
+    0b0000_0000_0000_0001: Alarm("Mgmt System 1 Certificate Invalid", 1120, "Warning"),
+    0b0000_0000_0000_0010: Alarm("Mgmt System 1 Certificate To Expire", 1121, "Warning"),
+    0b0000_0000_0000_0100: Alarm("Mgmt System 1 Certificate Expired", 1122, "Major"),
+    0b0000_0000_0000_1000: Alarm("Smart PCS Cables Not Connected", 1134, "Major"),
+}
+
+SMARTLOGGER_ALARM_CODES_5 = {
+    0b0000_0000_0000_0001: Alarm("Array Black Start Failed - Command Timing", 1140, "Minor"),
+    0b0000_0000_0000_0010: Alarm("Array Black Start Failed - Condition Not Met", 1140, "Minor"),
+    0b0000_0000_0000_0100: Alarm("Array Black Start Failed - No ESS", 1140, "Minor"),
+    0b0000_0000_0000_1000: Alarm("Array Black Start Failed - ESS No Support", 1140, "Minor"),
+    0b0000_0000_0001_0000: Alarm("Array Black Start Failed - PCS No Support", 1140, "Minor"),
+    0b0000_0000_0010_0000: Alarm("Array Black Start Failed - ESS Failed", 1140, "Minor"),
+    0b0000_0000_0100_0000: Alarm("Array Black Start Failed - No PCS", 1140, "Minor"),
+    0b0000_0000_1000_0000: Alarm("Array Black Start Failed - PCS Failed", 1140, "Minor"),
+    0b0000_0001_0000_0000: Alarm("ESS Shutdown upon STS Switch-off", 1141, "Major"),
+    0b0010_0000_0000_0000: Alarm("ESS Shutdown - Battery EPO", 1141, "Minor"),
+    0b0100_0000_0000_0000: Alarm("ESS Shutdown - Logger Disconnected from BMS", 1141, "Major"),
+}
+
+SMARTLOGGER_ALARM_CODES_6 = {
+    0b0000_0000_0000_0001: Alarm("PV Array Topology Abnormal - Cable Check", 1163, "Minor"),
+    0b0000_0000_0000_0010: Alarm("PV Array Topology Abnormal - DC Bus PCS Mismatch", 1163, "Major"),
+    0b0000_0000_0000_0100: Alarm("ESS Control Abnormal", 1164, "Minor"),
+    0b0000_0000_0000_1000: Alarm("Inconsistent PCS Parameters - VSG", 1165, "Major"),
+    0b0000_0000_0001_0000: Alarm("Inconsistent PCS Parameters - GFM", 1165, "Major"),
+}
+
+SMARTLOGGER_ALARM_CODES_7 = {
+    0b0000_0000_0000_0001: Alarm("PV Array Topology Abnormal - Cable Check", 1163, "Minor"),
+    0b0000_0000_0000_0010: Alarm("PV Array Topology Abnormal - DC Bus PCS Mismatch", 1163, "Major"),
+    0b0000_0000_0000_0100: Alarm("ESS Control Abnormal", 1164, "Minor"),
+    0b0000_0000_0000_1000: Alarm("Inconsistent PCS Parameters - VSG", 1165, "Major"),
+    0b0000_0000_0001_0000: Alarm("Inconsistent PCS Parameters - GFM", 1165, "Major"),
 }
 
 
