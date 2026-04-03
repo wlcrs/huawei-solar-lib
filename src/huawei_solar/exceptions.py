@@ -7,6 +7,10 @@ class HuaweiSolarException(Exception):  # noqa: N818
     """Base class for Huawei Solar exceptions."""
 
 
+class DeviceDetectionError(HuaweiSolarException):
+    """Failed to detect the type of the connected device."""
+
+
 class DecodeError(HuaweiSolarException):
     """Decoding failed."""
 
