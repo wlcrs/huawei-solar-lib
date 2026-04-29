@@ -266,7 +266,9 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
 
 def _compute_pv_registers(pv_string_count: int) -> list[str]:
     """Get the registers for the PV strings which were detected from the inverter."""
-    assert 1 <= pv_string_count <= MAX_NUMBER_OF_PV_STRINGS
+    if not (1 <= pv_string_count <= MAX_NUMBER_OF_PV_STRINGS):
+        msg = f"Invalid PV string count {pv_string_count!r}: expected 1–{MAX_NUMBER_OF_PV_STRINGS}."
+        raise HuaweiSolarException(msg)
 
     pv_registers = []
     for idx in range(1, pv_string_count + 1):
