@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any
 
-from huawei_solar.exceptions import PeakPeriodsValidationError, TimeOfUsePeriodsException
+from huawei_solar.exceptions import DecodeError, EncodeError, PeakPeriodsValidationError, TimeOfUsePeriodsException
 
 from .base import RegisterDefinition, Result
 
@@ -56,7 +56,9 @@ class LG_RESU_TimeOfUseRegisters(RegisterDefinition[list[LG_RESU_TimeOfUsePeriod
     def decode(self, values: tuple[Any, ...]) -> Result[list[LG_RESU_TimeOfUsePeriod]]:
         """Decode time of use register."""
         number_of_periods = values[0]
-        assert number_of_periods <= LG_RESU_TOU_PERIODS
+        if number_of_periods > LG_RESU_TOU_PERIODS:
+            msg = f"Device reported {number_of_periods} TOU periods, but the maximum is {LG_RESU_TOU_PERIODS}"
+            raise DecodeError(msg)
 
         def _decode_lg_resu_tou_period(
             start_time: int,
@@ -149,7 +151,9 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
     def decode(self, values: tuple[Any, ...]) -> Result[list[HUAWEI_LUNA2000_TimeOfUsePeriod]]:
         """Decode time of use register."""
         number_of_periods = values[0]
-        assert number_of_periods <= HUAWEI_LUNA2000_TOU_PERIODS
+        if number_of_periods > HUAWEI_LUNA2000_TOU_PERIODS:
+            msg = f"Device reported {number_of_periods} TOU periods, but the maximum is {HUAWEI_LUNA2000_TOU_PERIODS}"
+            raise DecodeError(msg)
 
         def _decode_huawei_luna2000_tou_period(
             start_time: int,
@@ -224,7 +228,9 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
         """Encode Time Of Use Period registers."""
         self._validate(data)
 
-        assert len(data) <= HUAWEI_LUNA2000_TOU_PERIODS
+        if len(data) > HUAWEI_LUNA2000_TOU_PERIODS:
+            msg = f"Too many TOU periods: got {len(data)}, maximum is {HUAWEI_LUNA2000_TOU_PERIODS}"
+            raise TimeOfUsePeriodsException(msg)
 
         values = [len(data)]
 
@@ -275,7 +281,12 @@ class ChargeDischargePeriodRegisters(RegisterDefinition[list[ChargeDischargePeri
     def decode(self, values: tuple[Any, ...]) -> Result[list[ChargeDischargePeriod]]:
         """Decode ChargeDischargePeriodRegisters."""
         number_of_periods = values[0]
-        assert number_of_periods <= CHARGE_DISCHARGE_PERIODS
+        if number_of_periods > CHARGE_DISCHARGE_PERIODS:
+            msg = (
+                f"Device reported {number_of_periods} charge/discharge periods, "
+                f"but the maximum is {CHARGE_DISCHARGE_PERIODS}"
+            )
+            raise DecodeError(msg)
 
         def _decode_charge_discharge_period(start_time: int, end_time: int, power: int) -> ChargeDischargePeriod:
             return ChargeDischargePeriod(start_time, end_time, power)
@@ -289,7 +300,9 @@ class ChargeDischargePeriodRegisters(RegisterDefinition[list[ChargeDischargePeri
 
     def encode(self, data: list[ChargeDischargePeriod]) -> tuple[Any, ...]:
         """Encode ChargeDischargePeriodRegisters."""
-        assert len(data) <= CHARGE_DISCHARGE_PERIODS
+        if len(data) > CHARGE_DISCHARGE_PERIODS:
+            msg = f"Too many charge/discharge periods: got {len(data)}, maximum is {CHARGE_DISCHARGE_PERIODS}"
+            raise EncodeError(msg)
 
         values = [len(data)]
 
