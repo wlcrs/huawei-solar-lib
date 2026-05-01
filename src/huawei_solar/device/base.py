@@ -10,6 +10,7 @@ from huawei_solar.const import MAX_BATCHED_REGISTERS_COUNT, MAX_BATCHED_REGISTER
 from huawei_solar.exceptions import (
     HuaweiSolarException,
     InvalidCredentials,
+    WriteException,
 )
 from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar.registers import REGISTERS
@@ -325,7 +326,10 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
             result = await self.client.get(WRITE_TEST_REGISTER)
 
             await super().set(WRITE_TEST_REGISTER, result.value)
-        except PermissionDeniedError:
+        except (PermissionDeniedError, WriteException):
+            # We not only catch PermissionDeniedError but also WriteException, because in some firmware versions,
+            # a ServerDeviceFailure error is raised when trying to write to a register without permission, which
+            # propagates up as a WriteException in our code. (cfr. https://github.com/wlcrs/huawei-solar-lib/issues/28)
             return False
         else:
             return True
