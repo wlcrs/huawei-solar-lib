@@ -166,16 +166,21 @@ class RegisterAwareModbusClient(AsyncModbusClient):
         self._validate_data_to_write(register, values)
         try:
             if register.length == 1:
+                value_to_write = struct.unpack(
+                    ">H",
+                    struct.pack(f">{register.format}", values[0]),
+                )[0]
                 _LOGGER.debug(
-                    "Writing to %d: single value '%s' on server %d",
+                    "Writing to %d: single value '%s' (encoded as '%d') on server %d",
                     register.register,
                     values[0],
+                    value_to_write,
                     self.unit_id,
                 )
 
-                response = await self.write_single_register(register.register, values[0])
+                response = await self.write_single_register(register.register, value_to_write)
 
-                success: bool = response == values[0]
+                success: bool = response == value_to_write
             else:
                 _LOGGER.debug(
                     "Writing to %d: values '%s' on server %d",

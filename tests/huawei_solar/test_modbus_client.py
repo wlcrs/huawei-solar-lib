@@ -310,6 +310,18 @@ async def test_get_grid_voltage(huawei_solar: AsyncHuaweiSolarClient) -> None:
     assert result.unit == "V"
 
 
+async def test_set_negative_i16_register_writes_unsigned_payload(
+    huawei_solar: AsyncHuaweiSolarClient,
+) -> None:
+    """Test writing signed i16 values through a single-register Modbus write."""
+    with patch.object(huawei_solar, "write_single_register", return_value=64536) as write_single_register:
+        success = await huawei_solar.set(rn.ACTIVE_POWER_PERCENTAGE_DERATING, -100.0)
+
+    assert success is True
+    # -100.0 is encoded as -100, which is 0xFF9C in unsigned 16-bit representation, which is 64536 in decimal
+    write_single_register.assert_awaited_once_with(40125, 64536)
+
+
 async def test_get_line_voltage_a_b(huawei_solar: AsyncHuaweiSolarClient) -> None:
     result = await huawei_solar.get(rn.LINE_VOLTAGE_A_B)
     assert result.value == 0
