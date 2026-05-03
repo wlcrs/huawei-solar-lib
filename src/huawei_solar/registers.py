@@ -815,10 +815,18 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
+    rn.EMMA_DST_STATE: U16Register(None, 1, 31002, target_device=TargetDevice.EMMA),
+    rn.EMMA_LOCAL_TIME: U32Register(
+        "seconds",
+        1,
+        31003,
+        target_device=TargetDevice.EMMA,
+    ),
     rn.EMMA_SYSTEM_TIME: U32Register(
         "seconds",
         1,
         40470,
+        writeable=True,
         target_device=TargetDevice.EMMA,
     ),
     rn.LOCAL_TIME_YEAR: U16Register(

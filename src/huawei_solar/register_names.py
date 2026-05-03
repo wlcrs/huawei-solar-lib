@@ -545,6 +545,8 @@ EMMA_MAXIMUM_FEED_GRID_POWER_PERCENT = RegisterName("emma_maximum_feed_grid_powe
 EMMA_3PHASE_IMBALANCE_CONTROL = RegisterName("emma_3phase_imbalance_control")
 EMMA_POWER_SUPPLY_CONFIGURATION = RegisterName("emma_power_supply_configuration")
 EMMA_CONSIDER_MAINS_FAULTY_IF = RegisterName("emma_consider_mains_faulty_if")
+EMMA_DST_STATE = RegisterName("emma_dst_state")
+EMMA_LOCAL_TIME = RegisterName("emma_local_time")
 EMMA_SYSTEM_TIME = RegisterName("emma_system_time")
 LOCAL_TIME_YEAR = RegisterName("local_time_year")
 

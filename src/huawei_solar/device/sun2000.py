@@ -215,9 +215,9 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         """Get the system time from the inverter."""
         if self.primary_device and isinstance(self.primary_device, EMMADevice):
             # Inverters don't return their own system time when connected via EMMA.
-            # Instead, we need to read the system time from the EMMA device.
+            # Instead, we need to read the local time from the EMMA device.
 
-            return (await self.primary_device.get(rn.EMMA_SYSTEM_TIME)).value  # type: ignore[no-any-return]
+            return (await self.primary_device.get(rn.EMMA_LOCAL_TIME)).value  # type: ignore[no-any-return]
 
         return (await self.get(rn.SYSTEM_TIME_RAW)).value  # type: ignore[no-any-return]
 
