@@ -92,72 +92,76 @@ class OptimizerRealTimeDataFile:
         if len(file_data) < struct.calcsize(OptimizerRealTimeDataFile.HEADER):
             return
 
-        self.file_version = struct.unpack_from(
-            OptimizerRealTimeDataFile.HEADER,
-            file_data,
-            offset,
-        )
-        offset += struct.calcsize(OptimizerRealTimeDataFile.HEADER)
-
-        has_next_optimizer_data_unit = True
-        while has_next_optimizer_data_unit:
-            (time, _length, number_of_optimizers) = struct.unpack_from(
-                OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT,
+        try:
+            self.file_version = struct.unpack_from(
+                OptimizerRealTimeDataFile.HEADER,
                 file_data,
                 offset,
             )
-            offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT)
+            offset += struct.calcsize(OptimizerRealTimeDataFile.HEADER)
 
-            optimizers = []
-            for _ in range(number_of_optimizers):
-                (
-                    optimizer_address,
-                    output_power,
-                    voltage_to_ground,
-                    alarm,
-                    output_voltage,
-                    output_current,
-                    input_voltage,
-                    input_current,
-                    temperature,
-                    running_status,
-                    accumulated_energy_yield,
-                ) = struct.unpack_from(
-                    OptimizerRealTimeDataFile.OPTIMIZER_DATA,
+            has_next_optimizer_data_unit = True
+            while has_next_optimizer_data_unit:
+                (time, _length, number_of_optimizers) = struct.unpack_from(
+                    OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT,
                     file_data,
                     offset,
                 )
-                offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA)
+                offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA_UNIT)
 
-                alarms = []
-                for bit, value in OPTIMIZER_ALARM_CODES.items():
-                    if alarm & bit:
-                        alarms.append(value)
-
-                optimizers.append(
-                    OptimizerRealTimeData(
+                optimizers = []
+                for _ in range(number_of_optimizers):
+                    (
                         optimizer_address,
-                        output_power / 10,
-                        voltage_to_ground / 10,
-                        alarms,
-                        output_voltage / 10,
-                        output_current / 100,
-                        input_voltage / 10,
-                        input_current / 100,
-                        temperature / 10,
-                        OptimizerRunningStatus(running_status),
-                        accumulated_energy_yield / 1000,
+                        output_power,
+                        voltage_to_ground,
+                        alarm,
+                        output_voltage,
+                        output_current,
+                        input_voltage,
+                        input_current,
+                        temperature,
+                        running_status,
+                        accumulated_energy_yield,
+                    ) = struct.unpack_from(
+                        OptimizerRealTimeDataFile.OPTIMIZER_DATA,
+                        file_data,
+                        offset,
+                    )
+                    offset += struct.calcsize(OptimizerRealTimeDataFile.OPTIMIZER_DATA)
+
+                    alarms = []
+                    for bit, value in OPTIMIZER_ALARM_CODES.items():
+                        if alarm & bit:
+                            alarms.append(value)
+
+                    optimizers.append(
+                        OptimizerRealTimeData(
+                            optimizer_address,
+                            output_power / 10,
+                            voltage_to_ground / 10,
+                            alarms,
+                            output_voltage / 10,
+                            output_current / 100,
+                            input_voltage / 10,
+                            input_current / 100,
+                            temperature / 10,
+                            OptimizerRunningStatus(running_status),
+                            accumulated_energy_yield / 1000,
+                        ),
+                    )
+
+                self.data_units.append(
+                    OptimizerHistoryRealTimeDataUnit(
+                        datetime.fromtimestamp(time, tz=get_local_timezone()),
+                        optimizers,
                     ),
                 )
 
-            self.data_units.append(
-                OptimizerHistoryRealTimeDataUnit(
-                    datetime.fromtimestamp(time, tz=get_local_timezone()),
-                    optimizers,
-                ),
-            )
-
-            has_next_optimizer_data_unit = offset < len(file_data)
+                has_next_optimizer_data_unit = offset < len(file_data)
+        except struct.error as err:
+            msg = "Could not decode optimizer real time data file: the contents is corrupted."
+            raise DecodeError(msg) from err
 
     def __str__(self) -> str:
         """Return a string representation of a OptimizerHistoryDataFile."""
@@ -224,104 +228,108 @@ class OptimizerSystemInformationDataFile:
         """Create Optimizer System Information Data File."""
         self.optimizers: list[OptimizerSystemInformation] = []
 
-        offset = 0
+        try:
+            offset = 0
 
-        (
-            self.file_version,
-            _feature_data_sequence_number,
-            _length,
-            _reserved,
-            number_of_optimizers,
-        ) = struct.unpack_from(
-            OptimizerSystemInformationDataFile.HEADER,
-            file_data,
-            offset,
-        )
-        offset += struct.calcsize(OptimizerSystemInformationDataFile.HEADER)
-
-        if self.file_version == b"V102":
-            for _ in range(number_of_optimizers):
-                (
-                    optimizer_address,
-                    online_status,
-                    string_number,
-                    position_in_current_string,
-                    sn,
-                    software_version,
-                    alias,
-                    model,
-                ) = struct.unpack_from(
-                    OptimizerSystemInformationDataFile.V102_OPTIMIZER_FEATURE_DATA,
-                    file_data,
-                    offset,
-                )
-                offset += struct.calcsize(
-                    OptimizerSystemInformationDataFile.V102_OPTIMIZER_FEATURE_DATA,
-                )
-
-                self.optimizers.append(
-                    OptimizerSystemInformation(
-                        optimizer_address,
-                        OptimizerOnlineStatus(online_status),
-                        string_number,
-                        (
-                            position_in_current_string
-                            if position_in_current_string != INVALID_OPTIMIZER_POSITION
-                            else None
-                        ),
-                        bytes_to_string(sn),
-                        bytes_to_string(software_version),
-                        bytes_to_string(alias),
-                        bytes_to_string(model),
-                    ),
-                )
-
-        elif self.file_version == b"V103":
-            for _ in range(number_of_optimizers):
-                (
-                    optimizer_address,
-                    online_status,
-                    string_number,
-                    position_in_current_string,
-                    sn,
-                    software_version,
-                    alias,
-                    model,
-                    _machine_id,
-                    one_to_more,
-                    rated_power,
-                    cpu_type,
-                ) = struct.unpack_from(
-                    OptimizerSystemInformationDataFile.V103_OPTIMIZER_FEATURE_DATA,
-                    file_data,
-                    offset,
-                )
-                offset += struct.calcsize(
-                    OptimizerSystemInformationDataFile.V103_OPTIMIZER_FEATURE_DATA,
-                )
-
-                self.optimizers.append(
-                    OptimizerSystemInformation(
-                        optimizer_address,
-                        OptimizerOnlineStatus(online_status),
-                        string_number,
-                        (
-                            position_in_current_string
-                            if position_in_current_string != INVALID_OPTIMIZER_POSITION
-                            else None
-                        ),
-                        bytes_to_string(sn),
-                        bytes_to_string(software_version),
-                        bytes_to_string(alias),
-                        bytes_to_string(model),
-                        # machine_id=_to_string(machine_id), # looks like gibberish? ignoring...  # noqa: ERA001
-                        one_to_more=bool(one_to_more),
-                        rated_power=rated_power,
-                        cpu_type=cpu_type,
-                    ),
-                )
-        else:
-            msg = f"Unsupported OptimizerSystemInformation file version: {self.file_version}"
-            raise DecodeError(
-                msg,
+            (
+                self.file_version,
+                _feature_data_sequence_number,
+                _length,
+                _reserved,
+                number_of_optimizers,
+            ) = struct.unpack_from(
+                OptimizerSystemInformationDataFile.HEADER,
+                file_data,
+                offset,
             )
+            offset += struct.calcsize(OptimizerSystemInformationDataFile.HEADER)
+
+            if self.file_version == b"V102":
+                for _ in range(number_of_optimizers):
+                    (
+                        optimizer_address,
+                        online_status,
+                        string_number,
+                        position_in_current_string,
+                        sn,
+                        software_version,
+                        alias,
+                        model,
+                    ) = struct.unpack_from(
+                        OptimizerSystemInformationDataFile.V102_OPTIMIZER_FEATURE_DATA,
+                        file_data,
+                        offset,
+                    )
+                    offset += struct.calcsize(
+                        OptimizerSystemInformationDataFile.V102_OPTIMIZER_FEATURE_DATA,
+                    )
+
+                    self.optimizers.append(
+                        OptimizerSystemInformation(
+                            optimizer_address,
+                            OptimizerOnlineStatus(online_status),
+                            string_number,
+                            (
+                                position_in_current_string
+                                if position_in_current_string != INVALID_OPTIMIZER_POSITION
+                                else None
+                            ),
+                            bytes_to_string(sn),
+                            bytes_to_string(software_version),
+                            bytes_to_string(alias),
+                            bytes_to_string(model),
+                        ),
+                    )
+
+            elif self.file_version == b"V103":
+                for _ in range(number_of_optimizers):
+                    (
+                        optimizer_address,
+                        online_status,
+                        string_number,
+                        position_in_current_string,
+                        sn,
+                        software_version,
+                        alias,
+                        model,
+                        _machine_id,
+                        one_to_more,
+                        rated_power,
+                        cpu_type,
+                    ) = struct.unpack_from(
+                        OptimizerSystemInformationDataFile.V103_OPTIMIZER_FEATURE_DATA,
+                        file_data,
+                        offset,
+                    )
+                    offset += struct.calcsize(
+                        OptimizerSystemInformationDataFile.V103_OPTIMIZER_FEATURE_DATA,
+                    )
+
+                    self.optimizers.append(
+                        OptimizerSystemInformation(
+                            optimizer_address,
+                            OptimizerOnlineStatus(online_status),
+                            string_number,
+                            (
+                                position_in_current_string
+                                if position_in_current_string != INVALID_OPTIMIZER_POSITION
+                                else None
+                            ),
+                            bytes_to_string(sn),
+                            bytes_to_string(software_version),
+                            bytes_to_string(alias),
+                            bytes_to_string(model),
+                            # machine_id=_to_string(machine_id), # looks like gibberish? ignoring...  # noqa: ERA001
+                            one_to_more=bool(one_to_more),
+                            rated_power=rated_power,
+                            cpu_type=cpu_type,
+                        ),
+                    )
+            else:
+                msg = f"Unsupported OptimizerSystemInformation file version: {self.file_version}"
+                raise DecodeError(
+                    msg,
+                )
+        except struct.error as err:
+            msg = "Could not decode optimizer system information data file: the contents is corrupted."
+            raise DecodeError(msg) from err
