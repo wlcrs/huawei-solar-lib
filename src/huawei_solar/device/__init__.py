@@ -83,6 +83,16 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
         return get_device_class_for_model(smartlogger_device_name), smartlogger_device_name
     _LOGGER.info("SMARTLOGGER_DEVICE_NAME is an illegal data address for unit ID %d.", client.unit_id)
 
+    # Some SmartLogger firmwares (e.g. SmartLogger3000A) expose neither MODEL_NAME nor
+    # SMARTLOGGER_DEVICE_NAME, but still respond to the equipment serial number register.
+    # A successful read there is a strong enough signal to identify the device as a
+    # SmartLogger; SmartLoggerDevice.supports_device() accepts any name that starts
+    # with "SmartLogger", so the generic model string keeps the contract.
+    if await _try_read_register(client, rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN) is not None:
+        _LOGGER.info("Detected SmartLogger via ESN register for unit ID %d.", client.unit_id)
+        return SmartLoggerDevice, "SmartLogger"
+    _LOGGER.info("SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN unavailable for unit ID %d.", client.unit_id)
+
     if await _detect_sdongle():
         return SDongleDevice, "SDongle"
 

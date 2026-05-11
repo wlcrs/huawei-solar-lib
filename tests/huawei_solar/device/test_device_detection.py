@@ -170,9 +170,28 @@ async def test_detect_device_type_sdongle_fast_track_on_unit_100() -> None:
     assert detected_name == "SDongle"
 
 
-async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal() -> None:
+async def test_detect_device_type_smartlogger_via_esn_fallback() -> None:
+    """Firmwares with neither MODEL_NAME nor SMARTLOGGER_DEVICE_NAME still expose the ESN."""
+
     def side_effect(register: str) -> Any:  # noqa: ANN401
         if register in (rn.MODEL_NAME, rn.SMARTLOGGER_DEVICE_NAME):
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=0x03)
+        if register == rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN:
+            return _value_result("102120056473")
+        msg = f"Unexpected register read: {register!r}"
+        raise AssertionError(msg)
+
+    client = _client_with_get(unit_id=7, side_effect=side_effect)
+
+    detected_class, detected_name = await detect_device_type(client)
+
+    assert detected_class is SmartLoggerDevice
+    assert detected_name == "SmartLogger"
+
+
+async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal() -> None:
+    def side_effect(register: str) -> Any:  # noqa: ANN401
+        if register in (rn.MODEL_NAME, rn.SMARTLOGGER_DEVICE_NAME, rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN):
             raise IllegalDataAddressError(
                 error_code=IllegalDataAddressError.error_code,
                 function_code=FunctionCode.READ_HOLDING_REGISTERS,
@@ -192,7 +211,12 @@ async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal(
 
 async def test_detect_device_type_raises_when_no_detection_path_matches() -> None:
     def side_effect(register: str) -> Any:  # noqa: ANN401
-        if register in (rn.MODEL_NAME, rn.SMARTLOGGER_DEVICE_NAME, rn.SDONGLE_DEVICE_SEARCH_STATUS):
+        if register in (
+            rn.MODEL_NAME,
+            rn.SMARTLOGGER_DEVICE_NAME,
+            rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
+            rn.SDONGLE_DEVICE_SEARCH_STATUS,
+        ):
             raise IllegalDataAddressError(
                 error_code=IllegalDataAddressError.error_code,
                 function_code=FunctionCode.READ_HOLDING_REGISTERS,
