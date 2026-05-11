@@ -1,11 +1,12 @@
 """Definitions of the devices supported by this library."""
 
 from logging import getLogger
+from typing import Any
 
 from tmodbus.exceptions import IllegalDataAddressError
 
 from huawei_solar import register_names as rn
-from huawei_solar.exceptions import DeviceDetectionError
+from huawei_solar.exceptions import DeviceDetectionError, ReadException
 from huawei_solar.modbus_client import AsyncHuaweiSolarClient
 
 from .base import HuaweiSolarDevice, HuaweiSolarDeviceWithLogin
@@ -18,6 +19,26 @@ from .sun2000 import SUN2000Device
 _LOGGER = getLogger(__name__)
 
 DEFAULT_SDONGLE_UNIT_ID = 100
+
+# Modbus exception codes returned by devices when a register simply isn't
+# accessible. Different firmwares pick one or the other for the same condition,
+# so probing logic has to treat both as "fall through to the next probe".
+_FALLTHROUGH_MODBUS_EXCEPTION_CODES = frozenset({0x02, 0x03})
+
+
+async def _try_read_register(client: AsyncHuaweiSolarClient, register: str) -> Any | None:  # noqa: ANN401
+    """Read a register, returning ``None`` if the device reports it as inaccessible.
+
+    Re-raises any other modbus or transport error so genuine failures still surface.
+    """
+    try:
+        return (await client.get(register)).value
+    except IllegalDataAddressError:
+        return None
+    except ReadException as err:
+        if err.modbus_exception_code not in _FALLTHROUGH_MODBUS_EXCEPTION_CODES:
+            raise
+        return None
 
 
 def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
@@ -36,37 +57,31 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
     """Detect the type of the connected device."""
 
     async def _detect_sdongle() -> bool:
-        try:
-            device_search_status = (await client.get(rn.SDONGLE_DEVICE_SEARCH_STATUS)).value
-        except IllegalDataAddressError:
+        device_search_status = await _try_read_register(client, rn.SDONGLE_DEVICE_SEARCH_STATUS)
+        if device_search_status is None:
             _LOGGER.warning("Failed to detect device type for unit ID %d.", DEFAULT_SDONGLE_UNIT_ID)
             return False
-        else:
-            _LOGGER.debug(
-                "Successfully retrieved SDongle 'device search status' register for unit ID %d: %s",
-                DEFAULT_SDONGLE_UNIT_ID,
-                device_search_status,
-            )
-            return True
+        _LOGGER.debug(
+            "Successfully retrieved SDongle 'device search status' register for unit ID %d: %s",
+            DEFAULT_SDONGLE_UNIT_ID,
+            device_search_status,
+        )
+        return True
 
     # Unit ID 100 is typically used by an SDongle. Fast track checking for that.
     if client.unit_id == DEFAULT_SDONGLE_UNIT_ID and await _detect_sdongle():
         return SDongleDevice, "SDongle"
 
-    try:
-        model_name: str = (await client.get(rn.MODEL_NAME)).value
-    except IllegalDataAddressError:
-        _LOGGER.info("MODEL_NAME is an illegal data address for unit ID %d.", client.unit_id)
-    else:
+    model_name = await _try_read_register(client, rn.MODEL_NAME)
+    if model_name is not None:
         return get_device_class_for_model(model_name), model_name
+    _LOGGER.info("MODEL_NAME is an illegal data address for unit ID %d.", client.unit_id)
 
-    try:
-        # The SmartLogger does not have a MODEL_NAME register, so we need to detect it differently
-        smartlogger_device_name: str = (await client.get(rn.SMARTLOGGER_DEVICE_NAME)).value
-    except IllegalDataAddressError:
-        _LOGGER.info("SMARTLOGGER_DEVICE_NAME is an illegal data address for unit ID %d.", client.unit_id)
-    else:
+    # The SmartLogger does not have a MODEL_NAME register, so we need to detect it differently
+    smartlogger_device_name = await _try_read_register(client, rn.SMARTLOGGER_DEVICE_NAME)
+    if smartlogger_device_name is not None:
         return get_device_class_for_model(smartlogger_device_name), smartlogger_device_name
+    _LOGGER.info("SMARTLOGGER_DEVICE_NAME is an illegal data address for unit ID %d.", client.unit_id)
 
     if await _detect_sdongle():
         return SDongleDevice, "SDongle"
