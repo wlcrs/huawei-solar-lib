@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from huawei_solar.device.emma import EMMADevice
+from huawei_solar.device.meter import MeterDevice
 from huawei_solar.device.scharger import SChargerDevice
 from huawei_solar.device.sdongle import SDongleDevice
 from huawei_solar.device.smartlogger import SmartLoggerDevice
@@ -42,6 +43,7 @@ def patched_supports_device(monkeypatch: pytest.MonkeyPatch) -> None:
         "supports_device",
         staticmethod(lambda model: model == "smartlogger-model"),
     )
+    monkeypatch.setattr(MeterDevice, "supports_device", staticmethod(lambda model: model == "meter-model"))
 
 
 @pytest.mark.parametrize(
@@ -52,6 +54,7 @@ def patched_supports_device(monkeypatch: pytest.MonkeyPatch) -> None:
         ("scharger-model", SChargerDevice),
         ("sdongle-model", SDongleDevice),
         ("smartlogger-model", SmartLoggerDevice),
+        ("meter-model", MeterDevice),
     ],
 )
 def test_get_device_class_for_model_all_supported_types(
@@ -189,9 +192,37 @@ async def test_detect_device_type_smartlogger_via_esn_fallback() -> None:
     assert detected_name == "SmartLogger"
 
 
+async def test_detect_device_type_meter_via_active_power_probe() -> None:
+    """Power meters expose neither MODEL_NAME nor SMARTLOGGER_DEVICE_NAME, but answer 32278."""
+
+    def side_effect(register: str) -> Any:  # noqa: ANN401
+        if register in (
+            rn.MODEL_NAME,
+            rn.SMARTLOGGER_DEVICE_NAME,
+            rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
+        ):
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=0x03)
+        if register == rn.SMARTLOGGER_EXTERNAL_METER_ACTIVE_POWER:
+            return _value_result(-1.394)
+        msg = f"Unexpected register read: {register!r}"
+        raise AssertionError(msg)
+
+    client = _client_with_get(unit_id=11, side_effect=side_effect)
+
+    detected_class, detected_name = await detect_device_type(client)
+
+    assert detected_class is MeterDevice
+    assert detected_name == "PowerMeter"
+
+
 async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal() -> None:
     def side_effect(register: str) -> Any:  # noqa: ANN401
-        if register in (rn.MODEL_NAME, rn.SMARTLOGGER_DEVICE_NAME, rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN):
+        if register in (
+            rn.MODEL_NAME,
+            rn.SMARTLOGGER_DEVICE_NAME,
+            rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
+            rn.SMARTLOGGER_EXTERNAL_METER_ACTIVE_POWER,
+        ):
             raise IllegalDataAddressError(
                 error_code=IllegalDataAddressError.error_code,
                 function_code=FunctionCode.READ_HOLDING_REGISTERS,
@@ -215,6 +246,7 @@ async def test_detect_device_type_raises_when_no_detection_path_matches() -> Non
             rn.MODEL_NAME,
             rn.SMARTLOGGER_DEVICE_NAME,
             rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
+            rn.SMARTLOGGER_EXTERNAL_METER_ACTIVE_POWER,
             rn.SDONGLE_DEVICE_SEARCH_STATUS,
         ):
             raise IllegalDataAddressError(

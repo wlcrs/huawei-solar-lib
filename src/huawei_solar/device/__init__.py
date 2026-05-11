@@ -11,6 +11,7 @@ from huawei_solar.modbus_client import AsyncHuaweiSolarClient
 
 from .base import HuaweiSolarDevice, HuaweiSolarDeviceWithLogin
 from .emma import EMMADevice
+from .meter import MeterDevice
 from .scharger import SChargerDevice
 from .sdongle import SDongleDevice
 from .smartlogger import SmartLoggerDevice
@@ -26,7 +27,7 @@ DEFAULT_SDONGLE_UNIT_ID = 100
 _FALLTHROUGH_MODBUS_EXCEPTION_CODES = frozenset({0x02, 0x03})
 
 
-async def _try_read_register(client: AsyncHuaweiSolarClient, register: str) -> Any | None:  # noqa: ANN401
+async def _try_read_register(client: AsyncHuaweiSolarClient, register: rn.RegisterName) -> Any | None:  # noqa: ANN401
     """Read a register, returning ``None`` if the device reports it as inaccessible.
 
     Re-raises any other modbus or transport error so genuine failures still surface.
@@ -43,7 +44,14 @@ async def _try_read_register(client: AsyncHuaweiSolarClient, register: str) -> A
 
 def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
     """Get the device class for the given model name."""
-    for candidate_bridge_class in [SUN2000Device, EMMADevice, SChargerDevice, SDongleDevice, SmartLoggerDevice]:
+    for candidate_bridge_class in [
+        SUN2000Device,
+        EMMADevice,
+        SChargerDevice,
+        SDongleDevice,
+        SmartLoggerDevice,
+        MeterDevice,
+    ]:
         if candidate_bridge_class.supports_device(model_name):
             return candidate_bridge_class
 
@@ -93,6 +101,16 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
         return SmartLoggerDevice, "SmartLogger"
     _LOGGER.info("SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN unavailable for unit ID %d.", client.unit_id)
 
+    # Power meters connected to a SmartLogger do not expose any of the identifying
+    # registers above, but they do answer the meter-telemetry block (see Huawei
+    # SmartLogger ModBus Interface Definitions, Issue 35, Table 2-5). Active power
+    # at register 32278 is a reliable probe: SUN2000 inverters do not define it,
+    # and the SmartLogger itself does not aggregate meter data at its own slave.
+    if await _try_read_register(client, rn.SMARTLOGGER_EXTERNAL_METER_ACTIVE_POWER) is not None:
+        _LOGGER.info("Detected power meter via meter telemetry probe for unit ID %d.", client.unit_id)
+        return MeterDevice, "PowerMeter"
+    _LOGGER.info("Meter telemetry probe unavailable for unit ID %d.", client.unit_id)
+
     if await _detect_sdongle():
         return SDongleDevice, "SDongle"
 
@@ -134,6 +152,7 @@ __all__ = [
     "EMMADevice",
     "HuaweiSolarDevice",
     "HuaweiSolarDeviceWithLogin",
+    "MeterDevice",
     "SChargerDevice",
     "SDongleDevice",
     "SUN2000Device",
