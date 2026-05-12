@@ -3,7 +3,7 @@
 from logging import getLogger
 from typing import Any
 
-from tmodbus.exceptions import IllegalDataAddressError
+from tmodbus.exceptions import IllegalDataAddressError, IllegalDataValueError
 
 from huawei_solar import register_names as rn
 from huawei_solar.exceptions import DeviceDetectionError, ReadException
@@ -20,11 +20,6 @@ _LOGGER = getLogger(__name__)
 
 DEFAULT_SDONGLE_UNIT_ID = 100
 
-# Modbus exception codes returned by devices when a register simply isn't
-# accessible. Different firmwares pick one or the other for the same condition,
-# so probing logic has to treat both as "fall through to the next probe".
-_FALLTHROUGH_MODBUS_EXCEPTION_CODES = frozenset({0x02, 0x03})
-
 
 async def _try_read_register(client: AsyncHuaweiSolarClient, register: str) -> Any | None:  # noqa: ANN401
     """Read a register, returning ``None`` if the device reports it as inaccessible.
@@ -33,12 +28,18 @@ async def _try_read_register(client: AsyncHuaweiSolarClient, register: str) -> A
     """
     try:
         return (await client.get(register)).value
-    except IllegalDataAddressError:
-        return None
     except ReadException as err:
-        if err.modbus_exception_code not in _FALLTHROUGH_MODBUS_EXCEPTION_CODES:
-            raise
-        return None
+        # Modbus exception codes returned by devices when a register simply isn't
+        # accessible. Different firmwares pick one or the other for the same condition,
+        # so probing logic has to treat both as "fall through to the next probe".
+        if err.modbus_exception_code in {
+            IllegalDataValueError.error_code,
+            IllegalDataAddressError.error_code
+        }:
+            return None
+
+         # re-raise any other exception that occurred
+        raise
 
 
 def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
@@ -77,20 +78,20 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
         return get_device_class_for_model(model_name), model_name
     _LOGGER.info("MODEL_NAME is an illegal data address for unit ID %d.", client.unit_id)
 
-    # The SmartLogger does not have a MODEL_NAME register, so we need to detect it differently
-    smartlogger_device_name = await _try_read_register(client, rn.SMARTLOGGER_DEVICE_NAME)
-    if smartlogger_device_name is not None:
-        return get_device_class_for_model(smartlogger_device_name), smartlogger_device_name
-    _LOGGER.info("SMARTLOGGER_DEVICE_NAME is an illegal data address for unit ID %d.", client.unit_id)
-
+    # The SmartLogger does not have a MODEL_NAME register, so we need to detect it differently.
+    #
     # Some SmartLogger firmwares (e.g. SmartLogger3000A) expose neither MODEL_NAME nor
     # SMARTLOGGER_DEVICE_NAME, but still respond to the equipment serial number register.
     # A successful read there is a strong enough signal to identify the device as a
     # SmartLogger; SmartLoggerDevice.supports_device() accepts any name that starts
     # with "SmartLogger", so the generic model string keeps the contract.
-    if await _try_read_register(client, rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN) is not None:
+    if (await _try_read_register(client, rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN)) is not None:
         _LOGGER.info("Detected SmartLogger via ESN register for unit ID %d.", client.unit_id)
-        return SmartLoggerDevice, "SmartLogger"
+
+        # fallback for when SMARTLOGGER_DEVICE_NAME is not available
+        smartlogger_device_name = (await _try_read_register(client, rn.SMARTLOGGER_DEVICE_NAME)) or "SmartLogger"
+
+        return SmartLoggerDevice, smartlogger_device_name
     _LOGGER.info("SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN unavailable for unit ID %d.", client.unit_id)
 
     if await _detect_sdongle():

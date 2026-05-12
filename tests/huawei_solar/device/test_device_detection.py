@@ -98,10 +98,9 @@ async def test_detect_device_type_smartlogger_when_model_name_illegal(
 ) -> None:
     def side_effect(register: str) -> Any:  # noqa: ANN401
         if register == rn.MODEL_NAME:
-            raise IllegalDataAddressError(
-                error_code=IllegalDataAddressError.error_code,
-                function_code=FunctionCode.READ_HOLDING_REGISTERS,
-            )
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=IllegalDataAddressError.error_code)
+        if register == rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN:
+            return _value_result("123456789012")
         if register == rn.SMARTLOGGER_DEVICE_NAME:
             return _value_result("smartlogger-model")
         msg = f"Unexpected register read: {register!r}"
@@ -125,6 +124,8 @@ async def test_detect_device_type_smartlogger_when_model_name_read_exception(
     def side_effect(register: str) -> Any:  # noqa: ANN401
         if register == rn.MODEL_NAME:
             raise ReadException(_READ_FAILED_MSG, modbus_exception_code=modbus_exception_code)
+        if register == rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN:
+            return _value_result("123456789012")
         if register == rn.SMARTLOGGER_DEVICE_NAME:
             return _value_result("smartlogger-model")
         msg = f"Unexpected register read: {register!r}"
@@ -192,9 +193,9 @@ async def test_detect_device_type_smartlogger_via_esn_fallback() -> None:
 async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal() -> None:
     def side_effect(register: str) -> Any:  # noqa: ANN401
         if register in (rn.MODEL_NAME, rn.SMARTLOGGER_DEVICE_NAME, rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN):
-            raise IllegalDataAddressError(
-                error_code=IllegalDataAddressError.error_code,
-                function_code=FunctionCode.READ_HOLDING_REGISTERS,
+            raise ReadException(
+                _READ_FAILED_MSG,
+                modbus_exception_code=IllegalDataAddressError.error_code,
             )
         if register == rn.SDONGLE_DEVICE_SEARCH_STATUS:
             return _value_result("done")
@@ -217,9 +218,9 @@ async def test_detect_device_type_raises_when_no_detection_path_matches() -> Non
             rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
             rn.SDONGLE_DEVICE_SEARCH_STATUS,
         ):
-            raise IllegalDataAddressError(
-                error_code=IllegalDataAddressError.error_code,
-                function_code=FunctionCode.READ_HOLDING_REGISTERS,
+            raise ReadException(
+                _READ_FAILED_MSG,
+                modbus_exception_code=IllegalDataAddressError.error_code,
             )
         msg = f"Unexpected register read: {register!r}"
         raise AssertionError(msg)
