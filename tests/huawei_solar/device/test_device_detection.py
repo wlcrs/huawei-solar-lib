@@ -10,12 +10,14 @@ from huawei_solar.device.scharger import SChargerDevice
 from huawei_solar.device.sdongle import SDongleDevice
 from huawei_solar.device.smartlogger import SmartLoggerDevice
 from huawei_solar.device.sun2000 import SUN2000Device
-from huawei_solar.exceptions import DeviceDetectionError
+from huawei_solar.exceptions import DeviceDetectionError, ReadException
 from tmodbus.const import FunctionCode
 from tmodbus.exceptions import IllegalDataAddressError
 
 from huawei_solar import register_names as rn
 from huawei_solar.device import DEFAULT_SDONGLE_UNIT_ID, detect_device_type, get_device_class_for_model
+
+_READ_FAILED_MSG = "Failed to read register"
 
 
 def _value_result(value: str) -> SimpleNamespace:
@@ -96,10 +98,9 @@ async def test_detect_device_type_smartlogger_when_model_name_illegal(
 ) -> None:
     def side_effect(register: str) -> Any:  # noqa: ANN401
         if register == rn.MODEL_NAME:
-            raise IllegalDataAddressError(
-                error_code=IllegalDataAddressError.error_code,
-                function_code=FunctionCode.READ_HOLDING_REGISTERS,
-            )
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=IllegalDataAddressError.error_code)
+        if register == rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN:
+            return _value_result("123456789012")
         if register == rn.SMARTLOGGER_DEVICE_NAME:
             return _value_result("smartlogger-model")
         msg = f"Unexpected register read: {register!r}"
@@ -111,6 +112,48 @@ async def test_detect_device_type_smartlogger_when_model_name_illegal(
 
     assert detected_class is SmartLoggerDevice
     assert detected_name == "smartlogger-model"
+
+
+@pytest.mark.parametrize("modbus_exception_code", [0x02, 0x03])
+async def test_detect_device_type_smartlogger_when_model_name_read_exception(
+    patched_supports_device: None,
+    modbus_exception_code: int,
+) -> None:
+    """register_client.get() wraps modbus exceptions in ReadException — the fallback chain must follow."""
+
+    def side_effect(register: str) -> Any:  # noqa: ANN401
+        if register == rn.MODEL_NAME:
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=modbus_exception_code)
+        if register == rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN:
+            return _value_result("123456789012")
+        if register == rn.SMARTLOGGER_DEVICE_NAME:
+            return _value_result("smartlogger-model")
+        msg = f"Unexpected register read: {register!r}"
+        raise AssertionError(msg)
+
+    client = _client_with_get(unit_id=1, side_effect=side_effect)
+
+    detected_class, detected_name = await detect_device_type(client)
+
+    assert detected_class is SmartLoggerDevice
+    assert detected_name == "smartlogger-model"
+
+
+async def test_detect_device_type_propagates_unrelated_read_exception(
+    patched_supports_device: None,
+) -> None:
+    """Modbus exception codes other than 0x02/0x03 must propagate, not be swallowed."""
+
+    def side_effect(register: str) -> Any:  # noqa: ANN401
+        if register == rn.MODEL_NAME:
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=0x04)  # Server Device Failure
+        msg = f"Unexpected register read: {register!r}"
+        raise AssertionError(msg)
+
+    client = _client_with_get(unit_id=1, side_effect=side_effect)
+
+    with pytest.raises(ReadException):
+        await detect_device_type(client)
 
 
 async def test_detect_device_type_sdongle_fast_track_on_unit_100() -> None:
@@ -128,12 +171,31 @@ async def test_detect_device_type_sdongle_fast_track_on_unit_100() -> None:
     assert detected_name == "SDongle"
 
 
-async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal() -> None:
+async def test_detect_device_type_smartlogger_via_esn_fallback() -> None:
+    """Firmwares with neither MODEL_NAME nor SMARTLOGGER_DEVICE_NAME still expose the ESN."""
+
     def side_effect(register: str) -> Any:  # noqa: ANN401
         if register in (rn.MODEL_NAME, rn.SMARTLOGGER_DEVICE_NAME):
-            raise IllegalDataAddressError(
-                error_code=IllegalDataAddressError.error_code,
-                function_code=FunctionCode.READ_HOLDING_REGISTERS,
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=0x03)
+        if register == rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN:
+            return _value_result("102120056473")
+        msg = f"Unexpected register read: {register!r}"
+        raise AssertionError(msg)
+
+    client = _client_with_get(unit_id=7, side_effect=side_effect)
+
+    detected_class, detected_name = await detect_device_type(client)
+
+    assert detected_class is SmartLoggerDevice
+    assert detected_name == "SmartLogger"
+
+
+async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal() -> None:
+    def side_effect(register: str) -> Any:  # noqa: ANN401
+        if register in (rn.MODEL_NAME, rn.SMARTLOGGER_DEVICE_NAME, rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN):
+            raise ReadException(
+                _READ_FAILED_MSG,
+                modbus_exception_code=IllegalDataAddressError.error_code,
             )
         if register == rn.SDONGLE_DEVICE_SEARCH_STATUS:
             return _value_result("done")
@@ -150,10 +212,15 @@ async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal(
 
 async def test_detect_device_type_raises_when_no_detection_path_matches() -> None:
     def side_effect(register: str) -> Any:  # noqa: ANN401
-        if register in (rn.MODEL_NAME, rn.SMARTLOGGER_DEVICE_NAME, rn.SDONGLE_DEVICE_SEARCH_STATUS):
-            raise IllegalDataAddressError(
-                error_code=IllegalDataAddressError.error_code,
-                function_code=FunctionCode.READ_HOLDING_REGISTERS,
+        if register in (
+            rn.MODEL_NAME,
+            rn.SMARTLOGGER_DEVICE_NAME,
+            rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
+            rn.SDONGLE_DEVICE_SEARCH_STATUS,
+        ):
+            raise ReadException(
+                _READ_FAILED_MSG,
+                modbus_exception_code=IllegalDataAddressError.error_code,
             )
         msg = f"Unexpected register read: {register!r}"
         raise AssertionError(msg)
