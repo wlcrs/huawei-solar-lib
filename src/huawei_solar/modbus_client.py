@@ -14,10 +14,10 @@ from tenacity import (
     wait_fixed,
 )
 from tmodbus import AsyncModbusClient, AsyncRtuTransport, AsyncSmartTransport, AsyncTcpTransport
-from tmodbus.exceptions import ModbusResponseError, TModbusError
+from tmodbus.exceptions import ModbusConnectionError, ModbusResponseError, TModbusError
 from tmodbus.utils.crc import calculate_crc16
 
-from .exceptions import ReadException
+from .exceptions import ConnectionInterruptedException, ReadException
 from .modbus_pdu import (
     CompleteUploadPDU,
     LoginPDU,
@@ -125,46 +125,58 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
             file_type,
             self.unit_id,
         )
-        # Start the upload
-        start_upload_response = await self.execute(
-            StartFileUploadPDU(
-                file_type=file_type,
-                customised_data=customized_data or b"",
-            ),
-        )
-
-        file_length = start_upload_response.file_length
-        data_frame_length = start_upload_response.data_frame_length
-
-        # Request the data in 'frames'
-
-        file_data: bytes = b""
-        next_frame_no = 0
-
-        while (next_frame_no * data_frame_length) < file_length:
-            data_upload_response = await self.execute(
-                UploadFileFramePDU(file_type=file_type, frame_no=next_frame_no),
+        try:
+            # Start the upload
+            start_upload_response = await self.execute(
+                StartFileUploadPDU(
+                    file_type=file_type,
+                    customised_data=customized_data or b"",
+                ),
             )
 
-            file_data += data_upload_response.frame_data
-            next_frame_no += 1
+            file_length = start_upload_response.file_length
+            data_frame_length = start_upload_response.data_frame_length
 
-        # Complete the upload and check the CRC
-        file_crc = await self.execute(
-            CompleteUploadPDU(file_type=file_type),
-        )
+            # Request the data in 'frames'
 
-        # swap upper and lower two bytes to match how computeCRC works
-        swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
+            file_data: bytes = b""
+            next_frame_no = 0
 
-        if (calculated_crc := int.from_bytes(calculate_crc16(file_data))) != swapped_crc:
-            msg = (
-                f"Computed CRC {calculated_crc:04x} for file {file_type} "
-                f"does not match expected value {swapped_crc:04x}"
+            while (next_frame_no * data_frame_length) < file_length:
+                data_upload_response = await self.execute(
+                    UploadFileFramePDU(file_type=file_type, frame_no=next_frame_no),
+                )
+
+                file_data += data_upload_response.frame_data
+                next_frame_no += 1
+
+            # Complete the upload and check the CRC
+            file_crc = await self.execute(
+                CompleteUploadPDU(file_type=file_type),
             )
-            raise ReadException(msg)
 
-        return file_data
+        except ModbusResponseError as err:
+            msg = f"Failed to read file {file_type:#x}: received {type(err).__name__}"
+            raise ReadException(msg, modbus_exception_code=err.error_code) from err
+        except ModbusConnectionError as err:
+            _LOGGER.exception("Connection error while reading file %#x", file_type)
+            msg = f"Connection failed when trying to read file {file_type:#x}"
+            raise ConnectionInterruptedException(msg) from err
+        except TModbusError as err:
+            msg = f"Failed to read file {file_type:#x}: {err}"
+            raise ReadException(msg) from err
+        else:
+            # swap upper and lower two bytes to match how computeCRC works
+            swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
+
+            if (calculated_crc := int.from_bytes(calculate_crc16(file_data))) != swapped_crc:
+                msg = (
+                    f"Computed CRC {calculated_crc:04x} for file {file_type} "
+                    f"does not match expected value {swapped_crc:04x}"
+                )
+                raise ReadException(msg)
+
+            return file_data
 
     async def login(self, username: str, password: str) -> bool:
         """Login onto the inverter."""
@@ -172,15 +184,27 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
         # this circumvents the locking issue when using self.execute which locks on
         # _communication_lock in AsyncSmartTransport.send_and_receive
         assert isinstance(self.transport, AsyncSmartTransport)
-        inverter_challenge = await self.transport.base_transport.send_and_receive(
-            self.unit_id,
-            LoginRequestChallengePDU(),
-        )
+        try:
+            inverter_challenge = await self.transport.base_transport.send_and_receive(
+                self.unit_id,
+                LoginRequestChallengePDU(),
+            )
 
-        logged_in = await self.transport.base_transport.send_and_receive(
-            self.unit_id,
-            LoginPDU(username, password, inverter_challenge),
-        )
+            logged_in = await self.transport.base_transport.send_and_receive(
+                self.unit_id,
+                LoginPDU(username, password, inverter_challenge),
+            )
+        except ModbusResponseError as err:
+            msg = f"Failed to login: received {type(err).__name__}"
+            raise ReadException(msg, modbus_exception_code=err.error_code) from err
+        except ModbusConnectionError as err:
+            _LOGGER.exception("Connection error while logging in")
+            msg = "Connection failed when trying to login"
+            raise ConnectionInterruptedException(msg) from err
+        except TModbusError as err:
+            msg = f"Failed to login: {err}"
+            raise ReadException(msg) from err
+
         if logged_in:
             # Make sure we re-login after a reconnect
             assert isinstance(self.transport, AsyncSmartTransport)

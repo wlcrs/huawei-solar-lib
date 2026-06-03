@@ -6,9 +6,15 @@ from dataclasses import dataclass
 from typing import Literal
 
 from tmodbus.client import AsyncModbusClient
-from tmodbus.exceptions import ModbusResponseError, ServerDeviceBusyError, ServerDeviceFailureError
+from tmodbus.exceptions import (
+    ModbusConnectionError,
+    ModbusResponseError,
+    ServerDeviceBusyError,
+    ServerDeviceFailureError,
+    TModbusError,
+)
 
-from huawei_solar.exceptions import ReadException
+from huawei_solar.exceptions import ConnectionInterruptedException, ReadException
 from huawei_solar.modbus_pdu import PermissionDeniedError
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,16 +109,26 @@ async def _read_device_identifier_objects(
             device_code=read_dev_id_code,
             object_id=object_id,
         )
-    except (ServerDeviceBusyError, ServerDeviceFailureError, PermissionDeniedError) as e:
+    except (ServerDeviceBusyError, ServerDeviceFailureError, PermissionDeniedError) as err:
         _LOGGER.debug(
             "Got a %s while reading device identification from server %d",
-            type(e).__name__,
+            type(err).__name__,
             client.unit_id,
         )
-        raise
+        msg = (
+            "Exception occurred while trying to read device infos "
+            f"{hex(err.error_code) if err.error_code else 'no exception code'}"
+        )
+        raise ReadException(msg, modbus_exception_code=err.error_code) from err
     except ModbusResponseError as e:
         msg = (
             f"Exception occurred while trying to read device infos "
             f"{hex(e.error_code) if e.error_code else 'no exception code'}"
         )
         raise ReadException(msg, modbus_exception_code=e.error_code) from e
+    except ModbusConnectionError as err:
+        msg = "Connection failed when trying to read device infos"
+        raise ConnectionInterruptedException(msg) from err
+    except TModbusError as err:
+        msg = f"Failed to read device infos: {err}"
+        raise ReadException(msg) from err

@@ -6,9 +6,10 @@ from unittest.mock import patch
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
 import pytest
-from huawei_solar.exceptions import DecodeError
+from huawei_solar.exceptions import ConnectionInterruptedException, DecodeError, ReadException
 from huawei_solar.modbus_client import AsyncHuaweiSolarClient
 from huawei_solar.register_values import GridCode
+from tmodbus.exceptions import IllegalDataValueError, ModbusConnectionError
 
 
 async def test_get_model_name(huawei_solar: AsyncHuaweiSolarClient) -> None:
@@ -320,6 +321,36 @@ async def test_set_negative_i16_register_writes_unsigned_payload(
     assert success is True
     # -100.0 is encoded as -100, which is 0xFF9C in unsigned 16-bit representation, which is 64536 in decimal
     write_single_register.assert_awaited_once_with(40125, 64536)
+
+
+async def test_get_file_wraps_modbus_response_error(
+    huawei_solar: AsyncHuaweiSolarClient,
+) -> None:
+    with (
+        patch.object(
+            huawei_solar,
+            "execute",
+            side_effect=IllegalDataValueError(IllegalDataValueError.error_code, 0x41),
+        ),
+        pytest.raises(ReadException) as err,
+    ):
+        await huawei_solar.get_file(0x44)
+
+    assert err.value.modbus_exception_code == IllegalDataValueError.error_code
+
+
+async def test_get_file_wraps_connection_error(
+    huawei_solar: AsyncHuaweiSolarClient,
+) -> None:
+    with (
+        patch.object(
+            huawei_solar,
+            "execute",
+            side_effect=ModbusConnectionError("connection dropped"),
+        ),
+        pytest.raises(ConnectionInterruptedException),
+    ):
+        await huawei_solar.get_file(0x44)
 
 
 async def test_get_line_voltage_a_b(huawei_solar: AsyncHuaweiSolarClient) -> None:
