@@ -1,15 +1,36 @@
 """Tests for the AsyncHuaweiSolarClient class."""
 
 import struct
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
 import pytest
 from huawei_solar.exceptions import ConnectionInterruptedException, DecodeError, ReadException
-from huawei_solar.modbus_client import AsyncHuaweiSolarClient
+from huawei_solar.modbus_client import AsyncHuaweiSolarClient, TimeoutAwareSmartTransport
+from tmodbus.transport.async_smart import AsyncSmartTransport
 from huawei_solar.register_values import GridCode
 from tmodbus.exceptions import IllegalDataValueError, ModbusConnectionError
+
+
+async def test_timeout_aware_transport_forces_reconnect_after_threshold() -> None:
+    """A configurable number of consecutive timeouts should trigger a reconnect."""
+    transport = TimeoutAwareSmartTransport(MagicMock(), consecutive_timeouts_before_reconnect=2)
+
+    with patch.object(
+        AsyncSmartTransport,
+        "send_and_receive",
+        AsyncMock(side_effect=TimeoutError),
+    ) as send_and_receive:
+        with pytest.raises(TimeoutError):
+            await transport.send_and_receive(1, MagicMock())
+        assert not transport._must_reconnect
+
+        with pytest.raises(TimeoutError):
+            await transport.send_and_receive(1, MagicMock())
+        assert transport._must_reconnect
+
+    assert send_and_receive.await_count == 2
 
 
 async def test_get_model_name(huawei_solar: AsyncHuaweiSolarClient) -> None:
@@ -330,7 +351,7 @@ async def test_get_file_wraps_modbus_response_error(
         patch.object(
             huawei_solar,
             "execute",
-            side_effect=IllegalDataValueError(IllegalDataValueError.error_code, 0x41),
+            side_effect=IllegalDataValueError(0x41),
         ),
         pytest.raises(ReadException) as err,
     ):
