@@ -8,9 +8,9 @@ import huawei_solar.register_values as rv
 import pytest
 from huawei_solar.exceptions import ConnectionInterruptedException, DecodeError, ReadException
 from huawei_solar.modbus_client import AsyncHuaweiSolarClient, TimeoutAwareSmartTransport
-from tmodbus.transport.async_smart import AsyncSmartTransport
 from huawei_solar.register_values import GridCode
 from tmodbus.exceptions import IllegalDataValueError, ModbusConnectionError
+from tmodbus.transport.async_smart import AsyncSmartTransport
 
 
 async def test_timeout_aware_transport_forces_reconnect_after_threshold() -> None:

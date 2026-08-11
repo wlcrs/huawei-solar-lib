@@ -204,7 +204,7 @@ class RegisterAwareModbusClient(AsyncModbusClient):
                 f"Failed to write value {values} to register {register} due to IllegalDataAddress. "
                 "Assuming permission problem."
             )
-            raise PermissionDeniedError(PermissionDeniedError.error_code, e.function_code) from e
+            raise PermissionDeniedError(e.function_code) from e
         except ModbusResponseError as e:
             msg = f"Failed to write value {values} to register {register}: {e.error_code:02x}"
             raise WriteException(msg, modbus_exception_code=e.error_code) from e
