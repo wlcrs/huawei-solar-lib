@@ -17,7 +17,7 @@ from tmodbus import AsyncModbusClient, AsyncRtuTransport, AsyncSmartTransport, A
 from tmodbus.exceptions import ModbusConnectionError, ModbusResponseError, TModbusError
 from tmodbus.utils.crc import calculate_crc16
 
-from .exceptions import ConnectionInterruptedException, ReadException
+from .exceptions import ConnectionInterruptedException, DecodeError, ReadException
 from .modbus_pdu import (
     CompleteUploadPDU,
     LoginPDU,
@@ -119,6 +119,7 @@ class TimeoutAwareSmartTransport(AsyncSmartTransport):
 
         # reset the amount of consecutive timeouts after reconnecting
         base_on_reconnected = self.on_reconnected
+
         def reset_timeouts_count_on_reconnected() -> None:
             """Reset the consecutive timeouts count on reconnect."""
             self._consecutive_timeouts = 0
@@ -218,7 +219,7 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
                     f"Computed CRC {calculated_crc:04x} for file {file_type} "
                     f"does not match expected value {swapped_crc:04x}"
                 )
-                raise ReadException(msg)
+                raise DecodeError(msg)
 
             return file_data
 

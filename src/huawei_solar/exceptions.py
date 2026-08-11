@@ -11,10 +11,6 @@ class DeviceDetectionError(HuaweiSolarException):
     """Failed to detect the type of the connected device."""
 
 
-class DecodeError(HuaweiSolarException):
-    """Decoding failed."""
-
-
 class EncodeError(HuaweiSolarException):
     """Encoding failed."""
 
@@ -38,6 +34,10 @@ class ReadException(HuaweiSolarException):
         """Create ReadException."""
         super().__init__(*args, **kwargs)
         self.modbus_exception_code = modbus_exception_code
+
+
+class DecodeError(ReadException):
+    """Decoding failed."""
 
 
 class UnexpectedResponseContent(HuaweiSolarException):
