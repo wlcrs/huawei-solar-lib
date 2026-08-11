@@ -64,6 +64,7 @@ ignore = [
 
     "S101",   # allow asserts
     "TRY003", # allow exceptions with longer messages.
+    "CPY001", # no copyright notices needed
 ]
 
 pylint.max-args = 6
@@ -108,13 +109,13 @@ asyncio_mode = "auto"
 
 [dependency-groups]
 dev = [
-    "codespell>=2.4.2",
-    "tox>=4.15",
-    "mypy>=1.20.2",
-    "pre-commit>=4.5.1",
+    "codespell>=2.4.3",
+    "tox>=4.59",
+    "mypy>=2.3.0",
+    "pre-commit>=4.6.2",
     "pre-commit-hooks==6.0.0",
     "pytest>=9.0.2",
-    "pytest-asyncio>=1.3.0",
-    "ruff>=0.15.8",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.2",
     "yamllint>=1.38.0",
 ]

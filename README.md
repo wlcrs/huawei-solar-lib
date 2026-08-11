@@ -52,6 +52,7 @@ from huawei_solar import (
 )
 from huawei_solar import register_names as rn
 
+
 async def test() -> None:
     """Run test."""
     client = create_tcp_client(host="192.168.1.1", port=503)
@@ -61,13 +62,14 @@ async def test() -> None:
     print(
         await device.batch_update(
             [
-              rn.INPUT_POWER,
-              rn.LINE_VOLTAGE_A_B,
-              rn.LINE_VOLTAGE_B_C,
-              rn.LINE_VOLTAGE_C_A,
+                rn.INPUT_POWER,
+                rn.LINE_VOLTAGE_A_B,
+                rn.LINE_VOLTAGE_B_C,
+                rn.LINE_VOLTAGE_C_A,
             ]
         ),
     )
+
 
 if __name__ == "__main__":
     asyncio.run(main())
