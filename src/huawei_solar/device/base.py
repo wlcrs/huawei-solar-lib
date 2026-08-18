@@ -188,10 +188,36 @@ class HuaweiSolarDevice(ABC):
 
     async def get(self, name: rn.RegisterName) -> "Result[Any]":
         """Get the value of a certain register."""
+        # Public get acquires the device update lock so callers don't need
+        # to manage locking. Internal library code that already holds
+        # `update_lock` should call `_raw_get` to avoid re-acquiring the
+        # lock and deadlocking.
+        async with self.update_lock:
+            return await self._raw_get(name)
+
+    async def _raw_get(self, name: rn.RegisterName) -> "Result[Any]":
+        """Low-level get that does not acquire `update_lock`.
+
+        Use this from internal code when `update_lock` is already held.
+        """
+        assert self.update_lock.locked(), "update_lock must be held when calling _raw_get"
         return await self.client.get(name)
 
     async def set(self, name: rn.RegisterName, value: Any) -> bool:  # noqa: ANN401
         """Set a register to a certain value."""
+        # Public set acquires the device update lock so callers don't need
+        # to manage locking. Internal library code that already holds
+        # `update_lock` should call `_raw_set` to avoid re-acquiring the
+        # lock and deadlocking.
+        async with self.update_lock:
+            return await self._raw_set(name, value)
+
+    async def _raw_set(self, name: rn.RegisterName, value: Any) -> bool:  # noqa: ANN401
+        """Low-level set that does not acquire `update_lock`.
+
+        Use this from internal code when `update_lock` is already held.
+        """
+        assert self.update_lock.locked(), "update_lock must be held when calling _raw_set"
         return await self.client.set(name, value)
 
 
@@ -238,7 +264,10 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
 
     async def login(self, username: str, password: str) -> bool:
         """Perform the login-sequence with the provided username/password."""
-        async with self.__login_lock:
+        # Acquire the device-level update lock first to preserve ordering
+        # (`update_lock` -> transport). Then perform the login while holding
+        # the `__login_lock` to protect heartbeat credential state.
+        async with self.update_lock, self.__login_lock:
             if not await self.client.login(username, password):
                 raise InvalidCredentials
 
@@ -268,7 +297,14 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
         async def heartbeat() -> None:
             while self.__heartbeat_enabled:
                 try:
-                    self.__heartbeat_enabled = await self.client.heartbeat()
+                    # Acquire the device update lock before performing transport
+                    # operations in the heartbeat to preserve the global lock
+                    # ordering: `update_lock` -> transport. This avoids a
+                    # lock-inversion with coordinator reads that hold
+                    # `update_lock` and then use the transport.
+                    async with self.update_lock:
+                        self.__heartbeat_enabled = await self.client.heartbeat()
+
                     await asyncio.sleep(HEARTBEAT_INTERVAL)
                 except HuaweiSolarException as err:
                     _LOGGER.warning("Heartbeat stopped because of, %s", err)
@@ -322,10 +358,18 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
 
     async def has_write_permission(self) -> bool:
         """Test write permission by getting the time zone and trying to write that same value back to the inverter."""
+        # Acquire the device-level update lock for the entire permission check
+        # so we preserve the lock ordering: `update_lock` -> transport. This
+        # avoids a lock inversion where a coordinator read holds `update_lock`
+        # and waits for the transport while this method holds the transport and
+        # waits for `update_lock`.
         try:
-            result = await self.client.get(WRITE_TEST_REGISTER)
-
-            await super().set(WRITE_TEST_REGISTER, result.value)
+            async with self.update_lock:
+                result = await self._raw_get(WRITE_TEST_REGISTER)
+                # Use the low-level `_raw_set` because we already hold
+                # `update_lock` here; calling the public `set` would try to
+                # re-acquire the lock and deadlock.
+                await self._raw_set(WRITE_TEST_REGISTER, result.value)
         except (PermissionDeniedError, WriteException):
             # We not only catch PermissionDeniedError but also WriteException, because in some firmware versions,
             # a ServerDeviceFailure error is raised when trying to write to a register without permission, which
@@ -336,31 +380,37 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
 
     async def set(self, name: rn.RegisterName, value: Any) -> bool:  # noqa: ANN401
         """Set a register to a certain value."""
-        logged_in = await self.ensure_logged_in()  # we must login again before trying to set the value
+        # Acquire the device-level update lock before performing any transport
+        # operations (login, heartbeat, write). This enforces a consistent lock
+        # ordering (device.update_lock -> transport communication lock) and
+        # prevents the lock-inversion deadlock between coordinator reads (which
+        # acquire `update_lock`) and service writes (which use the transport).
+        async with self.update_lock:
+            logged_in = await self.ensure_logged_in()  # we must login again before trying to set the value
 
-        if not logged_in:
-            _LOGGER.warning("Could not login, setting, %s will probably fail", name)
+            if not logged_in:
+                _LOGGER.warning("Could not login, setting, %s will probably fail", name)
 
-        if self.__heartbeat_enabled:
+            if self.__heartbeat_enabled:
+                try:
+                    await self.client.heartbeat()
+                except HuaweiSolarException:
+                    _LOGGER.warning("Failed to perform heartbeat before write")
+
             try:
-                await self.client.heartbeat()
-            except HuaweiSolarException:
-                _LOGGER.warning("Failed to perform heartbeat before write")
+                return await self._raw_set(name, value)
+            except PermissionDeniedError:
+                if self.__username:
+                    logged_in = await self.ensure_logged_in(force=True)
 
-        try:
-            return await super().set(name, value)
-        except PermissionDeniedError:
-            if self.__username:
-                logged_in = await self.ensure_logged_in(force=True)
+                    if not logged_in:
+                        _LOGGER.exception("Could not login to set %s", name)
+                        raise
 
-                if not logged_in:
-                    _LOGGER.exception("Could not login to set %s", name)
-                    raise
+                    # Force a heartbeat first when connected with username/password credentials
+                    await self.client.heartbeat()
 
-                # Force a heartbeat first when connected with username/password credentials
-                await self.client.heartbeat()
+                    return await self._raw_set(name, value)
 
-                return await super().set(name, value)
-
-            # we have no login-credentials available, pass on permission error
-            raise
+                # we have no login-credentials available, pass on permission error
+                raise
