@@ -43,9 +43,10 @@ from .files import (
 from .modbus_client import AsyncHuaweiSolarClient, create_rtu_client, create_tcp_client
 from .register_definitions import Result
 from .register_names import RegisterName
-from .register_values import Alarm, HUAWEI_ALARM_CODES
+from .register_values import HUAWEI_ALARM_CODES, Alarm
 
 __all__ = [
+    "HUAWEI_ALARM_CODES",
     "ActiveAlarm",
     "ActiveAlarmsDataFile",
     "Alarm",
@@ -58,7 +59,6 @@ __all__ = [
     "DeviceInfo",
     "EMMADevice",
     "EncodeError",
-    "HUAWEI_ALARM_CODES",
     "HistoryAlarm",
     "HistoryAlarmsDataFile",
     "HuaweiSolarDevice",

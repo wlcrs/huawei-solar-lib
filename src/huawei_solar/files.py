@@ -4,10 +4,11 @@ import logging
 import struct
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from huawei_solar.exceptions import DecodeError
 from huawei_solar.register_definitions.string import bytes_to_string
-from huawei_solar.register_values import Alarm, HUAWEI_ALARM_CODES, _IntEnumWithPrettyString
+from huawei_solar.register_values import HUAWEI_ALARM_CODES, Alarm, _IntEnumWithPrettyString
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -198,11 +199,15 @@ class OptimizerSystemInformation:
     alias: str
     model: str
 
-    # following fields only available in V103, which is undocumented for the moment:
-    # machine_id: Optional[str] = None # machine_id looks like gibberish?  # noqa: ERA001
-    rated_power: int | None = None
+    # Following fields are available in V103:
+    machine_id: int | None = None
+    """16-bit Hardware Model Identifie"""
     one_to_more: bool | None = None
+    """ indicates a 2:1 multi-module optimizer (such as MERC-1100/1300-P-AU)."""
+    rated_power: int | None = None
+    """Rated output capacity in Watts (e.g. 450, 600, 1100, 1300)."""
     cpu_type: int | None = None
+    """Microcontroller/chip architecture type."""
 
 
 INVALID_OPTIMIZER_POSITION = 0xFFFF
@@ -219,9 +224,10 @@ class OptimizerSystemInformationDataFile:
     # always a duplicate of the second byte, resulting in string
     # numbers 257 and 514 instead of 1 and 2.
     # cfr: https://github.com/wlcrs/huawei_solar/issues/76#issue-1268597032
+    V100_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s"
+    V101_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s"
     V102_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s"
-
-    V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s2sHHH"
+    V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30sHHHH"
 
     def __init__(self, file_data: bytes) -> None:
         """Create Optimizer System Information Data File."""
@@ -243,7 +249,78 @@ class OptimizerSystemInformationDataFile:
             )
             offset += struct.calcsize(OptimizerSystemInformationDataFile.HEADER)
 
-            if self.file_version == b"V102":
+            if self.file_version == b"V100":
+                for _ in range(number_of_optimizers):
+                    (
+                        optimizer_address,
+                        online_status,
+                        string_number,
+                        position_in_current_string,
+                        sn,
+                        software_version,
+                    ) = struct.unpack_from(
+                        OptimizerSystemInformationDataFile.V100_OPTIMIZER_FEATURE_DATA,
+                        file_data,
+                        offset,
+                    )
+                    offset += struct.calcsize(
+                        OptimizerSystemInformationDataFile.V100_OPTIMIZER_FEATURE_DATA,
+                    )
+
+                    self.optimizers.append(
+                        OptimizerSystemInformation(
+                            optimizer_address,
+                            OptimizerOnlineStatus(online_status),
+                            string_number,
+                            (
+                                position_in_current_string
+                                if position_in_current_string != INVALID_OPTIMIZER_POSITION
+                                else None
+                            ),
+                            bytes_to_string(sn),
+                            bytes_to_string(software_version),
+                            alias="",
+                            model="NA",
+                        ),
+                    )
+
+            elif self.file_version == b"V101":
+                for _ in range(number_of_optimizers):
+                    (
+                        optimizer_address,
+                        online_status,
+                        string_number,
+                        position_in_current_string,
+                        sn,
+                        software_version,
+                        alias,
+                    ) = struct.unpack_from(
+                        OptimizerSystemInformationDataFile.V101_OPTIMIZER_FEATURE_DATA,
+                        file_data,
+                        offset,
+                    )
+                    offset += struct.calcsize(
+                        OptimizerSystemInformationDataFile.V101_OPTIMIZER_FEATURE_DATA,
+                    )
+
+                    self.optimizers.append(
+                        OptimizerSystemInformation(
+                            optimizer_address,
+                            OptimizerOnlineStatus(online_status),
+                            string_number,
+                            (
+                                position_in_current_string
+                                if position_in_current_string != INVALID_OPTIMIZER_POSITION
+                                else None
+                            ),
+                            bytes_to_string(sn),
+                            bytes_to_string(software_version),
+                            bytes_to_string(alias),
+                            model="NA",
+                        ),
+                    )
+
+            elif self.file_version == b"V102":
                 for _ in range(number_of_optimizers):
                     (
                         optimizer_address,
@@ -291,8 +368,8 @@ class OptimizerSystemInformationDataFile:
                         software_version,
                         alias,
                         model,
-                        _machine_id,
-                        one_to_more,
+                        machine_id,
+                        one_to_more_raw,
                         rated_power,
                         cpu_type,
                     ) = struct.unpack_from(
@@ -318,8 +395,8 @@ class OptimizerSystemInformationDataFile:
                             bytes_to_string(software_version),
                             bytes_to_string(alias),
                             bytes_to_string(model),
-                            # machine_id=_to_string(machine_id), # looks like gibberish? ignoring...  # noqa: ERA001
-                            one_to_more=bool(one_to_more),
+                            machine_id=machine_id,
+                            one_to_more=(one_to_more_raw & 0xFF) == 2,  # noqa: PLR2004
                             rated_power=rated_power,
                             cpu_type=cpu_type,
                         ),
@@ -355,6 +432,7 @@ class ActiveAlarm:
         alarm_param: Auxiliary fault parameter (e.g. faulty PV string index, phase, or measured value).
         control_word: Raw 16-bit control bitmask containing severity level (bits 0-1) and routing flags.
         reason_id: Cause / sub-cause code specifying the precise failure mode or physical slot/location.
+
     """
 
     serial_no: int
@@ -422,7 +500,7 @@ class ActiveAlarmsDataFile:
                         serial_no=serial_no,
                         equip_id=equip_id,
                         alarm_id=alarm_id,
-                        occur_time=datetime.fromtimestamp(occur_time, tz=get_local_timezone()),
+                        occur_time=datetime.fromtimestamp(occur_time, tz=UTC),
                         alarm_param=alarm_param,
                         control_word=control_word,
                         reason_id=reason_id,
@@ -452,6 +530,7 @@ class HistoryAlarm:
         alarm_param: Auxiliary fault parameter (e.g. faulty PV string index, phase, or measured value).
         control_word: Raw 16-bit control bitmask containing severity level (bits 0-1) and routing flags.
         reason_id: Cause / sub-cause code specifying the precise failure mode or physical slot/location.
+
     """
 
     serial_no: int
@@ -521,8 +600,8 @@ class HistoryAlarmsDataFile:
                         serial_no=serial_no,
                         equip_id=equip_id,
                         alarm_id=alarm_id,
-                        occur_time=datetime.fromtimestamp(occur_time, tz=get_local_timezone()),
-                        recover_time=datetime.fromtimestamp(recover_time, tz=get_local_timezone()),
+                        occur_time=datetime.fromtimestamp(occur_time, tz=UTC),
+                        recover_time=datetime.fromtimestamp(recover_time, tz=UTC),
                         alarm_param=alarm_param,
                         control_word=control_word,
                         reason_id=reason_id,
@@ -535,7 +614,7 @@ class HistoryAlarmsDataFile:
     @staticmethod
     def query_within_timespan(start_time: int, end_time: int, tag: int = 0x24) -> bytes:
         """Create query custom data for history alarms file download within given timeframe."""
-        if tag == 0x24:
+        if tag == 0x24:  # noqa: PLR2004
             # Tag 0x24 (36), Length 10, start_time uint32, end_time uint32, -1 (signed byte), 0 (byte)
             return struct.pack("<BBIIbb", tag, 10, start_time, end_time, -1, 0)
         # Tag 0x20 / 0x21 (32 / 33), Length 9, start_time uint32, end_time uint32, -1 (signed byte)
@@ -574,9 +653,11 @@ class InverterPerformanceDataFile:
     """Inverter History & Energy Performance Data File (File Type 0xA3 / 163)."""
 
     FILE_TYPE = 0xA3
+    HUAWEI_FUNCTION_CODE = 0x41
+    SUB_FUNCTION_PERFORMANCE_DATA = 0x36
 
     # Gains corresponding to PerformanceRequestType
-    GAINS = {
+    GAINS: ClassVar[dict[PerformanceRequestType | int, int]] = {
         PerformanceRequestType.HOUR_POWER: 100,
         PerformanceRequestType.DAY_POWER: 100,
         PerformanceRequestType.MONTH_POWER: 100,
@@ -594,7 +675,7 @@ class InverterPerformanceDataFile:
     }
 
     # Default interval cycles in seconds
-    DEFAULT_CYCLES = {
+    DEFAULT_CYCLES: ClassVar[dict[PerformanceRequestType | int, int]] = {
         PerformanceRequestType.HOUR_POWER: 300,  # 5-minute intervals
         PerformanceRequestType.DAY_POWER: 86400,  # 1 day
         PerformanceRequestType.MONTH_POWER: 2592000,  # ~30 days
@@ -635,11 +716,16 @@ class InverterPerformanceDataFile:
 
         offset = 0
         try:
-            # Handle optional frame header if raw Modbus 0x41 0x36 frame: [0:addr, 1:0x41, 2:0x36, 3:datalen, 4:index, 5:seg_count]
-            if len(file_data) > 6 and file_data[1] == 0x41 and file_data[2] == 0x36:
+            # Handle optional frame header if raw Modbus 0x41 0x36 frame:
+            # [0:addr, 1:0x41, 2:0x36, 3:datalen, 4:index, 5:seg_count]
+            if (
+                len(file_data) > 6  # noqa: PLR2004
+                and file_data[1] == InverterPerformanceDataFile.HUAWEI_FUNCTION_CODE
+                and file_data[2] == InverterPerformanceDataFile.SUB_FUNCTION_PERFORMANCE_DATA
+            ):
                 segment_count = file_data[5] & 0x3F
                 offset = 6
-            elif len(file_data) >= 5:
+            elif len(file_data) >= 5:  # noqa: PLR2004
                 # Raw segment data stream without function wrapper
                 segment_count = None
             else:
@@ -663,7 +749,7 @@ class InverterPerformanceDataFile:
                     point_time = start_time + (j * cycle_seconds)
                     self.data_points.append(
                         PerformanceDataPoint(
-                            time=datetime.fromtimestamp(point_time, tz=get_local_timezone()),
+                            time=datetime.fromtimestamp(point_time, tz=UTC),
                             request_type=req_enum,
                             value=raw_value / gain,
                         )
@@ -680,7 +766,6 @@ class InverterPerformanceDataFile:
         end_time: int,
     ) -> bytes:
         """Create query custom data for performance/history data file download within given timeframe."""
-        # Format deduced from bsj.java / t0i.java: Tag 0x30, Length 12, SubId 0, Type 0, RequestType, StartTime, EndTime, 0xFF
+        # Format: Tag 0x30, Length 12, SubId 0, Type 0, RequestType, StartTime, EndTime, 0xFF
         req_type_val = int(request_type)
         return struct.pack(">BBHBBIIB", 0x30, 12, 0, 0, req_type_val, start_time, end_time, 0xFF)
-
