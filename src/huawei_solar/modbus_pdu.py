@@ -323,6 +323,275 @@ class CompleteUploadPDU(BaseSubFunctionClientPDU[int]):
 register_pdu_class(CompleteUploadPDU)
 
 
+@dataclass(frozen=True)
+class MultiRegisterReadPDU(BaseSubFunctionClientPDU[dict[int, bytes]]):
+    """Modbus PDU to read multiple scattered registers (0x41 0x33).
+
+    Standard Modbus Function Code 0x03 (Read Holding Registers) requires querying
+    a single contiguous span of memory addresses. In contrast, Huawei's proprietary
+    Function Code 0x41 (Sub-function 0x33) allows querying arbitrary, non-contiguous
+    registers across disjoint memory spaces (e.g. 30000, 32000, 37000, 40000) in a
+    single request-response roundtrip.
+
+    Args:
+        registers: A list of ``(register_address, register_length_in_words)`` tuples
+            to read, where each register word corresponds to 16 bits (2 bytes).
+        frame_no: Optional sequence frame number byte (0-255, default 0).
+
+    Returns:
+        A dictionary mapping each ``register_address`` (int) to its raw payload
+        bytes (``bytes``, with length ``register_length_in_words * 2``).
+
+    Limitations & Device Quirks:
+        - **PDU Payload Capacity**: The request takes ``3 * N + 2`` bytes and the
+          response takes ``sum(3 + 2 * len_i) + 2`` bytes. To stay within the Modbus
+          PDU limit (~253 bytes), large batches must be segmented (typically <= 35-40
+          registers depending on word lengths).
+        - **64-byte Hardware Boundary Quirk**: On serial / USB OTG / Bluetooth SPP
+          links, certain older Huawei inverter firmware revisions have a USB bulk
+          endpoint bug where responses with a total length that is an exact multiple
+          of 64 bytes may cause the hardware receive buffer to stall waiting for a
+          short packet.
+        - **Gateway & Firmware Compatibility**: Some third-party Modbus proxies or
+          legacy firmware revisions do not implement function code 0x41 and will
+          return Modbus Exception 0x01 (Illegal Function) or 0x83 / 0x80. Standard
+          Modbus FC 0x03 reading should be used as fallback in such environments.
+
+    """
+
+    function_code = 0x41
+    sub_function_code = 0x33
+    rtu_byte_count_pos = 3
+
+    registers: list[tuple[int, int]]  # (register_address, register_length_in_words)
+    frame_no: int = 0
+
+    def encode_request(self) -> bytes:
+        """Encode MultiRegisterReadPDU request."""
+        data_length = len(self.registers) * 3 + 2
+        payload = [
+            self.function_code,
+            self.sub_function_code,
+            data_length,
+            self.frame_no & 0xFF,
+            len(self.registers) & 0xFF,
+        ]
+        for reg_addr, reg_len in self.registers:
+            payload.extend(struct.pack(">HB", reg_addr, reg_len))
+        return bytes(payload)
+
+    def decode_response(self, response: bytes) -> dict[int, bytes]:
+        """Decode MultiRegisterReadPDU response."""
+        response_header_struct = struct.Struct(">BBBBB")
+        (
+            function_code,
+            sub_function_code,
+            data_length,
+            _frame_no,
+            register_count,
+        ) = response_header_struct.unpack_from(response, 0)
+
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
+
+        if sub_function_code != self.sub_function_code:
+            msg = (
+                f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
+            )
+            raise ValueError(msg)
+
+        expected_data_len = len(response) - 3
+        if data_length != expected_data_len:
+            msg = f"Invalid data length: expected {expected_data_len}, received {data_length}"
+            raise ValueError(msg)
+
+        offset = response_header_struct.size
+        results: dict[int, bytes] = {}
+        for _ in range(register_count):
+            if offset + 3 > len(response):
+                msg = "Malformed response: unexpected end of data while reading register header"
+                raise ValueError(msg)
+            reg_addr, reg_len = struct.unpack_from(">HB", response, offset)
+            offset += 3
+            data_bytes_len = reg_len * 2
+            if offset + data_bytes_len > len(response):
+                msg = "Malformed response: unexpected end of data while reading register value"
+                raise ValueError(msg)
+            reg_data = response[offset : offset + data_bytes_len]
+            offset += data_bytes_len
+            results[reg_addr] = reg_data
+
+        return results
+
+
+register_pdu_class(MultiRegisterReadPDU)
+
+
+@dataclass(frozen=True)
+class MultiDeviceRegisterReadPDU(BaseSubFunctionClientPDU[dict[tuple[int, int], bytes]]):
+    """Modbus PDU to read registers across multiple devices (0x41 0x37).
+
+    Standard Modbus directs every request to a single Slave/Unit ID. Huawei's
+    proprietary Function Code 0x41 (Sub-function 0x37) allows querying registers
+    across multiple cascaded slave devices (inverters, meters, batteries, sensors)
+    in a single frame.
+
+    Args:
+        items: A list of ``(unit_id, register_address, register_length_in_words)``
+            tuples specifying which device and register address to query.
+        frame_no: Optional sequence frame number byte (0-255, default 0).
+
+    Returns:
+        A dictionary mapping ``(unit_id, register_address)`` tuples to raw data
+        bytes (``bytes``, with length ``register_length_in_words * 2``).
+
+    Limitations & Device Quirks:
+        - **PDU Payload Capacity**: The request takes ``4 * N + 2`` bytes and the
+          response takes ``sum(4 + 2 * len_i) + 2`` bytes. Keep batch sizes within
+          ~25-30 items per frame to prevent exceeding the 253-byte Modbus PDU limit.
+        - **Gateway Routing**: Only applicable when connected to a master device
+          (such as a SmartLogger or SDongle) capable of aggregating and routing
+          downstream Modbus RTU requests across RS485 loops.
+
+    """
+
+    function_code = 0x41
+    sub_function_code = 0x37
+    rtu_byte_count_pos = 3
+
+    items: list[tuple[int, int, int]]  # (unit_id, register_address, register_length_in_words)
+    frame_no: int = 0
+
+    def encode_request(self) -> bytes:
+        """Encode MultiDeviceRegisterReadPDU request."""
+        data_length = len(self.items) * 4 + 2
+        payload = [
+            self.function_code,
+            self.sub_function_code,
+            data_length,
+            self.frame_no & 0xFF,
+            len(self.items) & 0xFF,
+        ]
+        for unit_id, reg_addr, reg_len in self.items:
+            payload.extend(struct.pack(">BHB", unit_id, reg_addr, reg_len))
+        return bytes(payload)
+
+    def decode_response(self, response: bytes) -> dict[tuple[int, int], bytes]:
+        """Decode MultiDeviceRegisterReadPDU response."""
+        response_header_struct = struct.Struct(">BBBBB")
+        (
+            function_code,
+            sub_function_code,
+            data_length,
+            _frame_no,
+            item_count,
+        ) = response_header_struct.unpack_from(response, 0)
+
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
+
+        if sub_function_code != self.sub_function_code:
+            msg = (
+                f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
+            )
+            raise ValueError(msg)
+
+        expected_data_len = len(response) - 3
+        if data_length != expected_data_len:
+            msg = f"Invalid data length: expected {expected_data_len}, received {data_length}"
+            raise ValueError(msg)
+
+        offset = response_header_struct.size
+        results: dict[tuple[int, int], bytes] = {}
+        for _ in range(item_count):
+            if offset + 4 > len(response):
+                msg = "Malformed response: unexpected end of data while reading multi-device header"
+                raise ValueError(msg)
+            unit_id, reg_addr, reg_len = struct.unpack_from(">BHB", response, offset)
+            offset += 4
+            data_bytes_len = reg_len * 2
+            if offset + data_bytes_len > len(response):
+                msg = "Malformed response: unexpected end of data while reading register value"
+                raise ValueError(msg)
+            reg_data = response[offset : offset + data_bytes_len]
+            offset += data_bytes_len
+            results[(unit_id, reg_addr)] = reg_data
+
+        return results
+
+
+register_pdu_class(MultiDeviceRegisterReadPDU)
+
+
+@dataclass(frozen=True)
+class QueryDeviceLogicAddressListPDU(BaseSubFunctionClientPDU[list[int]]):
+    """Modbus PDU to query connected device logic address list (0x41 0x38).
+
+    Used during commissioning scans to query all active slave logic addresses
+    (Unit IDs) detected on the Modbus communication bus.
+
+    Args:
+        value: Parameter byte sent with query (default 0).
+
+    Returns:
+        A list of integer unit IDs (slave logic addresses) discovered on the bus.
+
+    Limitations:
+        - Commonly sent to broadcast address (Unit ID 0) or the SmartLogger/Dongle
+          address (Unit ID 0 / 1 / 16) to discover downstream connected devices.
+
+    """
+
+    function_code = 0x41
+    sub_function_code = 0x38
+    rtu_byte_count_pos = 3
+
+    value: int = 0
+
+    def encode_request(self) -> bytes:
+        """Encode QueryDeviceLogicAddressListPDU request."""
+        data_length = 1
+        return struct.pack(">BBBB", self.function_code, self.sub_function_code, data_length, self.value)
+
+    def decode_response(self, response: bytes) -> list[int]:
+        """Decode QueryDeviceLogicAddressListPDU response."""
+        response_header_struct = struct.Struct(">BBBBB")
+        (
+            function_code,
+            sub_function_code,
+            data_length,
+            _frame_no,
+            device_count,
+        ) = response_header_struct.unpack_from(response, 0)
+
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
+
+        if sub_function_code != self.sub_function_code:
+            msg = (
+                f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
+            )
+            raise ValueError(msg)
+
+        expected_data_len = len(response) - 3
+        if data_length != expected_data_len:
+            msg = f"Invalid data length: expected {expected_data_len}, received {data_length}"
+            raise ValueError(msg)
+
+        device_addresses_bytes = response[response_header_struct.size :]
+        if len(device_addresses_bytes) < device_count:
+            msg = f"Malformed response: expected {device_count} device addresses, got {len(device_addresses_bytes)}"
+            raise ValueError(msg)
+
+        return list(device_addresses_bytes[:device_count])
+
+
+register_pdu_class(QueryDeviceLogicAddressListPDU)
+
+
 class PermissionDeniedError(ModbusResponseError):
     """Permission Denied exception.
 

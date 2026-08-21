@@ -15,7 +15,7 @@ from tmodbus.exceptions import (
 )
 
 from huawei_solar.exceptions import ConnectionInterruptedException, ReadException
-from huawei_solar.modbus_pdu import PermissionDeniedError
+from huawei_solar.modbus_pdu import PermissionDeniedError, QueryDeviceLogicAddressListPDU
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -131,4 +131,50 @@ async def _read_device_identifier_objects(
         raise ConnectionInterruptedException(msg) from err
     except TModbusError as err:
         msg = f"Failed to read device infos: {err}"
+        raise ReadException(msg) from err
+
+
+async def get_device_logic_addresses(client: AsyncModbusClient, unit_id: int = 0) -> list[int]:
+    """Query the list of connected device logic addresses via Modbus PDU 0x41 0x38.
+
+    Used during commissioning scans to query all active slave logic addresses
+    (Unit IDs) detected on the Modbus communication bus.
+
+    Args:
+        client: The :class:`~tmodbus.client.AsyncModbusClient` connection to use.
+        unit_id: The target gateway/inverter Unit ID to query (default 0).
+            Typically sent to broadcast (0) or the primary SmartLogger address.
+
+    Returns:
+        A list of integer unit IDs (slave logic addresses) discovered on the bus (e.g. ``[1, 2, 16]``).
+
+    Raises:
+        ReadException: If the device returns a Modbus exception or communication error.
+        ConnectionInterruptedException: If connection is lost during communication.
+
+    """
+    try:
+        return await client.for_unit_id(unit_id).execute(QueryDeviceLogicAddressListPDU())
+    except (ServerDeviceBusyError, ServerDeviceFailureError, PermissionDeniedError) as err:
+        _LOGGER.debug(
+            "Got a %s while reading device logic addresses from server %d",
+            type(err).__name__,
+            unit_id,
+        )
+        msg = (
+            "Exception occurred while trying to query device logic addresses "
+            f"{hex(err.error_code) if err.error_code else 'no exception code'}"
+        )
+        raise ReadException(msg, modbus_exception_code=err.error_code) from err
+    except ModbusResponseError as e:
+        msg = (
+            "Exception occurred while trying to query device logic addresses "
+            f"{hex(e.error_code) if e.error_code else 'no exception code'}"
+        )
+        raise ReadException(msg, modbus_exception_code=e.error_code) from e
+    except ModbusConnectionError as err:
+        msg = "Connection failed when trying to query device logic addresses"
+        raise ConnectionInterruptedException(msg) from err
+    except TModbusError as err:
+        msg = f"Failed to query device logic addresses: {err}"
         raise ReadException(msg) from err

@@ -178,6 +178,68 @@ class HuaweiSolarDevice(ABC):
 
             return result
 
+    async def batch_update_huawei_custom(
+        self,
+        register_names: list[rn.RegisterName],
+    ) -> "dict[rn.RegisterName, Result[Any]]":
+        """Efficiently retrieve registers using Huawei custom multi-register read (0x41 0x33).
+
+        Unlike standard :meth:`batch_update` (which batches contiguous register blocks via
+        Modbus FC 0x03), this method uses Huawei's proprietary Multi-Register Read PDU
+        (0x41 0x33) to query arbitrary, non-contiguous registers in single request frames
+        without querying unused intermediate gap registers.
+
+        If the custom command fails (e.g. due to unsupported function code on generic Modbus
+        gateways or older firmware revisions), it automatically falls back to standard
+        :meth:`batch_update`.
+
+        Args:
+            register_names: A list of register names to retrieve.
+
+        Returns:
+            A dictionary mapping each register name to its decoded :class:`~huawei_solar.register_definitions.Result`.
+
+        """
+        if unknown_registers := {register_name for register_name in register_names if register_name not in REGISTERS}:
+            _LOGGER.warning(
+                "Unknown register name passed to batch_update_huawei_custom: %s",
+                ", ".join(str(rn) for rn in unknown_registers),
+            )
+
+        valid_register_names = [rn for rn in register_names if rn in REGISTERS]
+        filtered_register_names = await self._filter_registers(valid_register_names)
+
+        async with self.update_lock:
+            result = {}
+            fallback_needed = False
+            if filtered_register_names:
+                _LOGGER.debug(
+                    "Custom batch update (0x41 0x33) of the following registers: %s",
+                    ", ".join(filtered_register_names),
+                )
+                try:
+                    result = await self.client.get_multiple_scattered_as_dict(filtered_register_names)
+                except HuaweiSolarException as exc:
+                    _LOGGER.debug(
+                        "Custom batch update (0x41 0x33) failed with %s, falling back to standard batch_update",
+                        exc,
+                    )
+                    fallback_needed = True
+
+                if not fallback_needed:
+                    self._detect_state_changes(result)
+
+        if fallback_needed:
+            return await self.batch_update(register_names)
+
+        for key, value in result.items():
+            result[key] = self._transform_register_values(key, value)
+
+        return result
+
+    # Alias with user's specified spelling
+    batch_update_hauwei_custom = batch_update_huawei_custom
+
     async def stop(self) -> bool:
         """Stop the device connection."""
         if not self.primary_device:

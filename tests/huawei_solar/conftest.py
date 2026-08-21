@@ -4,6 +4,11 @@ import struct
 
 import pytest
 from huawei_solar.modbus_client import AsyncHuaweiSolarClient
+from huawei_solar.modbus_pdu import (
+    MultiDeviceRegisterReadPDU,
+    MultiRegisterReadPDU,
+    QueryDeviceLogicAddressListPDU,
+)
 from huawei_solar.register_values import StorageProductModel
 from tmodbus.pdu.base import RT, BaseClientPDU
 from tmodbus.pdu.holding_registers import RawReadHoldingRegistersPDU
@@ -127,14 +132,44 @@ class MockTransport(AsyncBaseTransport):
         """Mock is transport open."""
         return True
 
+    def _resolve_mock_bytes(self, reg_addr: int, reg_len: int) -> bytes:
+        if mock_reg := MOCK_REGISTERS.get((reg_addr, reg_len)):
+            return struct.pack(f">{'H' * reg_len}", *mock_reg)
+        # Reconstruct from contiguous sub-ranges in MOCK_REGISTERS
+        words: list[int] = []
+        curr = reg_addr
+        while curr < reg_addr + reg_len:
+            found = False
+            for (m_addr, m_len), m_vals in MOCK_REGISTERS.items():
+                if m_addr <= curr < m_addr + m_len:
+                    offset = curr - m_addr
+                    remaining = (reg_addr + reg_len) - curr
+                    take = min(m_len - offset, remaining)
+                    words.extend(m_vals[offset : offset + take])
+                    curr += take
+                    found = True
+                    break
+            if not found:
+                msg = f"MockTransport: No mock data for ({reg_addr}, {reg_len})"
+                raise ValueError(msg)
+        return struct.pack(f">{'H' * reg_len}", *words)
+
     async def send_and_receive(self, unit_id: int, pdu: BaseClientPDU[RT]) -> RT:  # noqa: ARG002
         """Mock send and receive."""
         if isinstance(pdu, RawReadHoldingRegistersPDU):
-            key = (pdu.start_address, pdu.quantity)
-            if mock_register := MOCK_REGISTERS.get(key):
-                return struct.pack(f">{'H' * pdu.quantity}", *mock_register)  # type: ignore[return-value]
-            msg = f"MockTransport: No mock data for {key}"
-            raise ValueError(msg)
+            return self._resolve_mock_bytes(pdu.start_address, pdu.quantity)  # type: ignore[return-value]
+        if isinstance(pdu, MultiRegisterReadPDU):
+            result_dict: dict[int, bytes] = {}
+            for reg_addr, reg_len in pdu.registers:
+                result_dict[reg_addr] = self._resolve_mock_bytes(reg_addr, reg_len)
+            return result_dict  # type: ignore[return-value]
+        if isinstance(pdu, MultiDeviceRegisterReadPDU):
+            result_dev_dict: dict[tuple[int, int], bytes] = {}
+            for u_id, reg_addr, reg_len in pdu.items:
+                result_dev_dict[(u_id, reg_addr)] = self._resolve_mock_bytes(reg_addr, reg_len)
+            return result_dev_dict  # type: ignore[return-value]
+        if isinstance(pdu, QueryDeviceLogicAddressListPDU):
+            return [1, 2]  # type: ignore[return-value]
         msg = f"MockTransport: Unsupported PDU type {type(pdu)}"
         raise ValueError(msg)
 

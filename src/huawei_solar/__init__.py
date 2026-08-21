@@ -12,7 +12,13 @@ from .device import (
     create_device_instance,
     create_sub_device_instance,
 )
-from .device_discovery import DeviceIdentifier, DeviceInfo, get_device_identifiers, get_device_infos
+from .device_discovery import (
+    DeviceIdentifier,
+    DeviceInfo,
+    get_device_identifiers,
+    get_device_infos,
+    get_device_logic_addresses,
+)
 from .exceptions import (
     ConnectionException,
     ConnectionInterruptedException,
@@ -33,6 +39,11 @@ from .files import (
     OptimizerSystemInformation,
 )
 from .modbus_client import AsyncHuaweiSolarClient, create_rtu_client, create_tcp_client
+from .modbus_pdu import (
+    MultiDeviceRegisterReadPDU,
+    MultiRegisterReadPDU,
+    QueryDeviceLogicAddressListPDU,
+)
 from .register_definitions import Result
 from .register_names import RegisterName
 
@@ -50,12 +61,15 @@ __all__ = [
     "HuaweiSolarException",
     "InvalidCredentials",
     "MeterDevice",
+    "MultiDeviceRegisterReadPDU",
+    "MultiRegisterReadPDU",
     "OptimizerHistoryRealTimeDataUnit",
     "OptimizerOnlineStatus",
     "OptimizerRealTimeData",
     "OptimizerRunningStatus",
     "OptimizerSystemInformation",
     "PeakPeriodsValidationError",
+    "QueryDeviceLogicAddressListPDU",
     "ReadException",
     "RegisterName",
     "Result",
@@ -71,4 +85,5 @@ __all__ = [
     "create_tcp_client",
     "get_device_identifiers",
     "get_device_infos",
+    "get_device_logic_addresses",
 ]

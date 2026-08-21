@@ -8,13 +8,13 @@ from tmodbus.client import AsyncModbusClient
 from tmodbus.exceptions import IllegalDataAddressError, ModbusConnectionError, ModbusResponseError, TModbusError
 
 from huawei_solar import register_names as rn
-from huawei_solar.const import MAX_BATCHED_REGISTERS_COUNT
+from huawei_solar.const import MAX_BATCHED_REGISTERS_COUNT, MAX_PDU_SIZE
 from huawei_solar.exceptions import (
     ConnectionInterruptedException,
     ReadException,
     WriteException,
 )
-from huawei_solar.modbus_pdu import PermissionDeniedError
+from huawei_solar.modbus_pdu import MultiRegisterReadPDU, PermissionDeniedError
 from huawei_solar.registers import REGISTERS
 
 if TYPE_CHECKING:
@@ -124,6 +124,169 @@ class RegisterAwareModbusClient(AsyncModbusClient):
             zip(
                 names,
                 await self.get_multiple(names),
+                strict=True,
+            ),
+        )
+
+    def _merge_and_chunk_scattered_registers(
+        self, registers: "list[RegisterDefinition[Any]]"
+    ) -> "list[list[tuple[int, int]]]":
+        """Merge consecutive/overlapping registers and split them into chunks within MAX_PDU_SIZE."""
+        unique_sorted = sorted(
+            {reg.register: reg for reg in registers}.values(),
+            key=lambda r: r.register,
+        )
+
+        spans: list[tuple[int, int]] = []
+        for reg in unique_sorted:
+            if not spans:
+                spans.append((reg.register, reg.length))
+            else:
+                last_start, last_len = spans[-1]
+                last_end = last_start + last_len
+                if reg.register <= last_end:
+                    # Adjacent or overlapping register
+                    new_end = max(last_end, reg.register + reg.length)
+                    spans[-1] = (last_start, new_end - last_start)
+                else:
+                    spans.append((reg.register, reg.length))
+
+        chunks: list[list[tuple[int, int]]] = []
+        current_chunk: list[tuple[int, int]] = []
+        current_request_len = 5  # header bytes (FC, subFC, data_len, frame_no, reg_count)
+        current_response_len = 5
+
+        for span_addr, span_len in spans:
+            item_req_len = 3  # addr (2) + len (1)
+            item_resp_len = 3 + (span_len * 2)  # addr (2) + len (1) + data (2 * len)
+            if current_chunk and (
+                current_request_len + item_req_len > MAX_PDU_SIZE
+                or current_response_len + item_resp_len > MAX_PDU_SIZE
+            ):
+                chunks.append(current_chunk)
+                current_chunk = []
+                current_request_len = 5
+                current_response_len = 5
+
+            current_chunk.append((span_addr, span_len))
+            current_request_len += item_req_len
+            current_response_len += item_resp_len
+
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        return chunks
+
+    async def get_multiple_scattered(self, names: list[rn.RegisterName]) -> "list[Result[Any]]":
+        """Read multiple scattered/non-contiguous registers using Huawei custom Modbus PDU 0x41 0x33.
+
+        Unlike :meth:`get_multiple` (which requires registers to be contiguous or close
+        together so they can be read in a single standard Modbus FC 0x03 span), this method
+        uses Huawei's proprietary Multi-Register Read function (0x41 0x33) to query arbitrary,
+        non-adjacent registers without reading intermediate gap registers.
+
+        Consecutive and overlapping registers are automatically merged into single spans to
+        minimize request/response payload size, and queries exceeding the maximum Modbus PDU
+        size (~253 bytes) are split across multiple consecutive requests.
+
+        Args:
+            names: A list of :class:`~huawei_solar.register_names.RegisterName` entries to query.
+
+        Returns:
+            A list of :class:`~huawei_solar.register_definitions.Result` objects in the same
+            order as the requested names.
+
+        Limitations:
+            - Only supported by Huawei inverters/gateways that implement custom function 0x41.
+
+        Raises:
+            ValueError: If an unrecognized register name or unreadable register is provided.
+            ReadException: If the device returns a Modbus exception or missing register data.
+            ConnectionInterruptedException: If communication fails.
+
+        """
+        if len(names) == 0:
+            msg = "Expected at least one register name"
+            raise ValueError(msg)
+
+        registers = self._get_register_definitions(names)
+        self._validate_registers_readable(names, registers)
+
+        chunks = self._merge_and_chunk_scattered_registers(registers)
+        span_results: dict[int, bytes] = {}
+
+        for frame_no, chunk in enumerate(chunks):
+            pdu = MultiRegisterReadPDU(
+                registers=chunk,
+                frame_no=frame_no & 0xFF,
+            )
+            try:
+                chunk_results = await self.execute(pdu)
+            except ModbusResponseError as err:
+                msg = f"Failed to read registers {', '.join(names)}: received {type(err).__name__}"
+                raise ReadException(msg, modbus_exception_code=err.error_code) from err
+            except ModbusConnectionError as err:
+                _LOGGER.exception("Connection error while reading registers %s", names)
+                msg = f"Connection failed when trying to read registers {', '.join(names)}"
+                raise ConnectionInterruptedException(msg) from err
+            except TModbusError as err:
+                msg = f"Failed to read registers {', '.join(names)}: {err}"
+                raise ReadException(msg) from err
+
+            span_results.update(chunk_results)
+
+        return self._slice_and_decode_scattered_results(names, registers, span_results)
+
+    def _slice_and_decode_scattered_results(
+        self,
+        names: list[rn.RegisterName],
+        registers: "list[RegisterDefinition[Any]]",
+        span_results: dict[int, bytes],
+    ) -> "list[Result[Any]]":
+        """Slice and decode register values from returned span buffers."""
+        results: list[Result[Any]] = []
+        for name, reg in zip(names, registers, strict=True):
+            matching_span = None
+            for span_start, span_data in span_results.items():
+                span_len_words = len(span_data) // 2
+                if span_start <= reg.register < span_start + span_len_words:
+                    matching_span = (span_start, span_data)
+                    break
+
+            if matching_span is None:
+                msg = f"Register {reg.register} ({name}) missing from response"
+                raise ReadException(msg)
+
+            span_start, span_data = matching_span
+            offset = (reg.register - span_start) * 2
+            length = reg.length * 2
+            raw_bytes = span_data[offset : offset + length]
+            if len(raw_bytes) < length:
+                msg = f"Register {reg.register} ({name}) incomplete in response span"
+                raise ReadException(msg)
+
+            unpacked_tuple = struct.unpack(f">{reg.format}", raw_bytes)
+            results.append(reg.decode(unpacked_tuple))
+
+        return results
+
+    async def get_multiple_scattered_as_dict(
+        self, names: list[rn.RegisterName]
+    ) -> "dict[rn.RegisterName, Result[Any]]":
+        """Read multiple scattered registers and return them as a dictionary.
+
+        Args:
+            names: A list of :class:`~huawei_solar.register_names.RegisterName` entries to query.
+
+        Returns:
+            A dictionary mapping each requested :class:`~huawei_solar.register_names.RegisterName`
+            to its decoded :class:`~huawei_solar.register_definitions.Result`.
+
+        """
+        return dict(
+            zip(
+                names,
+                await self.get_multiple_scattered(names),
                 strict=True,
             ),
         )

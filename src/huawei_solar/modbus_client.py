@@ -19,11 +19,15 @@ from tmodbus.exceptions import ModbusConnectionError, ModbusResponseError, TModb
 from tmodbus.pdu.base import BaseClientPDU
 from tmodbus.utils.crc import calculate_crc16
 
+from .const import MAX_PDU_SIZE
 from .exceptions import ConnectionInterruptedException, DecodeError, ReadException
 from .modbus_pdu import (
     CompleteUploadPDU,
     LoginPDU,
     LoginRequestChallengePDU,
+    MultiDeviceRegisterReadPDU,
+    MultiRegisterReadPDU,
+    QueryDeviceLogicAddressListPDU,
     StartFileUploadPDU,
     UploadFileFramePDU,
 )
@@ -311,6 +315,185 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
         else:
             _LOGGER.debug("Heartbeat succeeded")
             return True
+
+    async def query_device_logic_address_list(self, unit_id: int = DEFAULT_UNIT_ID) -> list[int]:
+        """Query the list of connected device logic addresses using custom PDU 0x41 0x38.
+
+        Used to discover all active slave logic addresses (Unit IDs) on a bus/loop
+        connected to a SmartLogger or Dongle gateway.
+
+        Args:
+            unit_id: The target gateway/inverter Unit ID to query (default 0).
+                Typically sent to broadcast (0) or the primary SmartLogger address.
+
+        Returns:
+            A list of detected slave unit IDs (e.g. ``[1, 2, 16]``).
+
+        Raises:
+            ReadException: If the device returns a Modbus exception or malformed payload.
+            ConnectionInterruptedException: If connection is lost during communication.
+
+        """
+        pdu = QueryDeviceLogicAddressListPDU()
+        try:
+            return await self.for_unit_id(unit_id).execute(pdu)
+        except ModbusResponseError as err:
+            msg = f"Failed to query device logic address list: received {type(err).__name__}"
+            raise ReadException(msg, modbus_exception_code=err.error_code) from err
+        except ModbusConnectionError as err:
+            _LOGGER.exception("Connection error while querying device logic address list")
+            msg = "Connection failed when trying to query device logic address list"
+            raise ConnectionInterruptedException(msg) from err
+        except TModbusError as err:
+            msg = f"Failed to query device logic address list: {err}"
+            raise ReadException(msg) from err
+
+    async def multi_register_read(
+        self,
+        registers: list[tuple[int, int]],
+        unit_id: int | None = None,
+    ) -> dict[int, bytes]:
+        """Perform a multi-register read using custom PDU 0x41 0x33.
+
+        Allows querying arbitrary, non-contiguous register addresses in request
+        frames, avoiding the need to query multiple contiguous ranges or intermediate
+        dummy gap registers.
+
+        If the number of requested registers exceeds the maximum Modbus PDU payload
+        size (~253 bytes), this method automatically splits the query into multiple
+        consecutive requests and merges the results.
+
+        Args:
+            registers: List of ``(register_address, register_length_in_words)`` tuples
+                to fetch (e.g. ``[(30000, 15), (32089, 1), (37100, 2)]``).
+            unit_id: Target unit ID. If None, uses ``self.unit_id``.
+
+        Returns:
+            Dictionary mapping ``register_address`` (int) to raw data bytes (bytes).
+
+        Limitations:
+            - If connected through a third-party gateway that blocks FC 0x41,
+              a standard FC 0x03 read must be used instead.
+
+        Raises:
+            ReadException: If the device returns a Modbus exception or missing register data.
+            ConnectionInterruptedException: If connection is lost during communication.
+
+        """
+        target_client = self if unit_id is None else self.for_unit_id(unit_id)
+
+        chunks: list[list[tuple[int, int]]] = []
+        current_chunk: list[tuple[int, int]] = []
+        current_req_len = 5
+        current_resp_len = 5
+        for reg_addr, reg_len in registers:
+            item_req = 3
+            item_resp = 3 + (reg_len * 2)
+            if current_chunk and (
+                current_req_len + item_req > MAX_PDU_SIZE
+                or current_resp_len + item_resp > MAX_PDU_SIZE
+            ):
+                chunks.append(current_chunk)
+                current_chunk = []
+                current_req_len = 5
+                current_resp_len = 5
+            current_chunk.append((reg_addr, reg_len))
+            current_req_len += item_req
+            current_resp_len += item_resp
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        combined_results: dict[int, bytes] = {}
+        for frame_no, chunk in enumerate(chunks):
+            pdu = MultiRegisterReadPDU(registers=chunk, frame_no=frame_no & 0xFF)
+            try:
+                chunk_res = await target_client.execute(pdu)
+            except ModbusResponseError as err:
+                msg = f"Failed to perform multi-register read: received {type(err).__name__}"
+                raise ReadException(msg, modbus_exception_code=err.error_code) from err
+            except ModbusConnectionError as err:
+                _LOGGER.exception("Connection error during multi-register read")
+                msg = "Connection failed when trying to perform multi-register read"
+                raise ConnectionInterruptedException(msg) from err
+            except TModbusError as err:
+                msg = f"Failed to perform multi-register read: {err}"
+                raise ReadException(msg) from err
+            combined_results.update(chunk_res)
+
+        return combined_results
+
+    async def multi_device_register_read(
+        self,
+        items: list[tuple[int, int, int]],
+        unit_id: int = DEFAULT_UNIT_ID,
+    ) -> dict[tuple[int, int], bytes]:
+        """Perform a multi-device multi-register read using custom PDU 0x41 0x37.
+
+        Allows fetching registers from multiple cascaded Modbus slave devices
+        (inverters, meters, batteries, sensors) in request frames.
+
+        If the number of requested items exceeds the maximum Modbus PDU payload
+        size (~253 bytes), this method automatically splits the query into multiple
+        consecutive requests and merges the results.
+
+        Args:
+            items: List of ``(unit_id, register_address, register_length_in_words)``
+                tuples to fetch across connected slave devices.
+            unit_id: The gateway/master device Unit ID receiving the aggregated
+                request (default 0).
+
+        Returns:
+            Dictionary mapping ``(unit_id, register_address)`` to raw data bytes.
+
+        Limitations:
+            - Applicable when connected through a master gateway/SmartLogger
+              managing multiple RS485 slave devices.
+
+        Raises:
+            ReadException: If the device returns a Modbus exception or communication fails.
+            ConnectionInterruptedException: If connection is lost during communication.
+
+        """
+        chunks: list[list[tuple[int, int, int]]] = []
+        current_chunk: list[tuple[int, int, int]] = []
+        current_req_len = 5
+        current_resp_len = 5
+        for u_id, reg_addr, reg_len in items:
+            item_req = 4
+            item_resp = 4 + (reg_len * 2)
+            if current_chunk and (
+                current_req_len + item_req > MAX_PDU_SIZE
+                or current_resp_len + item_resp > MAX_PDU_SIZE
+            ):
+                chunks.append(current_chunk)
+                current_chunk = []
+                current_req_len = 5
+                current_resp_len = 5
+            current_chunk.append((u_id, reg_addr, reg_len))
+            current_req_len += item_req
+            current_resp_len += item_resp
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        target_client = self if (unit_id is None or unit_id == self.unit_id) else self.for_unit_id(unit_id)
+        combined_results: dict[tuple[int, int], bytes] = {}
+        for frame_no, chunk in enumerate(chunks):
+            pdu = MultiDeviceRegisterReadPDU(items=chunk, frame_no=frame_no & 0xFF)
+            try:
+                chunk_res = await target_client.execute(pdu)
+            except ModbusResponseError as err:
+                msg = f"Failed to perform multi-device register read: received {type(err).__name__}"
+                raise ReadException(msg, modbus_exception_code=err.error_code) from err
+            except ModbusConnectionError as err:
+                _LOGGER.exception("Connection error during multi-device register read")
+                msg = "Connection failed when trying to perform multi-device register read"
+                raise ConnectionInterruptedException(msg) from err
+            except TModbusError as err:
+                msg = f"Failed to perform multi-device register read: {err}"
+                raise ReadException(msg) from err
+            combined_results.update(chunk_res)
+
+        return combined_results
 
 
 def create_client(
