@@ -96,4 +96,3 @@ async def test_has_write_permission_unauthenticated_write_exception(
     monkeypatch.setattr(sun2000_device, "_raw_set", mock_raw_set)
 
     assert await sun2000_device.has_write_permission() is False
-
