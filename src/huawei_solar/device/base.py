@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Self
 
 from huawei_solar import register_names as rn
@@ -12,6 +13,12 @@ from huawei_solar.exceptions import (
     InvalidCredentials,
     ReadException,
     WriteException,
+)
+from huawei_solar.files import (
+    ActiveAlarm,
+    ActiveAlarmsDataFile,
+    HistoryAlarm,
+    HistoryAlarmsDataFile,
 )
 from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar.registers import REGISTERS
@@ -209,6 +216,31 @@ class HuaweiSolarDevice(ABC):
         """
         assert self.update_lock.locked(), "update_lock must be held when calling _raw_set"
         return await self.client.set(name, value)
+
+    async def get_active_alarms(self, equip_id: int = 0) -> list[ActiveAlarm]:
+        """Read Active Alarms Data File from the device."""
+        file_data = await self.read_file(
+            ActiveAlarmsDataFile.FILE_TYPE,
+            ActiveAlarmsDataFile.query_active_alarms(equip_id),
+        )
+        active_alarms_file = ActiveAlarmsDataFile(file_data)
+        return active_alarms_file.alarms
+
+    async def get_history_alarms(
+        self,
+        start_time: datetime | int,
+        end_time: datetime | int,
+    ) -> list[HistoryAlarm]:
+        """Read History Alarms Data File from the device."""
+        start_epoch = int(start_time.timestamp()) if isinstance(start_time, datetime) else start_time
+        end_epoch = int(end_time.timestamp()) if isinstance(end_time, datetime) else end_time
+
+        file_data = await self.read_file(
+            HistoryAlarmsDataFile.FILE_TYPE,
+            HistoryAlarmsDataFile.query_within_timespan(start_epoch, end_epoch),
+        )
+        history_alarms_file = HistoryAlarmsDataFile(file_data)
+        return history_alarms_file.alarms
 
 
 class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
