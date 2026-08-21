@@ -10,6 +10,7 @@ from huawei_solar.const import MAX_BATCHED_REGISTERS_COUNT, MAX_BATCHED_REGISTER
 from huawei_solar.exceptions import (
     HuaweiSolarException,
     InvalidCredentials,
+    ReadException,
     WriteException,
 )
 from huawei_solar.modbus_pdu import PermissionDeniedError
@@ -357,7 +358,18 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
     ############################
 
     async def has_write_permission(self) -> bool:
-        """Test write permission by getting the time zone and trying to write that same value back to the inverter."""
+        """Test write permission.
+
+        If login credentials are provided, verifying login status is sufficient and avoids
+        performing unnecessary probe writes to holding registers.
+        Otherwise (e.g. unauthenticated Modbus TCP via SDongle), a safe probe register is tested.
+        """
+        if self.__username:
+            try:
+                return await self.ensure_logged_in()
+            except (InvalidCredentials, PermissionDeniedError):
+                return False
+
         # Acquire the device-level update lock for the entire permission check
         # so we preserve the lock ordering: `update_lock` -> transport. This
         # avoids a lock inversion where a coordinator read holds `update_lock`
@@ -370,10 +382,9 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
                 # `update_lock` here; calling the public `set` would try to
                 # re-acquire the lock and deadlock.
                 await self._raw_set(WRITE_TEST_REGISTER, result.value)
-        except (PermissionDeniedError, WriteException):
-            # We not only catch PermissionDeniedError but also WriteException, because in some firmware versions,
-            # a ServerDeviceFailure error is raised when trying to write to a register without permission, which
-            # propagates up as a WriteException in our code. (cfr. https://github.com/wlcrs/huawei-solar-lib/issues/28)
+        except (PermissionDeniedError, WriteException, ReadException):
+            # We catch PermissionDeniedError, WriteException (e.g. ServerDeviceFailure on restricted
+            # Modbus TCP connections), and ReadException (if WRITE_TEST_REGISTER is not supported).
             return False
         else:
             return True
