@@ -25,7 +25,7 @@ jobs:
       - name: 🏗 Install dependencies
         run: uv sync --frozen --dev
       - name: 🚀 Check code for common misspellings
-        run: uv run pre-commit run codespell --all-files
+        run: uv run prek run codespell --all-files
 
   ruff:
     name: Ruff
@@ -39,14 +39,14 @@ jobs:
           enable-cache: true
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: 🏗 Install dependencies
-        run: uv sync  --all-extras --frozen --dev
+        run: uv sync --all-extras --frozen --dev
       - name: 🚀 Run ruff linter
         run: uv run ruff check --output-format=github .
       - name: 🚀 Run ruff formatter
         run: uv run ruff format --check .
 
-  pre-commit-hooks:
-    name: pre-commit-hooks
+  prek-hooks:
+    name: prek-hooks
     runs-on: ubuntu-latest
     steps:
       - name: ⤵️ Check out code from GitHub
@@ -58,26 +58,30 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: 🏗 Install dependencies
         run: uv sync --frozen --dev
-      - name: 🚀 Check Python AST
-        run: uv run pre-commit run check-ast --all-files
       - name: 🚀 Check for case conflicts
-        run: uv run pre-commit run check-case-conflict --all-files
-      - name: 🚀 Check docstring is first
-        run: uv run pre-commit run check-docstring-first --all-files
+        run: uv run prek run check-case-conflict --all-files
       - name: 🚀 Check for merge conflicts
-        run: uv run pre-commit run check-merge-conflict --all-files
+        run: uv run prek run check-merge-conflict --all-files
       - name: 🚀 Check for broken symlinks
-        run: uv run pre-commit run check-symlinks --all-files
-      - name: 🚀 Check TOML files
-        run: uv run pre-commit run check-toml --all-files
-      - name: 🚀 Check YAML files
-        run: uv run pre-commit run check-yaml --all-files
+        run: uv run prek run check-symlinks --all-files
       - name: 🚀 Detect Private Keys
-        run: uv run pre-commit run detect-private-key --all-files
+        run: uv run prek run detect-private-key --all-files
+      - name: 🚀 Check that executables have shebangs
+        run: uv run prek run check-executables-have-shebangs --all-files
+      - name: 🚀 Check JSON files
+        run: uv run prek run check-json --all-files
+      - name: 🚀 Check TOML files
+        run: uv run prek run check-toml --all-files
+      - name: 🚀 Check XML files
+        run: uv run prek run check-xml --all-files
+      - name: 🚀 Check YAML files
+        run: uv run prek run check-yaml --all-files
+      - name: 🚀 Check reStructuredText files
+        run: uv run prek run check-rst --all-files
       - name: 🚀 Check End of Files
-        run: uv run pre-commit run end-of-file-fixer --all-files
+        run: uv run prek run end-of-file-fixer --all-files
       - name: 🚀 Trim Trailing Whitespace
-        run: uv run pre-commit run trailing-whitespace --all-files
+        run: uv run prek run trailing-whitespace --all-files
 
   yamllint:
     name: yamllint
