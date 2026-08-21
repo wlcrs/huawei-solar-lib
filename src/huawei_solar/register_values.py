@@ -927,3 +927,208 @@ class SmartLoggerInOperation(IntEnum):
 
     INVALID = 0
     IN_OPERATION = 1
+
+
+class DongleScenarioStatus(_IntEnumWithPrettyString):
+    """Dongle networking and operating scenario status."""
+
+    STANDALONE = 0
+    """Standalone single-inverter scenario."""
+    GRID_TIED = 1
+    """Standard grid-tied SDongle scenario."""
+    CASCADED = 2
+    """Cascaded inverter network scenario."""
+    MICROGRID = 3
+    """Microgrid / hybrid third-party scenario."""
+
+
+class StorageUnitConnectStatus(_IntEnumWithPrettyString):
+    """Storage Unit connection status."""
+
+    OFFLINE = 45056  # 0xB000
+    """Storage unit is disconnected/offline."""
+    ONLINE = 45057  # 0xB001
+    """Storage unit is connected/online."""
+    CONNECTED = 32764  # 0x7FFC
+    """FE / bus connection established."""
+    CONNECTING = 32765  # 0x7FFD
+    """Connection in progress."""
+
+
+class BatterySohCalibrationStatus(_IntEnumWithPrettyString):
+    """Battery State of Health (SOH) calibration status."""
+
+    IDLE = 0
+    """Normal operation / calibration idle."""
+    REQUIRED = 1
+    """SOH calibration required / pending."""
+    IN_PROGRESS = 2
+    """SOH calibration actively in progress."""
+    COMPLETED = 3
+    """SOH calibration completed."""
+
+
+class GridOutputMode(_IntEnumWithPrettyString):
+    """Grid output connection mode."""
+
+    THREE_PHASE_FOUR_WIRE = 0
+    """Three-phase four-wire grid connection."""
+    THREE_PHASE_THREE_WIRE = 1
+    """Three-phase three-wire grid connection."""
+    SINGLE_PHASE_TWO_WIRE = 2
+    """Single-phase two-wire grid connection (L/N)."""
+    SPLIT_PHASE_THREE_WIRE = 3
+    """Split-phase three-wire grid connection (L1/L2/N)."""
+    SPLIT_PHASE_TWO_WIRE = 4
+    """Split-phase two-wire grid connection (L1/L2)."""
+
+
+class InnerPidRunningMode(_IntEnumWithPrettyString):
+    """Built-in PID running / operation mode."""
+
+    DISABLED = 0
+    """PID module operation disabled."""
+    REPAIR = 1
+    """Nighttime PID recovery/repair mode."""
+    SUPPRESSION = 2
+    """Daytime PID suppression mode."""
+    SUPPRESSION_AND_REPAIR = 3
+    """Continuous suppression and nighttime repair."""
+
+
+class InnerPidCompensationDirection(_IntEnumWithPrettyString):
+    """Built-in PID voltage offset compensation direction."""
+
+    UNIDENTIFIED = 0
+    """Compensation direction not identified."""
+    PV_NEGATIVE_POSITIVE_OFFSET = 1
+    """PV- positive offset voltage compensation."""
+    PV_POSITIVE_NEGATIVE_OFFSET = 2
+    """PV+ negative offset voltage compensation."""
+
+
+class AfciMode(_IntEnumWithPrettyString):
+    """AFCI (Arc Fault Circuit Interrupter) operational mode."""
+
+    DISABLED = 0
+    """AFCI disabled."""
+    ENABLED = 1
+    """AFCI standard protection enabled."""
+
+
+class StorageHeatingStatus(_IntEnumWithPrettyString):
+    """Energy storage battery heating film status."""
+
+    OFF = 0
+    """Battery heating is idle/off."""
+    HEATING = 1
+    """Battery heating is actively running."""
+
+
+class Dongle4GNetworkMode(_IntEnumWithPrettyString):
+    """SDongle 4G cellular network selection mode."""
+
+    AUTO_4G_3G_2G = 0
+    """Automatic 4G/3G/2G network selection."""
+    AUTO_3G_2G = 1
+    """Automatic 3G/2G network selection."""
+    ONLY_2G = 2
+    """Force 2G (GSM/GPRS) network connection only."""
+
+
+class Dongle4GApnMode(_IntEnumWithPrettyString):
+    """SDongle 4G APN configuration mode."""
+
+    AUTOMATIC = 0
+    """Automatic APN selection via SIM carrier profile."""
+    MANUAL = 1
+    """Manual APN parameter specification."""
+
+
+class Dongle4GAuthenticationType(_IntEnumWithPrettyString):
+    """SDongle 4G APN authentication protocol."""
+
+    NONE = 0
+    """No authentication required."""
+    PAP = 1
+    """Password Authentication Protocol (PAP)."""
+    CHAP = 2
+    """Challenge Handshake Authentication Protocol (CHAP)."""
+    PAP_OR_CHAP = 3
+    """Automatic negotiation of PAP or CHAP."""
+
+
+class Dongle4GSignalStrength(_IntEnumWithPrettyString):
+    """SDongle 4G cellular reception signal strength."""
+
+    NO_SIGNAL = 0
+    """No cellular signal detected."""
+    VERY_WEAK = 1
+    """Very weak reception (marginal connection)."""
+    WEAK = 2
+    """Weak reception."""
+    MEDIUM = 3
+    """Medium / good reception."""
+    STRONG = 4
+    """Strong reception."""
+    VERY_STRONG = 5
+    """Excellent signal reception."""
+
+
+class Dongle4GModuleStatus(_IntEnumWithPrettyString):
+    """SDongle 4G SIM card and modem status."""
+
+    NO_SIM_CARD = 0
+    """SIM card not detected in slot."""
+    SIM_REGISTRATION_FAILED = 1
+    """SIM card registration failed with cellular network."""
+    NO_CONNECTION = 2
+    """Modem active but no data connection established."""
+    CONNECTED = 6
+    """Cellular data connection actively established."""
+    SIM_PRESENT = 100
+    """SIM card present and recognized."""
+    PIN_REQUIRED = 101
+    """SIM PIN entry required to unlock card."""
+    PUK_REQUIRED = 102
+    """SIM PUK entry required (card locked)."""
+    MODULE_NOT_INSERTED = 65535
+    """4G wireless expansion module not inserted."""
+
+
+class ActivePowerLimitationMode(_IntEnumWithPrettyString):
+    """Grid active power export limitation mode."""
+
+    TOTAL_POWER = 0
+    """Active power limitation evaluated on total sum of all phases."""
+    SINGLE_PHASE_POWER = 1
+    """Active power limitation evaluated per individual phase."""
+
+
+class ReactivePowerControlMode(_IntEnumWithPrettyString):
+    """Grid reactive power control scheduling mode."""
+
+    NO_OUTPUT = 0
+    """No reactive power output."""
+    REACTIVE_DISPATCH = 1
+    """Direct reactive power dispatch."""
+    CLOSED_LOOP_POWER_FACTOR = 10
+    """Closed-loop power factor control."""
+
+
+class MeterPowerDirection(_IntEnumWithPrettyString):
+    """Power meter CT installation / power flow direction."""
+
+    FORWARD = 0
+    """Standard forward power direction (positive)."""
+    REVERSE = 1
+    """Reversed CT installation / power flow direction."""
+
+
+class SmartLoggerEmiOperationMode(_IntEnumWithPrettyString):
+    """SmartLogger environmental monitoring instrument (EMI) operating mode."""
+
+    MASTER = 0
+    """SmartLogger acts as Modbus master polling EMI sensors."""
+    SLAVE = 1
+    """SmartLogger acts as Modbus slave receiving sensor data."""

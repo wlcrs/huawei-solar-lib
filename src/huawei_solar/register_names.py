@@ -876,3 +876,161 @@ SMARTLOGGER_EXTERNAL_METER_POSITIVE_REACTIVE_ELECTRICITY_TOTAL = RegisterName(
 SMARTLOGGER_DEVICE_LIST_CHANGE = RegisterName("smartlogger_device_list_change")
 SMARTLOGGER_DEVICE_NAME = RegisterName("smartlogger_device_name")
 SMARTLOGGER_DEVICE_CONNECTION_STATUS = RegisterName("smartlogger_device_connection_status")
+
+# Undocumented LUNA2000-S1 Pack 4 registers
+STORAGE_UNIT_1_BATTERY_PACK_4_SERIAL_NUMBER = RegisterName("storage_unit_1_battery_pack_4_serial_number")
+"""Serial number of LUNA2000 Unit 1 Battery Pack 4 (LUNA2000-S1 high capacity)."""
+STORAGE_UNIT_1_BATTERY_PACK_4_FIRMWARE_VERSION = RegisterName("storage_unit_1_battery_pack_4_firmware_version")
+"""Firmware version of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_WORKING_STATUS = RegisterName("storage_unit_1_battery_pack_4_working_status")
+"""Working/running status of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_STATE_OF_CAPACITY = RegisterName("storage_unit_1_battery_pack_4_state_of_capacity")
+"""State of Charge (SOC, 0.1%) of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_SOH_CALIBRATION_STATUS = RegisterName(
+    "storage_unit_1_battery_pack_4_soh_calibration_status",
+)
+"""State of Health (SOH) calibration status of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_CHARGE_DISCHARGE_POWER = RegisterName(
+    "storage_unit_1_battery_pack_4_charge_discharge_power",
+)
+"""Real-time charge/discharge power (W, signed) of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_VOLTAGE = RegisterName("storage_unit_1_battery_pack_4_voltage")
+"""Terminal voltage (0.1 V) of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_TOTAL_DISCHARGE = RegisterName("storage_unit_1_battery_pack_4_total_discharge")
+"""Accumulated total discharge energy (0.01 kWh) of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_MAXIMUM_TEMPERATURE = RegisterName("storage_unit_1_battery_pack_4_maximum_temperature")
+"""Maximum cell temperature (0.1 °C) of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_MINIMUM_TEMPERATURE = RegisterName("storage_unit_1_battery_pack_4_minimum_temperature")
+"""Minimum cell temperature (0.1 °C) of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_BATTERY_PACK_4_MODEL_NAME = RegisterName("storage_unit_1_battery_pack_4_model_name")
+"""Model name string of LUNA2000 Unit 1 Battery Pack 4."""
+STORAGE_UNIT_1_PACK_4_NO = RegisterName("storage_unit_1_pack_4_no")
+"""Configured sequence number of LUNA2000 Unit 1 Battery Pack 4."""
+
+# Battery Pack Model Names
+STORAGE_UNIT_1_BATTERY_PACK_1_MODEL_NAME = RegisterName("storage_unit_1_battery_pack_1_model_name")
+"""Model name string of Storage Unit 1 Battery Pack 1."""
+STORAGE_UNIT_1_BATTERY_PACK_2_MODEL_NAME = RegisterName("storage_unit_1_battery_pack_2_model_name")
+"""Model name string of Storage Unit 1 Battery Pack 2."""
+STORAGE_UNIT_1_BATTERY_PACK_3_MODEL_NAME = RegisterName("storage_unit_1_battery_pack_3_model_name")
+"""Model name string of Storage Unit 1 Battery Pack 3."""
+STORAGE_UNIT_2_BATTERY_PACK_1_MODEL_NAME = RegisterName("storage_unit_2_battery_pack_1_model_name")
+"""Model name string of Storage Unit 2 Battery Pack 1."""
+STORAGE_UNIT_2_BATTERY_PACK_2_MODEL_NAME = RegisterName("storage_unit_2_battery_pack_2_model_name")
+"""Model name string of Storage Unit 2 Battery Pack 2."""
+STORAGE_UNIT_2_BATTERY_PACK_3_MODEL_NAME = RegisterName("storage_unit_2_battery_pack_3_model_name")
+"""Model name string of Storage Unit 2 Battery Pack 3."""
+
+# Storage Unit Connection & Cloud Registration
+STORAGE_UNIT_1_CONNECT_STATUS = RegisterName("storage_unit_1_connect_status")
+"""Physical/logical connection state of Storage Unit 1."""
+STORAGE_UNIT_2_CONNECT_STATUS = RegisterName("storage_unit_2_connect_status")
+"""Physical/logical connection state of Storage Unit 2."""
+STORAGE_UNIT_1_REGISTER_CODE = RegisterName("storage_unit_1_register_code")
+"""Registration code of Storage Unit 1."""
+STORAGE_UNIT_2_REGISTER_CODE = RegisterName("storage_unit_2_register_code")
+"""Registration code of Storage Unit 2."""
+
+# Plant & Inverter Maintenance/Control Registers
+DONGLE_SCENARIO_STATUS = RegisterName("dongle_scenario_status")
+"""SDongle networking/operating scenario status word."""
+INVERTER_ACTIVATION_STATUS = RegisterName("inverter_activation_status")
+"""Inverter activation / warranty status word."""
+AFCI_SELF_CHECK = RegisterName("afci_self_check")
+"""Trigger AFCI manual arc self-test (write 1)."""
+AFCI_SC_REGISTER_V3 = RegisterName("afci_sc_register_v3")
+"""AFCI self-check control register for V3 hardware."""
+ALARM_CLEARANCE = RegisterName("alarm_clearance")
+"""Clear manual active alarms and reset AFCI lock (write 1)."""
+HISTORICAL_GENERATION_CLEARANCE = RegisterName("historical_generation_clearance")
+"""Clear historical energy yield data (write 1)."""
+CLEAR_PERFORMANCE_DATA = RegisterName("clear_performance_data")
+"""Clear logged performance statistics data (write 1)."""
+RESTORE_DEFAULT_SETTINGS = RegisterName("restore_default_settings")
+"""Restore device parameters to factory defaults (write 1)."""
+
+# Inverter Grid & Protection Parameters
+GRID_OUTPUT_MODE = RegisterName("grid_output_mode")
+"""Grid output wiring topology (e.g. 3-phase 4-wire, single phase)."""
+ISLANDING_PROTECTION = RegisterName("islanding_protection")
+"""Active islanding protection enable / disable."""
+INSULATION_RESISTANCE_PROTECTION_THRESHOLD = RegisterName("insulation_resistance_protection_threshold")
+"""Insulation resistance protection threshold (0.01 MOhm)."""
+COMMUNICATION_INTERRUPT_SHUTDOWN = RegisterName("communication_interrupt_shutdown")
+"""Automatic inverter shutdown upon communication disconnection."""
+COMMUNICATION_RESUME_STARTUP = RegisterName("communication_resume_startup")
+"""Automatic inverter startup upon communication resumption."""
+INNER_PID_RUNNING_MODE = RegisterName("inner_pid_running_mode")
+"""Built-in PID module operation mode (e.g. nighttime repair, suppression)."""
+INNER_PID_COMPENSATION_DIRECTION = RegisterName("inner_pid_compensation_direction")
+"""Built-in PID voltage offset compensation direction (PV- or PV+)."""
+AUTO_START_RECOVERY = RegisterName("auto_start_recovery")
+"""Automatic restart on fault recovery."""
+AFCI_MODE = RegisterName("afci_mode")
+"""AFCI (Arc Fault Circuit Interrupter) operation mode."""
+
+# Energy Storage (ESS)
+STORAGE_HEATING_STATUS = RegisterName("storage_heating_status")
+"""Energy storage battery heating film status."""
+
+# SDongle 4G & Communication Settings
+SDONGLE_4G_NETWORK_MODE = RegisterName("sdongle_4g_network_mode")
+"""SDongle 4G cellular network selection mode (4G/3G/2G auto, 2G only, etc.)."""
+SDONGLE_4G_APN_MODE = RegisterName("sdongle_4g_apn_mode")
+"""SDongle 4G APN configuration mode (automatic vs manual)."""
+SDONGLE_4G_AUTHENTICATION_TYPE = RegisterName("sdongle_4g_authentication_type")
+"""SDongle 4G APN authentication protocol (PAP, CHAP, etc.)."""
+SDONGLE_4G_MONTHLY_PACKAGE_TRAFFIC = RegisterName("sdongle_4g_monthly_package_traffic")
+"""SDongle 4G monthly data traffic plan allowance (MB)."""
+SDONGLE_4G_APN = RegisterName("sdongle_4g_apn")
+"""SDongle 4G Access Point Name (APN) string."""
+SDONGLE_4G_DIAL_NUMBER = RegisterName("sdongle_4g_dial_number")
+"""SDongle 4G dialing string."""
+SDONGLE_4G_USER_NAME = RegisterName("sdongle_4g_user_name")
+"""SDongle 4G APN username string."""
+SDONGLE_4G_SIGNAL_STRENGTH = RegisterName("sdongle_4g_signal_strength")
+"""SDongle 4G cellular reception signal quality."""
+SDONGLE_4G_MODULE_STATUS = RegisterName("sdongle_4g_module_status")
+"""SDongle 4G SIM card and modem operational status."""
+SDONGLE_PLC_BAUD_RATE = RegisterName("sdongle_plc_baud_rate")
+"""SDongle PLC (Power Line Communication) baud rate (bps)."""
+
+# Grid Power Scheduling & Solar Plant
+ACTIVE_POWER_LIMITATION_MODE = RegisterName("active_power_limitation_mode")
+"""Grid active power export limitation evaluation mode (total vs per-phase)."""
+ACTIVE_POWER_ADJUSTMENT_PERIOD = RegisterName("active_power_adjustment_period")
+"""Active power adjustment period (0.1 s)."""
+ACTIVE_POWER_MAX_PROTECTION_TIME = RegisterName("active_power_max_protection_time")
+"""Active power maximum protection duration time (0.1 s)."""
+ACTIVE_POWER_CONTROL_HYSTERESIS = RegisterName("active_power_control_hysteresis")
+"""Active power control hysteresis / deadband (0.001 kW)."""
+ACTIVE_POWER_FAIL_SAFE_THRESHOLD = RegisterName("active_power_fail_safe_threshold")
+"""Active power limitation threshold when communication fails (0.1 %)."""
+REACTIVE_POWER_CONTROL_MODE = RegisterName("reactive_power_control_mode")
+"""Grid reactive power control scheduling mode (no output, dispatch, PF control)."""
+REACTIVE_POWER_TARGET_POWER_FACTOR = RegisterName("reactive_power_target_power_factor")
+"""Grid target power factor cos phi (0.001)."""
+REACTIVE_POWER_ADJUSTMENT_PERIOD = RegisterName("reactive_power_adjustment_period")
+"""Reactive power adjustment period (0.1 s)."""
+REACTIVE_POWER_FAIL_SAFE_THRESHOLD = RegisterName("reactive_power_fail_safe_threshold")
+"""Reactive power factor threshold when communication fails (0.001)."""
+PV_PLANT_AC_CAPACITY = RegisterName("pv_plant_ac_capacity")
+"""Total AC rated active capacity of the solar plant (0.001 kW)."""
+PV_PLANT_DC_CAPACITY = RegisterName("pv_plant_dc_capacity")
+"""Total DC rated capacity of the solar plant (0.001 kW)."""
+PV_PLANT_ID = RegisterName("pv_plant_id")
+"""Solar PV plant identifier string."""
+PV_PLANT_REMOTE_OUTPUT_CONTROL_SERVER = RegisterName("pv_plant_remote_output_control_server")
+"""Remote active power output control server address."""
+PV_PLANT_OUTPUT_CONTROL_DURATION = RegisterName("pv_plant_output_control_duration")
+"""Active power output control duration time (min)."""
+
+# Power Meter
+POWER_METER_POWER_DIRECTION = RegisterName("power_meter_power_direction")
+"""Power meter CT installation / power flow direction (forward vs reverse)."""
+
+# SmartLogger
+SMARTLOGGER_EMI_OPERATION_MODE = RegisterName("smartlogger_emi_operation_mode")
+"""SmartLogger environmental monitoring instrument (EMI) operating mode (master vs slave)."""
+SMARTLOGGER_SOFTWARE_PACKAGE_NAME = RegisterName("smartlogger_software_package_name")
+"""SmartLogger installed software package name string."""

@@ -2,6 +2,9 @@
 repos:
   - repo: local
     hooks:
+      # -----------------------------------------------------------------------
+      # Python Code Quality & Formatting (Handled by Ruff)
+      # -----------------------------------------------------------------------
       - id: ruff-check
         name: 🐶 Ruff Linter
         language: system
@@ -9,6 +12,7 @@ repos:
         entry: uv run ruff check --fix
         require_serial: true
         stages: [pre-commit, pre-push, manual]
+
       - id: ruff-format
         name: 🐶 Ruff Formatter
         language: system
@@ -16,98 +20,115 @@ repos:
         entry: uv run ruff format
         require_serial: true
         stages: [pre-commit, pre-push, manual]
-      - id: check-ast
-        name: 🐍 Check Python AST
-        language: system
-        types: [python]
-        entry: uv run check-ast
-      - id: check-case-conflict
-        name: 🔠 Check for case conflicts
-        language: system
-        entry: uv run check-case-conflict
-      - id: check-docstring-first
-        name: ℹ️  Check docstring is first
-        language: system
-        types: [python]
-        entry: uv run check-docstring-first
-      - id: check-executables-have-shebangs
-        name: 🧐 Check that executables have shebangs
-        language: system
-        types: [text, executable]
-        entry: uv run check-executables-have-shebangs
-        stages: [pre-commit, pre-push, manual]
-      - id: check-json
-        name: ｛ Check JSON files
-        language: system
-        types: [json]
-        entry: uv run check-json
-      - id: check-merge-conflict
-        name: 💥 Check for merge conflicts
-        language: system
-        types: [text]
-        entry: uv run check-merge-conflict
-      - id: check-symlinks
-        name: 🔗 Check for broken symlinks
-        language: system
-        types: [symlink]
-        entry: uv run check-symlinks
-      - id: check-toml
-        name: ✅ Check TOML files
-        language: system
-        types: [toml]
-        entry: uv run check-toml
-      - id: check-xml
-        name: ✅ Check XML files
-        entry: check-xml
-        language: system
-        types: [xml]
-      - id: check-yaml
-        name: ✅ Check YAML files
-        language: system
-        types: [yaml]
-        entry: uv run check-yaml
-      - id: check-rst
-        name: 📜 Check reStructuredText files
-        language: system
-        types: [rst]
-        entry: uv run docstrfmt
-      - id: codespell
-        name: ✅ Check code for common misspellings
-        language: system
-        types: [text]
-        exclude: ^uv\.lock$
-        entry: uv run codespell
-      - id: detect-private-key
-        name: 🕵️  Detect Private Keys
-        language: system
-        types: [text]
-        entry: uv run detect-private-key
-      - id: end-of-file-fixer
-        name: ⮐  Fix End of Files
-        language: system
-        types: [text]
-        entry: uv run end-of-file-fixer
-        stages: [pre-commit, pre-push, manual]
+
+      # -----------------------------------------------------------------------
+      # Type Checking & Testing
+      # -----------------------------------------------------------------------
       - id: mypy
         name: 🆎 Static type checking using mypy
         language: system
         types: [python]
         entry: uv run mypy
         require_serial: true
+
       - id: pytest
         name: 🧪 Running tests and test coverage with pytest
         language: system
         types: [python]
         entry: uv run pytest
         pass_filenames: false
-      - id: trailing-whitespace
-        name: ✄  Trim Trailing Whitespace
+
+      # -----------------------------------------------------------------------
+      # Git & Repo Integrity
+      # -----------------------------------------------------------------------
+      - id: check-case-conflict
+        name: 🔠 Check for case conflicts
+        language: system
+        entry: uv run check-case-conflict
+
+      - id: check-merge-conflict
+        name: 💥 Check for merge conflicts
         language: system
         types: [text]
-        entry: uv run trailing-whitespace-fixer
+        entry: uv run check-merge-conflict
+
+      - id: check-symlinks
+        name: 🔗 Check for broken symlinks
+        language: system
+        types: [symlink]
+        entry: uv run check-symlinks
+
+      - id: detect-private-key
+        name: 🕵️ Detect Private Keys
+        language: system
+        types: [text]
+        entry: uv run detect-private-key
+
+      - id: check-executables-have-shebangs
+        name: 🧐 Check that executables have shebangs
+        language: system
+        types: [text, executable]
+        entry: uv run check-executables-have-shebangs
         stages: [pre-commit, pre-push, manual]
+
+      # -----------------------------------------------------------------------
+      # Non-Python File Validation & Formatting
+      # -----------------------------------------------------------------------
+      - id: check-json
+        name: ｛ Check JSON files
+        language: system
+        types: [json]
+        entry: uv run check-json
+
+      - id: check-toml
+        name: ✅ Check TOML files
+        language: system
+        types: [toml]
+        entry: uv run check-toml
+
+      - id: check-xml
+        name: ✅ Check XML files
+        language: system
+        types: [xml]
+        entry: check-xml
+
+      - id: check-yaml
+        name: ✅ Check YAML files
+        language: system
+        types: [yaml]
+        entry: uv run check-yaml
+
       - id: yamllint
-        name: 🎗  Check YAML files with yamllint
+        name: 🎗 Check YAML files with yamllint
         language: system
         types: [yaml]
         entry: uv run yamllint
+
+      - id: check-rst
+        name: 📜 Check reStructuredText files
+        language: system
+        types: [rst]
+        entry: uv run docstrfmt
+
+      - id: codespell
+        name: ✅ Check code for common misspellings
+        language: system
+        types: [text]
+        exclude: ^uv\.lock$
+        entry: uv run codespell
+
+      - id: end-of-file-fixer
+        name: ⮐ Fix End of Files
+        language: system
+        types: [text]
+        exclude: '\.py$'
+        entry: uv run end-of-file-fixer
+        stages: [pre-commit, pre-push, manual]
+
+      - id: trailing-whitespace
+        name: ✄ Trim Trailing Whitespace
+        language: system
+        types: [text]
+        exclude: '\.py$'
+        entry: uv run trailing-whitespace-fixer
+        stages: [pre-commit, pre-push, manual]
