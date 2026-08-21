@@ -39,47 +39,96 @@ class DeviceInfo:
 
 @dataclass(frozen=True, slots=True)
 class DeviceIdentifier:
-    """Device identifier information."""
+    """Device identifier information read via Modbus MEI (0x2B 0x0E)."""
 
     vendor: str
+    """Device manufacturer name (e.g. 'Huawei'). (MEI Object 0x00)"""
     product_code: str
+    """Inverter or device model code (e.g. 'SUN2000-10KTL-M1'). (MEI Object 0x01)"""
     main_revision_version: str
-    other_data: dict[int, bytes]
+    """Main firmware/software version string. (MEI Object 0x02)"""
+    serial_number: str | None = None
+    """Equipment Serial Number (ESN). (MEI Object 0x10)"""
+    device_id: int | None = None
+    """Modbus logical device address. (MEI Object 0x14)"""
+    user_manager_version: int | None = None
+    """User management authentication protocol version (e.g. 2 or 3). (MEI Object 0x15)"""
+    is_installer_password_set: bool | None = None
+    """Whether installer password is configured (False = initial password setup required). (MEI Object 0x15)"""
+    is_user_password_set: bool | None = None
+    """Whether user password is configured (False = initial password setup required). (MEI Object 0x15)"""
+    is_level3_password_set: bool | None = None
+    """Status of third-level / guest account password. (MEI Object 0x15)"""
+    bluetooth_reg_address: int | None = None
+    """Bluetooth configuration register address. (MEI Object 0x16)"""
+    machine_mask: int | None = None
+    """Hardware capabilities bitmask (e.g. HEMS 2-in-1 flag). (MEI Object 0x17)"""
+    registration_code: str | None = None
+    """Huawei cloud/system registration code. (MEI Object 0x18)"""
+    function_code: int | None = None
+    """Supported function set indicator. (MEI Object 0x19)"""
+    two_in_one_machine_esn: str | None = None
+    """ESN for coupled/integrated HEMS devices. (MEI Object 0x1B)"""
 
-    @property
-    def user_manager_version(self) -> int | None:
-        """User management protocol version."""
-        if 0x15 in self.other_data and len(self.other_data[0x15]) >= 1:
-            raw_val = int.from_bytes(self.other_data[0x15], byteorder="big")
-            return raw_val & 0xFF
-        return None
 
-    @property
-    def is_installer_password_set(self) -> bool | None:
-        """Whether the installer password is already configured (False = initial setup required)."""
-        if 0x15 in self.other_data and len(self.other_data[0x15]) >= 2:
-            raw_val = int.from_bytes(self.other_data[0x15], byteorder="big")
-            return bool((raw_val >> 8) & 1)
+def _decode_mei_string(raw: bytes | None) -> str | None:
+    if raw is None:
         return None
+    return raw.decode("ascii", errors="replace").strip()
 
-    @property
-    def is_user_password_set(self) -> bool | None:
-        """Whether the user password is already configured."""
-        if 0x15 in self.other_data and len(self.other_data[0x15]) >= 2:
-            raw_val = int.from_bytes(self.other_data[0x15], byteorder="big")
-            return bool((raw_val >> 9) & 1)
+
+def _decode_mei_int(raw: bytes | None) -> int | None:
+    if raw is None:
         return None
+    return int.from_bytes(raw, byteorder="big")
 
 
 async def get_device_identifiers(client: AsyncModbusClient) -> DeviceIdentifier:
     """Read the device identifiers from the inverter."""
     objects = await _read_device_identifier_objects(client, 0x01, 0x00)
 
+    vendor = objects.get(0x00, b"").decode("ascii", errors="replace").strip()
+    product_code = objects.get(0x01, b"").decode("ascii", errors="replace").strip()
+    main_revision_version = objects.get(0x02, b"").decode("ascii", errors="replace").strip()
+    serial_number = _decode_mei_string(objects.get(0x10))
+    device_id = _decode_mei_int(objects.get(0x14))
+
+    # Object 0x15: User management and password status bitmask
+    user_manager_version = None
+    is_installer_password_set = None
+    is_user_password_set = None
+    is_level3_password_set = None
+
+    if 0x15 in objects:
+        raw_val = _decode_mei_int(objects[0x15])
+        if raw_val is not None:
+            user_manager_version = raw_val & 0xFF
+            if len(objects[0x15]) >= 2:
+                is_installer_password_set = bool((raw_val >> 8) & 1)
+                is_user_password_set = bool((raw_val >> 9) & 1)
+                is_level3_password_set = bool((raw_val >> 10) & 1)
+
+    bluetooth_reg_address = _decode_mei_int(objects.get(0x16))
+    machine_mask = _decode_mei_int(objects.get(0x17))
+    registration_code = _decode_mei_string(objects.get(0x18))
+    function_code = _decode_mei_int(objects.get(0x19))
+    two_in_one_machine_esn = _decode_mei_string(objects.get(0x1B))
+
     return DeviceIdentifier(
-        vendor=objects.pop(0x00).decode("ascii"),
-        product_code=objects.pop(0x01).decode("ascii"),
-        main_revision_version=objects.pop(0x02).decode("ascii"),
-        other_data=objects,
+        vendor=vendor,
+        product_code=product_code,
+        main_revision_version=main_revision_version,
+        serial_number=serial_number,
+        device_id=device_id,
+        user_manager_version=user_manager_version,
+        is_installer_password_set=is_installer_password_set,
+        is_user_password_set=is_user_password_set,
+        is_level3_password_set=is_level3_password_set,
+        bluetooth_reg_address=bluetooth_reg_address,
+        machine_mask=machine_mask,
+        registration_code=registration_code,
+        function_code=function_code,
+        two_in_one_machine_esn=two_in_one_machine_esn,
     )
 
 
