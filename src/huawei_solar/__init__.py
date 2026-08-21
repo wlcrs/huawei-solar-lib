@@ -26,17 +26,30 @@ from .exceptions import (
     WriteException,
 )
 from .files import (
+    ActiveAlarm,
+    ActiveAlarmsDataFile,
+    AlarmLevel,
+    HistoryAlarm,
+    HistoryAlarmsDataFile,
+    InverterPerformanceDataFile,
     OptimizerHistoryRealTimeDataUnit,
     OptimizerOnlineStatus,
     OptimizerRealTimeData,
     OptimizerRunningStatus,
     OptimizerSystemInformation,
+    PerformanceDataPoint,
+    PerformanceRequestType,
 )
 from .modbus_client import AsyncHuaweiSolarClient, create_rtu_client, create_tcp_client
 from .register_definitions import Result
 from .register_names import RegisterName
+from .register_values import Alarm, HUAWEI_ALARM_CODES
 
 __all__ = [
+    "ActiveAlarm",
+    "ActiveAlarmsDataFile",
+    "Alarm",
+    "AlarmLevel",
     "AsyncHuaweiSolarClient",
     "ConnectionException",
     "ConnectionInterruptedException",
@@ -45,10 +58,14 @@ __all__ = [
     "DeviceInfo",
     "EMMADevice",
     "EncodeError",
+    "HUAWEI_ALARM_CODES",
+    "HistoryAlarm",
+    "HistoryAlarmsDataFile",
     "HuaweiSolarDevice",
     "HuaweiSolarDeviceWithLogin",
     "HuaweiSolarException",
     "InvalidCredentials",
+    "InverterPerformanceDataFile",
     "MeterDevice",
     "OptimizerHistoryRealTimeDataUnit",
     "OptimizerOnlineStatus",
@@ -56,6 +73,8 @@ __all__ = [
     "OptimizerRunningStatus",
     "OptimizerSystemInformation",
     "PeakPeriodsValidationError",
+    "PerformanceDataPoint",
+    "PerformanceRequestType",
     "ReadException",
     "RegisterName",
     "Result",
