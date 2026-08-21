@@ -775,7 +775,6 @@ HUAWEI_ALARM_CODES: dict[int, Alarm] = {
 }
 
 
-
 class StorageCapacityControlMode(IntEnum):
     """Storage Capacity Control Mode."""
 
