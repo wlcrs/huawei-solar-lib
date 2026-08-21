@@ -97,14 +97,6 @@ class HuaweiSolarDevice(ABC):
         """
         return register_names
 
-    def _transform_register_values(
-        self,
-        register_name: rn.RegisterName,  # noqa: ARG002
-        result: "Result[Any]",
-    ) -> "Result[Any]":
-        """Optionally Transform the value of a register before returning it."""
-        return result
-
     async def batch_update(self, register_names: list[rn.RegisterName]) -> "dict[rn.RegisterName, Result[Any]]":
         """Efficiently retrieve the values of all the registers passed in register_names.
 
@@ -172,9 +164,6 @@ class HuaweiSolarDevice(ABC):
 
                 first_idx = last_idx + 1
                 last_idx = first_idx
-
-            for key, value in result.items():
-                result[key] = self._transform_register_values(key, value)
 
             return result
 
