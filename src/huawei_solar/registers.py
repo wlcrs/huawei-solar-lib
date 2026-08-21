@@ -298,6 +298,16 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     ),
     rn.WLAN_WAKEUP: I16Register(rv.WlanWakeup, 1, 45052, writeable=True),
     rn.SUN2000_EMMA: U16Register(bool, 1, 48020, writeable=True),
+    rn.INNER_PID_COMPENSATION_DIRECTION: U16Register(rv.InnerPidCompensationDirection, 1, 32192),
+    rn.GRID_OUTPUT_MODE: U16Register(rv.GridOutputMode, 1, 42001, writeable=True),
+    rn.ISLANDING_PROTECTION: U16Register(bool, 1, 42002, writeable=True),
+    rn.INSULATION_RESISTANCE_PROTECTION_THRESHOLD: U16Register("MOhm", 100, 42003, writeable=True),
+    rn.COMMUNICATION_INTERRUPT_SHUTDOWN: U16Register(bool, 1, 42114, writeable=True),
+    rn.COMMUNICATION_RESUME_STARTUP: U16Register(bool, 1, 42115, writeable=True),
+    rn.INNER_PID_RUNNING_MODE: U16Register(rv.InnerPidRunningMode, 1, 42181, writeable=True),
+    rn.POWER_METER_POWER_DIRECTION: U16Register(rv.MeterPowerDirection, 1, 42213, writeable=True),
+    rn.AFCI_MODE: U16Register(rv.AfciMode, 1, 42730, writeable=True),
+    rn.AUTO_START_RECOVERY: U16Register(bool, 1, 42733, writeable=True),
 }
 
 
@@ -398,6 +408,7 @@ BATTERY_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.STORAGE_CURRENT_DAY_DISCHARGE_CAPACITY: U32Register("kWh", 100, 37786),
     rn.STORAGE_UNIT_2_SOFTWARE_VERSION: StringRegister(37799, 15),
     rn.STORAGE_UNIT_1_SOFTWARE_VERSION: StringRegister(37814, 15),
+    rn.STORAGE_HEATING_STATUS: U16Register(rv.StorageHeatingStatus, 1, 39354),
     rn.STORAGE_UNIT_1_BATTERY_PACK_1_SOH_CALIBRATION_STATUS: U16Register(rv.BatterySohCalibrationStatus, 1, 37920),
     rn.STORAGE_UNIT_1_BATTERY_PACK_2_SOH_CALIBRATION_STATUS: U16Register(rv.BatterySohCalibrationStatus, 1, 37921),
     rn.STORAGE_UNIT_1_BATTERY_PACK_3_SOH_CALIBRATION_STATUS: U16Register(rv.BatterySohCalibrationStatus, 1, 37922),
@@ -582,6 +593,30 @@ BATTERY_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     ),
     rn.MAXIMUM_FEED_GRID_POWER_WATT: I32Register("W", 1, 47416, writeable=True),
     rn.MAXIMUM_FEED_GRID_POWER_PERCENT: I16Register("%", 10, 47418, writeable=True),
+    rn.ACTIVE_POWER_LIMITATION_MODE: U16Register(
+        rv.ActivePowerLimitationMode,
+        1,
+        47419,
+        writeable=True,
+    ),
+    rn.ACTIVE_POWER_ADJUSTMENT_PERIOD: U16Register("s", 10, 47420, writeable=True),
+    rn.ACTIVE_POWER_MAX_PROTECTION_TIME: U16Register("s", 10, 47421, writeable=True),
+    rn.ACTIVE_POWER_CONTROL_HYSTERESIS: U32Register("kW", 1000, 47422, writeable=True),
+    rn.ACTIVE_POWER_FAIL_SAFE_THRESHOLD: U16Register("%", 10, 47424, writeable=True),
+    rn.REACTIVE_POWER_CONTROL_MODE: U16Register(
+        rv.ReactivePowerControlMode,
+        1,
+        47425,
+        writeable=True,
+    ),
+    rn.REACTIVE_POWER_TARGET_POWER_FACTOR: I16Register(None, 1000, 47428, writeable=True),
+    rn.REACTIVE_POWER_ADJUSTMENT_PERIOD: U16Register("s", 10, 47429, writeable=True),
+    rn.REACTIVE_POWER_FAIL_SAFE_THRESHOLD: I16Register(None, 1000, 47432, writeable=True),
+    rn.PV_PLANT_AC_CAPACITY: U32Register("kW", 1000, 47433, writeable=True),
+    rn.PV_PLANT_DC_CAPACITY: U32Register("kW", 1000, 47435, writeable=True),
+    rn.PV_PLANT_ID: StringRegister(47438, 13, writeable=True),
+    rn.PV_PLANT_REMOTE_OUTPUT_CONTROL_SERVER: StringRegister(47451, 30, writeable=True),
+    rn.PV_PLANT_OUTPUT_CONTROL_DURATION: U16Register("min", 1, 47481, writeable=True),
     rn.REMOTE_CHARGE_DISCHARGE_CONTROL_MODE: I16Register(
         rv.RemoteChargeDischargeControlMode,
         1,
@@ -1008,6 +1043,50 @@ SDONGLE_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.SDONGLE_DEVICE_OPERATION_SN: StringRegister(47402, 10, target_device=TargetDevice.SDONGLE),
     rn.SDONGLE_DEVICE_OPERATION_COMMAND: StringRegister(47412, 1, target_device=TargetDevice.SDONGLE),
     rn.SDONGLE_START_DEVICE_SEARCH: U16Register(None, 1, 47413, target_device=TargetDevice.SDONGLE),
+    rn.SDONGLE_PLC_BAUD_RATE: U16Register("bps", 1, 43113, writeable=True, target_device=TargetDevice.SDONGLE),
+    rn.SDONGLE_4G_NETWORK_MODE: U16Register(
+        rv.Dongle4GNetworkMode,
+        1,
+        43997,
+        writeable=True,
+        target_device=TargetDevice.SDONGLE,
+    ),
+    rn.SDONGLE_4G_APN_MODE: U16Register(
+        rv.Dongle4GApnMode,
+        1,
+        43998,
+        writeable=True,
+        target_device=TargetDevice.SDONGLE,
+    ),
+    rn.SDONGLE_4G_AUTHENTICATION_TYPE: U16Register(
+        rv.Dongle4GAuthenticationType,
+        1,
+        43999,
+        writeable=True,
+        target_device=TargetDevice.SDONGLE,
+    ),
+    rn.SDONGLE_4G_MONTHLY_PACKAGE_TRAFFIC: U16Register(
+        "MB",
+        1,
+        44000,
+        writeable=True,
+        target_device=TargetDevice.SDONGLE,
+    ),
+    rn.SDONGLE_4G_APN: StringRegister(44002, 16, writeable=True, target_device=TargetDevice.SDONGLE),
+    rn.SDONGLE_4G_DIAL_NUMBER: StringRegister(44018, 16, writeable=True, target_device=TargetDevice.SDONGLE),
+    rn.SDONGLE_4G_USER_NAME: StringRegister(44034, 16, writeable=True, target_device=TargetDevice.SDONGLE),
+    rn.SDONGLE_4G_SIGNAL_STRENGTH: U16Register(
+        rv.Dongle4GSignalStrength,
+        1,
+        44081,
+        target_device=TargetDevice.SDONGLE,
+    ),
+    rn.SDONGLE_4G_MODULE_STATUS: U16Register(
+        rv.Dongle4GModuleStatus,
+        1,
+        44099,
+        target_device=TargetDevice.SDONGLE,
+    ),
 }
 REGISTERS.update(SDONGLE_REGISTERS)
 
@@ -1525,6 +1604,14 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.SMARTLOGGER_DEVICE_LIST_CHANGE: U16Register(None, 1, 65521, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DEVICE_NAME: StringRegister(65524, 10, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DEVICE_CONNECTION_STATUS: U16Register(None, 1, 65534, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_SOFTWARE_PACKAGE_NAME: StringRegister(20689, 30, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_EMI_OPERATION_MODE: U16Register(
+        rv.SmartLoggerEmiOperationMode,
+        1,
+        41001,
+        writeable=True,
+        target_device=TargetDevice.SMARTLOGGER,
+    ),
 }
 
 REGISTERS.update(SMARTLOGGER_REGISTERS)
