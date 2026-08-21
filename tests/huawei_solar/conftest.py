@@ -154,7 +154,6 @@ def sun2000_device(huawei_solar: AsyncHuaweiSolarClient) -> SUN2000Device:
         primary_device=None,
     )
 
-    sun2000_device._time_zone = 60
     sun2000_device.battery_1_type = StorageProductModel.HUAWEI_LUNA2000
 
     return sun2000_device
