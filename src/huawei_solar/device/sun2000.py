@@ -12,10 +12,6 @@ from huawei_solar.exceptions import (
     ReadException,
 )
 from huawei_solar.files import (
-    ActiveAlarm,
-    ActiveAlarmsDataFile,
-    HistoryAlarm,
-    HistoryAlarmsDataFile,
     InverterPerformanceDataFile,
     OptimizerRealTimeData,
     OptimizerRealTimeDataFile,
@@ -257,31 +253,6 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         )
         performance_file = InverterPerformanceDataFile(file_data, request_type=request_type, cycle=cycle)
         return performance_file.data_points
-
-    async def get_active_alarms(self, equip_id: int = 0) -> list[ActiveAlarm]:
-        """Read Active Alarms Data File from the inverter."""
-        file_data = await self.read_file(
-            ActiveAlarmsDataFile.FILE_TYPE,
-            ActiveAlarmsDataFile.query_active_alarms(equip_id),
-        )
-        active_alarms_file = ActiveAlarmsDataFile(file_data)
-        return active_alarms_file.alarms
-
-    async def get_history_alarms(
-        self,
-        start_time: datetime | int,
-        end_time: datetime | int,
-    ) -> list[HistoryAlarm]:
-        """Read History Alarms Data File from the inverter."""
-        start_epoch = int(start_time.timestamp()) if isinstance(start_time, datetime) else start_time
-        end_epoch = int(end_time.timestamp()) if isinstance(end_time, datetime) else end_time
-
-        file_data = await self.read_file(
-            HistoryAlarmsDataFile.FILE_TYPE,
-            HistoryAlarmsDataFile.query_within_timespan(start_epoch, end_epoch),
-        )
-        history_alarms_file = HistoryAlarmsDataFile(file_data)
-        return history_alarms_file.alarms
 
     @property
     def battery_type(self) -> rv.StorageProductModel:
