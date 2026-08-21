@@ -61,5 +61,18 @@ class InvalidCredentials(HuaweiSolarException):
     """Logging in on the inverter failed."""
 
 
+class InitialPasswordRequired(HuaweiSolarException):
+    """Inverter requires an initial password to be set upon first login."""
+
+
+class PasswordChangeRequired(HuaweiSolarException):
+    """Inverter password has expired or must be changed."""
+
+
+class PasswordModificationFailed(HuaweiSolarException):
+    """Changing or setting the inverter password failed."""
+
+
 class UnsupportedDeviceException(HuaweiSolarException):
     """No bridge class is available for this device."""
+

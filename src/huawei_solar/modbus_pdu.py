@@ -67,8 +67,27 @@ def _compute_digest(password: bytes, seed: bytes) -> bytes:
     return hmac.digest(key=hashed_password, msg=seed, digest=sha256)
 
 
+from enum import IntEnum
+
+
+class UserPasswordStatus(IntEnum):
+    """Status of user password returned upon login."""
+
+    NORMAL = 0
+    INITIAL_PASSWORD_REQUIRED = 1
+    PASSWORD_CHANGE_REQUIRED = 2
+
+
+@dataclass(frozen=True, slots=True)
+class LoginResult:
+    """Result of inverter login."""
+
+    success: bool
+    password_status: UserPasswordStatus = UserPasswordStatus.NORMAL
+
+
 @dataclass(frozen=True)
-class LoginPDU(BaseSubFunctionClientPDU[bool]):
+class LoginPDU(BaseSubFunctionClientPDU[LoginResult]):
     """Login PDU."""
 
     function_code = 0x41
@@ -104,7 +123,7 @@ class LoginPDU(BaseSubFunctionClientPDU[bool]):
             ],
         )
 
-    def decode_response(self, response: bytes) -> bool:
+    def decode_response(self, response: bytes) -> LoginResult:
         """Decode LoginPDU response and check the returned MAC."""
         response_header_struct = struct.Struct(">BBB?B")
         (
@@ -124,7 +143,7 @@ class LoginPDU(BaseSubFunctionClientPDU[bool]):
             raise ValueError(msg)
 
         if failure:
-            return False
+            return LoginResult(success=False, password_status=UserPasswordStatus.NORMAL)
 
         inverter_mac_response = response[
             response_header_struct.size : response_header_struct.size + inverter_mac_response_length
@@ -134,10 +153,97 @@ class LoginPDU(BaseSubFunctionClientPDU[bool]):
             msg = "Inverter response contains an invalid challenge answer. This could indicate a MitM-attack!"
             raise ValueError(msg)
 
-        return True
+        password_status_offset = response_header_struct.size + inverter_mac_response_length
+        if len(response) >= password_status_offset + 2:
+            (raw_status,) = struct.unpack_from(">H", response, password_status_offset)
+            password_status = (
+                UserPasswordStatus(raw_status) if raw_status in (0, 1, 2) else UserPasswordStatus.NORMAL
+            )
+        else:
+            password_status = UserPasswordStatus.NORMAL
+
+        return LoginResult(success=True, password_status=password_status)
 
 
 register_pdu_class(LoginPDU)
+
+
+@dataclass(frozen=True)
+class SetPasswordPDU(BaseSubFunctionClientPDU[bool]):
+    """Set or modify password PDU (Sub-function 0x26)."""
+
+    function_code = 0x41
+    sub_function_code = 0x26
+    rtu_byte_count_pos = 3
+
+    username: str
+    new_password: str
+    old_password: str = ""
+
+    def encode_request(self) -> bytes:
+        """Encode set/modify password request."""
+        encoded_username = self.username.encode("utf-8")
+        encoded_old_password = self.old_password.encode("utf-8")
+        encoded_new_password = self.new_password.encode("utf-8")
+
+        # Mode 2 is direct password initialization/modification
+        mode = 2
+        total_length = (
+            len(encoded_old_password)
+            + 2
+            + len(encoded_new_password)
+            + 1
+            + len(encoded_new_password)
+            + 2
+            + len(encoded_username)
+            + 1
+        )
+
+        return bytes(
+            [
+                self.function_code,
+                self.sub_function_code,
+                total_length,
+                len(encoded_old_password),
+                *encoded_old_password,
+                len(encoded_new_password),
+                *encoded_new_password,
+                len(encoded_new_password),
+                *encoded_new_password,
+                mode,
+                len(encoded_username),
+                *encoded_username,
+                0,
+            ],
+        )
+
+    def decode_response(self, response: bytes) -> bool:
+        """Decode SetPassword response."""
+        response_header_struct = struct.Struct(">BBB")
+        (function_code, sub_function_code, _content_length) = response_header_struct.unpack_from(response, 0)
+
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
+
+        if sub_function_code != self.sub_function_code:
+            msg = (
+                f"Unexpected sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
+            )
+            raise ValueError(msg)
+
+        result_offset = response_header_struct.size
+        if len(response) > result_offset + 1:
+            result_code = response[result_offset + 1]
+        elif len(response) > result_offset:
+            result_code = response[result_offset]
+        else:
+            return False
+
+        return result_code == 0
+
+
+register_pdu_class(SetPasswordPDU)
 
 
 @dataclass(frozen=True, slots=True)

@@ -19,13 +19,23 @@ from tmodbus.exceptions import ModbusConnectionError, ModbusResponseError, TModb
 from tmodbus.pdu.base import BaseClientPDU
 from tmodbus.utils.crc import calculate_crc16
 
-from .exceptions import ConnectionInterruptedException, DecodeError, ReadException
+from .exceptions import (
+    ConnectionInterruptedException,
+    DecodeError,
+    InitialPasswordRequired,
+    PasswordChangeRequired,
+    PasswordModificationFailed,
+    ReadException,
+    WriteException,
+)
 from .modbus_pdu import (
     CompleteUploadPDU,
     LoginPDU,
     LoginRequestChallengePDU,
+    SetPasswordPDU,
     StartFileUploadPDU,
     UploadFileFramePDU,
+    UserPasswordStatus,
 )
 from .register_client import RegisterAwareModbusClient
 
@@ -242,7 +252,7 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
 
             return file_data
 
-    async def login(self, username: str, password: str) -> bool:
+    async def login(self, username: str, password: str, *, check_password_status: bool = True) -> bool:
         """Login onto the inverter."""
         _LOGGER.debug("Logging in '%s'", username)
         # this circumvents the locking issue when using self.execute which locks on
@@ -254,7 +264,7 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
                 LoginRequestChallengePDU(),
             )
 
-            logged_in = await self.transport.base_transport.send_and_receive(
+            login_result = await self.transport.base_transport.send_and_receive(
                 self.unit_id,
                 LoginPDU(username, password, inverter_challenge),
             )
@@ -269,28 +279,88 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
             msg = f"Failed to login: {err}"
             raise ReadException(msg) from err
 
-        if logged_in:
-            # Make sure we re-login after a reconnect
-            assert isinstance(self.transport, AsyncSmartTransport)
+        if not login_result.success:
+            return False
 
-            async def login_on_reconnect() -> None:
-                """Login again after a reconnect."""
-                _LOGGER.info("Reconnected to inverter, logging in again")
-                logged_in_again = await self.login(username, password)
-                if not logged_in_again:
-                    _LOGGER.error("Failed to login after reconnect. Will not try again")
-                    assert isinstance(self.transport, AsyncSmartTransport)
-                    self.transport.on_reconnected = None
-                else:
-                    _LOGGER.info("Successfully logged in again after reconnect")
+        if check_password_status:
+            if login_result.password_status == UserPasswordStatus.INITIAL_PASSWORD_REQUIRED:
+                msg = f"Inverter requires initial password to be set for user '{username}'."
+                raise InitialPasswordRequired(msg)
+            if login_result.password_status == UserPasswordStatus.PASSWORD_CHANGE_REQUIRED:
+                msg = f"Inverter requires password to be changed for user '{username}'."
+                raise PasswordChangeRequired(msg)
 
-            async def login_on_reconnect_with_timeout() -> None:
-                """Login again after a reconnect, with timeout."""
-                return await asyncio.wait_for(login_on_reconnect(), timeout=WAIT_FOR_LOGIN_TIMEOUT)
+        # Make sure we re-login after a reconnect
+        assert isinstance(self.transport, AsyncSmartTransport)
 
-            self.transport.on_reconnected = login_on_reconnect_with_timeout
+        async def login_on_reconnect() -> None:
+            """Login again after a reconnect."""
+            _LOGGER.info("Reconnected to inverter, logging in again")
+            logged_in_again = await self.login(username, password, check_password_status=check_password_status)
+            if not logged_in_again:
+                _LOGGER.error("Failed to login after reconnect. Will not try again")
+                assert isinstance(self.transport, AsyncSmartTransport)
+                self.transport.on_reconnected = None
+            else:
+                _LOGGER.info("Successfully logged in again after reconnect")
 
-        return logged_in
+        async def login_on_reconnect_with_timeout() -> None:
+            """Login again after a reconnect, with timeout."""
+            return await asyncio.wait_for(login_on_reconnect(), timeout=WAIT_FOR_LOGIN_TIMEOUT)
+
+        self.transport.on_reconnected = login_on_reconnect_with_timeout
+
+        return True
+
+    async def set_initial_password(self, username: str, new_password: str) -> bool:
+        """Set initial password on inverter upon first login (Sub-function 0x26)."""
+        _LOGGER.info("Setting initial password for '%s'", username)
+        assert isinstance(self.transport, AsyncSmartTransport)
+        try:
+            success = await self.transport.base_transport.send_and_receive(
+                self.unit_id,
+                SetPasswordPDU(username=username, new_password=new_password, old_password=""),
+            )
+        except ModbusResponseError as err:
+            msg = f"Failed to set initial password: received {type(err).__name__}"
+            raise WriteException(msg, modbus_exception_code=err.error_code) from err
+        except ModbusConnectionError as err:
+            msg = "Connection failed when trying to set initial password"
+            raise ConnectionInterruptedException(msg) from err
+        except TModbusError as err:
+            msg = f"Failed to set initial password: {err}"
+            raise WriteException(msg) from err
+
+        if not success:
+            msg = f"Inverter rejected setting initial password for user '{username}'."
+            raise PasswordModificationFailed(msg)
+
+        return True
+
+    async def change_password(self, username: str, old_password: str, new_password: str) -> bool:
+        """Change user password on inverter (Sub-function 0x26)."""
+        _LOGGER.info("Changing password for '%s'", username)
+        assert isinstance(self.transport, AsyncSmartTransport)
+        try:
+            success = await self.transport.base_transport.send_and_receive(
+                self.unit_id,
+                SetPasswordPDU(username=username, new_password=new_password, old_password=old_password),
+            )
+        except ModbusResponseError as err:
+            msg = f"Failed to change password: received {type(err).__name__}"
+            raise WriteException(msg, modbus_exception_code=err.error_code) from err
+        except ModbusConnectionError as err:
+            msg = "Connection failed when trying to change password"
+            raise ConnectionInterruptedException(msg) from err
+        except TModbusError as err:
+            msg = f"Failed to change password: {err}"
+            raise WriteException(msg) from err
+
+        if not success:
+            msg = f"Inverter rejected changing password for user '{username}'."
+            raise PasswordModificationFailed(msg)
+
+        return True
 
     async def heartbeat(self) -> bool:
         """Perform the heartbeat command. Only useful when maintaining a session."""

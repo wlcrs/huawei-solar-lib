@@ -46,6 +46,30 @@ class DeviceIdentifier:
     main_revision_version: str
     other_data: dict[int, bytes]
 
+    @property
+    def user_manager_version(self) -> int | None:
+        """User management protocol version."""
+        if 0x15 in self.other_data and len(self.other_data[0x15]) >= 1:
+            raw_val = int.from_bytes(self.other_data[0x15], byteorder="big")
+            return raw_val & 0xFF
+        return None
+
+    @property
+    def is_installer_password_set(self) -> bool | None:
+        """Whether the installer password is already configured (False = initial setup required)."""
+        if 0x15 in self.other_data and len(self.other_data[0x15]) >= 2:
+            raw_val = int.from_bytes(self.other_data[0x15], byteorder="big")
+            return bool((raw_val >> 8) & 1)
+        return None
+
+    @property
+    def is_user_password_set(self) -> bool | None:
+        """Whether the user password is already configured."""
+        if 0x15 in self.other_data and len(self.other_data[0x15]) >= 2:
+            raw_val = int.from_bytes(self.other_data[0x15], byteorder="big")
+            return bool((raw_val >> 9) & 1)
+        return None
+
 
 async def get_device_identifiers(client: AsyncModbusClient) -> DeviceIdentifier:
     """Read the device identifiers from the inverter."""
