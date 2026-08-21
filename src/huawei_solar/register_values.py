@@ -927,3 +927,43 @@ class SmartLoggerInOperation(IntEnum):
 
     INVALID = 0
     IN_OPERATION = 1
+
+
+class DongleScenarioStatus(_IntEnumWithPrettyString):
+    """Dongle networking and operating scenario status."""
+
+    STANDALONE = 0
+    """Standalone single-inverter scenario."""
+    GRID_TIED = 1
+    """Standard grid-tied SDongle scenario."""
+    CASCADED = 2
+    """Cascaded inverter network scenario."""
+    MICROGRID = 3
+    """Microgrid / hybrid third-party scenario."""
+
+
+class StorageUnitConnectStatus(_IntEnumWithPrettyString):
+    """Storage Unit connection status."""
+
+    OFFLINE = 45056  # 0xB000
+    """Storage unit is disconnected/offline."""
+    ONLINE = 45057  # 0xB001
+    """Storage unit is connected/online."""
+    CONNECTED = 32764  # 0x7FFC
+    """FE / bus connection established."""
+    CONNECTING = 32765  # 0x7FFD
+    """Connection in progress."""
+
+
+class BatterySohCalibrationStatus(_IntEnumWithPrettyString):
+    """Battery State of Health (SOH) calibration status."""
+
+    IDLE = 0
+    """Normal operation / calibration idle."""
+    REQUIRED = 1
+    """SOH calibration required / pending."""
+    IN_PROGRESS = 2
+    """SOH calibration actively in progress."""
+    COMPLETED = 3
+    """SOH calibration completed."""
+
