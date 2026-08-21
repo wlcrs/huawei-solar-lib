@@ -1,6 +1,7 @@
 """Interact with Huawei inverters over Modbus."""
 
 from .device import (
+    DeviceGroupMixin,
     EMMADevice,
     HuaweiSolarDevice,
     HuaweiSolarDeviceWithLogin,
@@ -52,6 +53,7 @@ __all__ = [
     "ConnectionException",
     "ConnectionInterruptedException",
     "DecodeError",
+    "DeviceGroupMixin",
     "DeviceIdentifier",
     "DeviceInfo",
     "EMMADevice",

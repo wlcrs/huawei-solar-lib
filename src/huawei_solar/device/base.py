@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Self
 from huawei_solar import register_names as rn
 from huawei_solar.const import MAX_BATCHED_REGISTERS_COUNT, MAX_BATCHED_REGISTERS_GAP
 from huawei_solar.exceptions import (
+    ConnectionInterruptedException,
     HuaweiSolarException,
     InvalidCredentials,
     WriteException,
@@ -34,6 +35,7 @@ class HuaweiSolarDevice(ABC):
     serial_number: str
     update_lock: asyncio.Lock
     primary_device: "HuaweiSolarDevice | None" = None
+    supports_custom_multi_register_read: bool = True
 
     def __init__(
         self,
@@ -47,6 +49,12 @@ class HuaweiSolarDevice(ABC):
         self.model_name = model_name
         self.update_lock = primary_device.update_lock if primary_device else asyncio.Lock()
         self.primary_device = primary_device
+        self.supports_custom_multi_register_read = True
+
+    @property
+    def unit_id(self) -> int:
+        """Get the Modbus slave unit ID for this device."""
+        return self.client.unit_id
 
     @classmethod
     async def create(
@@ -178,7 +186,7 @@ class HuaweiSolarDevice(ABC):
 
             return result
 
-    async def batch_update_huawei_custom(
+    async def batch_update_multi_register(
         self,
         register_names: list[rn.RegisterName],
     ) -> "dict[rn.RegisterName, Result[Any]]":
@@ -202,9 +210,12 @@ class HuaweiSolarDevice(ABC):
         """
         if unknown_registers := {register_name for register_name in register_names if register_name not in REGISTERS}:
             _LOGGER.warning(
-                "Unknown register name passed to batch_update_huawei_custom: %s",
+                "Unknown register name passed to batch_update_multi_register: %s",
                 ", ".join(str(rn) for rn in unknown_registers),
             )
+
+        if not self.supports_custom_multi_register_read:
+            return await self.batch_update(register_names)
 
         valid_register_names = [rn for rn in register_names if rn in REGISTERS]
         filtered_register_names = await self._filter_registers(valid_register_names)
@@ -219,11 +230,18 @@ class HuaweiSolarDevice(ABC):
                 )
                 try:
                     result = await self.client.get_multiple_scattered_as_dict(filtered_register_names)
+                except ConnectionInterruptedException:
+                    # Transient connection interruptions should not permanently disable the feature
+                    raise
                 except HuaweiSolarException as exc:
-                    _LOGGER.debug(
-                        "Custom batch update (0x41 0x33) failed with %s, falling back to standard batch_update",
+                    _LOGGER.info(
+                        "Custom batch update (0x41 0x33) failed on %s (unit %d) with %s; "
+                        "disabling custom read for this device",
+                        type(self).__name__,
+                        self.unit_id,
                         exc,
                     )
+                    self.supports_custom_multi_register_read = False
                     fallback_needed = True
 
                 if not fallback_needed:
@@ -238,7 +256,7 @@ class HuaweiSolarDevice(ABC):
         return result
 
     # Alias with user's specified spelling
-    batch_update_hauwei_custom = batch_update_huawei_custom
+    batch_update_hauwei_custom = batch_update_multi_register
 
     async def stop(self) -> bool:
         """Stop the device connection."""

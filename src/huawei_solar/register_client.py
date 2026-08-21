@@ -14,7 +14,7 @@ from huawei_solar.exceptions import (
     ReadException,
     WriteException,
 )
-from huawei_solar.modbus_pdu import MultiRegisterReadPDU, PermissionDeniedError
+from huawei_solar.modbus_pdu import MultiDeviceRegisterReadPDU, MultiRegisterReadPDU, PermissionDeniedError
 from huawei_solar.registers import REGISTERS
 
 if TYPE_CHECKING:
@@ -290,6 +290,175 @@ class RegisterAwareModbusClient(AsyncModbusClient):
                 strict=True,
             ),
         )
+
+    def _merge_and_chunk_multi_device_registers(
+        self, device_registers: "dict[int, list[RegisterDefinition[Any]]]"
+    ) -> "list[list[tuple[int, int, int]]]":
+        """Merge contiguous registers per unit_id and split into chunks within MAX_PDU_SIZE."""
+        items: list[tuple[int, int, int]] = []
+        for unit_id, registers in device_registers.items():
+            unique_sorted = sorted(
+                {reg.register: reg for reg in registers}.values(),
+                key=lambda r: r.register,
+            )
+            spans: list[tuple[int, int]] = []
+            for reg in unique_sorted:
+                if not spans:
+                    spans.append((reg.register, reg.length))
+                else:
+                    last_start, last_len = spans[-1]
+                    last_end = last_start + last_len
+                    if reg.register <= last_end:
+                        new_end = max(last_end, reg.register + reg.length)
+                        spans[-1] = (last_start, new_end - last_start)
+                    else:
+                        spans.append((reg.register, reg.length))
+            for span_start, span_len in spans:
+                items.append((unit_id, span_start, span_len))
+
+        chunks: list[list[tuple[int, int, int]]] = []
+        current_chunk: list[tuple[int, int, int]] = []
+        current_request_len = 5
+        current_response_len = 5
+
+        for u_id, span_addr, span_len in items:
+            item_req_len = 4  # unit_id (1) + addr (2) + len (1)
+            item_resp_len = 4 + (span_len * 2)  # unit_id (1) + addr (2) + len (1) + data (2 * len)
+            if current_chunk and (
+                current_request_len + item_req_len > MAX_PDU_SIZE
+                or current_response_len + item_resp_len > MAX_PDU_SIZE
+            ):
+                chunks.append(current_chunk)
+                current_chunk = []
+                current_request_len = 5
+                current_response_len = 5
+
+            current_chunk.append((u_id, span_addr, span_len))
+            current_request_len += item_req_len
+            current_response_len += item_resp_len
+
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        return chunks
+
+    async def get_multi_device_scattered(
+        self,
+        device_registers: "dict[int, list[rn.RegisterName]]",
+    ) -> "dict[int, dict[rn.RegisterName, Result[Any]]]":
+        """Read arbitrary registers across multiple slave unit IDs using custom PDU 0x41 0x37.
+
+        Args:
+            device_registers: Dictionary mapping slave ``unit_id`` (int) to a list of
+                :class:`~huawei_solar.register_names.RegisterName` entries to query.
+
+        Returns:
+            Dictionary mapping each ``unit_id`` to a dictionary of decoded
+            ``{RegisterName: Result}``.
+
+        Raises:
+            ValueError: If an unrecognized register name is provided.
+            ReadException: If communication or decoding fails.
+            ConnectionInterruptedException: If connection is lost.
+
+        """
+        if not device_registers:
+            return {}
+
+        defs_by_unit: dict[int, list[RegisterDefinition[Any]]] = {}
+        for unit_id, names in device_registers.items():
+            if not names:
+                continue
+            defs = self._get_register_definitions(names)
+            self._validate_registers_readable(names, defs)
+            defs_by_unit[unit_id] = defs
+
+        if not defs_by_unit:
+            return {u: {} for u in device_registers}
+
+        chunks = self._merge_and_chunk_multi_device_registers(defs_by_unit)
+        span_results: dict[tuple[int, int], bytes] = {}
+
+        for frame_no, chunk in enumerate(chunks):
+            pdu = MultiDeviceRegisterReadPDU(
+                items=chunk,
+                frame_no=frame_no & 0xFF,
+            )
+            try:
+                chunk_results = await self.execute(pdu)
+            except ModbusResponseError as err:
+                msg = f"Failed multi-device read: received {type(err).__name__}"
+                raise ReadException(msg, modbus_exception_code=err.error_code) from err
+            except ModbusConnectionError as err:
+                _LOGGER.exception("Connection error while performing multi-device read")
+                msg = "Connection failed when trying to perform multi-device read"
+                raise ConnectionInterruptedException(msg) from err
+            except TModbusError as err:
+                msg = f"Failed multi-device read: {err}"
+                raise ReadException(msg) from err
+
+            span_results.update(chunk_results)
+
+        return self._slice_and_decode_multi_device_results(device_registers, defs_by_unit, span_results)
+
+    def _slice_and_decode_multi_device_results(
+        self,
+        device_registers: "dict[int, list[rn.RegisterName]]",
+        defs_by_unit: "dict[int, list[RegisterDefinition[Any]]]",
+        span_results: "dict[tuple[int, int], bytes]",
+    ) -> "dict[int, dict[rn.RegisterName, Result[Any]]]":
+        """Slice and decode multi-device register values from returned span buffers."""
+        all_results: dict[int, dict[rn.RegisterName, Result[Any]]] = {}
+
+        for unit_id, names in device_registers.items():
+            unit_results: dict[rn.RegisterName, Result[Any]] = {}
+            defs = defs_by_unit.get(unit_id, [])
+            for name, reg in zip(names, defs, strict=True):
+                matching_span = None
+                for (s_uid, s_start), s_data in span_results.items():
+                    if s_uid != unit_id:
+                        continue
+                    s_len_words = len(s_data) // 2
+                    if s_start <= reg.register < s_start + s_len_words:
+                        matching_span = (s_start, s_data)
+                        break
+
+                if matching_span is None:
+                    msg = f"Register {reg.register} ({name}) for unit {unit_id} missing from response"
+                    raise ReadException(msg)
+
+                span_start, span_data = matching_span
+                offset = (reg.register - span_start) * 2
+                length = reg.length * 2
+                raw_bytes = span_data[offset : offset + length]
+                if len(raw_bytes) < length:
+                    msg = f"Register {reg.register} ({name}) for unit {unit_id} incomplete in response span"
+                    raise ReadException(msg)
+
+                unpacked_tuple = struct.unpack(f">{reg.format}", raw_bytes)
+                unit_results[name] = reg.decode(unpacked_tuple)
+
+            all_results[unit_id] = unit_results
+
+        return all_results
+
+    async def get_multi_device(
+        self,
+        name: rn.RegisterName,
+        unit_ids: list[int],
+    ) -> "dict[int, Result[Any]]":
+        """Read a single named register across multiple slave unit IDs.
+
+        Args:
+            name: The :class:`~huawei_solar.register_names.RegisterName` to query.
+            unit_ids: List of slave unit IDs to query.
+
+        Returns:
+            Dictionary mapping each ``unit_id`` to its decoded :class:`~huawei_solar.register_definitions.Result`.
+
+        """
+        raw_res = await self.get_multi_device_scattered({u: [name] for u in unit_ids})
+        return {u: raw_res[u][name] for u in unit_ids if u in raw_res and name in raw_res[u]}
 
     async def get(self, name: rn.RegisterName) -> "Result[Any]":
         """Get named register from device."""

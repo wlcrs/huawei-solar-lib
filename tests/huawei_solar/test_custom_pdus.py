@@ -160,9 +160,9 @@ async def test_client_query_device_logic_address_list(huawei_solar: AsyncHuaweiS
     assert discovery_res == [1, 2]
 
 
-async def test_device_batch_update_huawei_custom_success(sun2000_device: SUN2000Device) -> None:
-    """Test batch_update_huawei_custom success path."""
-    res = await sun2000_device.batch_update_huawei_custom([rn.MODEL_ID, rn.DEVICE_STATUS])
+async def test_device_batch_update_multi_register_success(sun2000_device: SUN2000Device) -> None:
+    """Test batch_update_multi_register success path."""
+    res = await sun2000_device.batch_update_multi_register([rn.MODEL_ID, rn.DEVICE_STATUS])
     assert res[rn.MODEL_ID].value == 348
     assert res[rn.DEVICE_STATUS].value == "Standby: no irradiation"
 
@@ -173,16 +173,22 @@ async def test_device_batch_update_hauwei_custom_alias(sun2000_device: SUN2000De
     assert res[rn.MODEL_ID].value == 348
 
 
-async def test_device_batch_update_huawei_custom_fallback(sun2000_device: SUN2000Device) -> None:
-    """Test batch_update_huawei_custom fallback to standard batch_update on error."""
-    with patch.object(
-        sun2000_device.client,
-        "get_multiple_scattered_as_dict",
-        AsyncMock(side_effect=ReadException("Custom 0x41 0x33 not supported")),
-    ):
-        res = await sun2000_device.batch_update_huawei_custom([rn.MODEL_ID, rn.DEVICE_STATUS])
+async def test_device_batch_update_multi_register_fallback(sun2000_device: SUN2000Device) -> None:
+    """Test batch_update_multi_register fallback to standard batch_update and permanent disable on error."""
+    assert sun2000_device.supports_custom_multi_register_read is True
+    mock_custom = AsyncMock(side_effect=ReadException("Custom 0x41 0x33 not supported"))
+
+    with patch.object(sun2000_device.client, "get_multiple_scattered_as_dict", mock_custom):
+        res = await sun2000_device.batch_update_multi_register([rn.MODEL_ID, rn.DEVICE_STATUS])
         assert res[rn.MODEL_ID].value == 348
         assert res[rn.DEVICE_STATUS].value == "Standby: no irradiation"
+        assert mock_custom.call_count == 1
+        assert sun2000_device.supports_custom_multi_register_read is False
+
+        # Subsequent call skips custom read
+        res2 = await sun2000_device.batch_update_multi_register([rn.MODEL_ID])
+        assert res2[rn.MODEL_ID].value == 348
+        assert mock_custom.call_count == 1
 
 
 async def test_multi_register_read_chunking(huawei_solar: AsyncHuaweiSolarClient) -> None:

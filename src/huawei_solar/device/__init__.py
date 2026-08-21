@@ -11,6 +11,7 @@ from huawei_solar.modbus_client import AsyncHuaweiSolarClient
 
 from .base import HuaweiSolarDevice, HuaweiSolarDeviceWithLogin
 from .emma import EMMADevice
+from .group import DeviceGroupMixin
 from .meter import MeterDevice
 from .scharger import SChargerDevice
 from .sdongle import SDongleDevice
@@ -147,6 +148,7 @@ async def create_sub_device_instance(
 
 
 __all__ = [
+    "DeviceGroupMixin",
     "EMMADevice",
     "HuaweiSolarDevice",
     "HuaweiSolarDeviceWithLogin",

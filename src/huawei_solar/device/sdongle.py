@@ -3,9 +3,10 @@
 from huawei_solar import register_names as rn
 
 from .base import HuaweiSolarDevice
+from .group import DeviceGroupMixin
 
 
-class SDongleDevice(HuaweiSolarDevice):
+class SDongleDevice(HuaweiSolarDevice, DeviceGroupMixin):
     """An SDongle device."""
 
     @classmethod

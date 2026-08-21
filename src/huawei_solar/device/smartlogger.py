@@ -3,9 +3,10 @@
 from huawei_solar import register_names as rn
 
 from .base import HuaweiSolarDevice
+from .group import DeviceGroupMixin
 
 
-class SmartLoggerDevice(HuaweiSolarDevice):
+class SmartLoggerDevice(HuaweiSolarDevice, DeviceGroupMixin):
     """A SmartLogger device."""
 
     software_version: str | None = None

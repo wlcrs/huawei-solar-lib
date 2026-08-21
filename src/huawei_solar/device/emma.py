@@ -3,9 +3,10 @@
 from huawei_solar import register_names as rn
 
 from .base import HuaweiSolarDevice
+from .group import DeviceGroupMixin
 
 
-class EMMADevice(HuaweiSolarDevice):
+class EMMADevice(HuaweiSolarDevice, DeviceGroupMixin):
     """A Huawei EMMA device.
 
     Also called 'SmartHEMS' by Huawei.
