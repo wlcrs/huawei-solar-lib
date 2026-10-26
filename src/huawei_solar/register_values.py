@@ -1,6 +1,6 @@
 """Definitions of register values returned by the Huawei inverter."""
 
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 from typing import NamedTuple
 
 
@@ -1132,3 +1132,481 @@ class SmartLoggerEmiOperationMode(_IntEnumWithPrettyString):
     """SmartLogger acts as Modbus master polling EMI sensors."""
     SLAVE = 1
     """SmartLogger acts as Modbus slave receiving sensor data."""
+
+
+class SubdeviceSupportFlag(IntFlag):
+    """Sub-device support feature flags (Register 30207).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    GRID_TIED_POINT_POWER_CONTROL = 1 << 2
+    """Grid-tied point power control / DI scheduling support.
+
+    Gates support for registers 40321-40324 (sub-device schedule power & control).
+    """
+    SUBDEVICE_MANAGEMENT = 1 << 3
+    """Sub-device / cascade management support.
+
+    Gates support for register 60450 (sub-device management).
+    """
+    BATTERY = 1 << 7
+    """Energy storage system (ESS) / battery support.
+
+    Gates support for registers 47075 (rn.STORAGE_MAXIMUM_CHARGING_POWER),
+    47077 (rn.STORAGE_MAXIMUM_DISCHARGING_POWER), 47081 (rn.STORAGE_CHARGING_CUTOFF_CAPACITY),
+    and 47082 (rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY).
+    """
+    PERFORMANCE_DATA = 1 << 8
+    """Performance data telemetry support.
+
+    Gates support for register 14201 (performance data).
+    """
+
+
+class SubdeviceInPositionFlag(IntFlag):
+    """Sub-device in-position detected flags (Register 30209).
+
+    Indicates connected optional hardware. When 0, the device is not present and its registers should not be queried.
+    """
+
+    OPTIMIZERS = 1 << 2
+    """PV optimizers present / connected.
+
+    Gates support for register 47156 (unlock optimizer) and register 60460 (optimizer layout).
+    """
+    PHYSICAL_OPTIMIZER_LAYOUT_1 = 1 << 3
+    """Physical optimizer layout support (flag 1).
+
+    Gates support for register 60460 (optimizer layout).
+    """
+    PHYSICAL_OPTIMIZER_LAYOUT_2 = 1 << 5
+    """Physical optimizer layout support (flag 2).
+
+    Gates support for registers 47157 (optimizer power adjustment) and 60460 (optimizer layout).
+    """
+    BACKUP_BOX = 1 << 7
+    """Backup Box / off-grid backup device present.
+
+    Gates support for register 47102 (rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE).
+    """
+    ROUTER_WIFI_EXPANSION_1 = 1 << 9
+    """Router Wi-Fi / WLAN expansion module present (flag 1).
+
+    Gates support for registers 43048 (WLAN open condition) and 70049 (router Wi-Fi setting).
+    """
+    ROUTER_WIFI_EXPANSION_2 = 1 << 12
+    """Router Wi-Fi / WLAN expansion module present (flag 2).
+
+    Gates support for registers 43048 (WLAN open condition) and 70049 (router Wi-Fi setting).
+    """
+
+
+class FeatureMask1(IntFlag):
+    """System and regional feature mask flags (Register 30211).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    LICENSE_MANAGEMENT = 1 << 19
+    """License information management.
+
+    Gates support for register 14200 (license info).
+    """
+    DAYLIGHT_SAVING_TIME = 1 << 30
+    """Daylight Saving Time (DST) and timezone configuration.
+
+    Gates support for registers 42900 (rn.DAYLIGHT_SAVING_TIME) and 43006 (rn.TIME_ZONE).
+    """
+
+
+class FeatureMask2(IntFlag):
+    """Network, telemetry and battery limit feature mask flags (Register 30213).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    POWER_ADJUSTMENT_STATUS = 1 << 6
+    """Active and reactive power regulation status reporting.
+
+    Gates support for registers 35300 (active power regulation status)
+    and 35304 (reactive power regulation status).
+    """
+    NTP_TIME_SYNCHRONIZATION = 1 << 14
+    """NTP time synchronization support.
+
+    Gates support for registers 35112 (last NTP sync status), 35113 (last NTP sync time),
+    43311 (NTP sync toggle), 43312 (NTP server address), 43342 (NTP server port),
+    and 43343 (NTP sync interval).
+    """
+    ROUTER_WIFI_SETTINGS = 1 << 15
+    """Router / Wi-Fi configuration.
+
+    Gates support for registers 43048 (WLAN open condition) and 70049 (router Wi-Fi setting).
+    """
+    ADVANCED_COMMUNICATION = 1 << 27
+    """Advanced communication parameters.
+
+    Gates support for register 43345.
+    """
+    BATTERY_CHARGE_DISCHARGE_LIMITS = 1 << 28
+    """Battery charge/discharge power and capacity limits configuration.
+
+    Gates support for registers 47075 (rn.STORAGE_MAXIMUM_CHARGING_POWER),
+    47077 (rn.STORAGE_MAXIMUM_DISCHARGING_POWER), 47081 (rn.STORAGE_CHARGING_CUTOFF_CAPACITY),
+    47082 (rn.STORAGE_DISCHARGING_CUTOFF_CAPACITY), 47242 (rn.STORAGE_POWER_OF_CHARGE_FROM_GRID),
+    and 47249 (rn.STORAGE_FORCIBLE_DISCHARGE_POWER).
+    """
+
+
+class FeatureMask3(IntFlag):
+    """Grid code and network protection feature mask flags (Register 30215).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    COMMUNICATION_FAIL_ACTIVE_POWER_DERATING = 1 << 6
+    """Active power threshold when communication fails.
+
+    Gates support for register 47424.
+    """
+    SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT = 1 << 9
+    """Secondary grid-tied charge power limit.
+
+    Gates support for registers 47242 (rn.STORAGE_POWER_OF_CHARGE_FROM_GRID) and 47590.
+    """
+    GRID_CODE_PROTECTION_CURVES = 1 << 12
+    """Grid code voltage/frequency protection curves (LVRT/HVRT).
+
+    Gates support for registers 42001 (rn.GRID_OUTPUT_MODE), 42061 (rn.AUTO_STARTUP_UPON_GRID_RECOVERY),
+    42084 (rn.GRID_CONNECTED_RECOVERY_MAX_VOLTAGE), 42200 (rn.LVRT_TRIGGER_THRESHOLD),
+    and 42201-42204 (LVRT/HVRT reactive current compensation coefficients).
+    """
+    PV_STRING_ACCESS_DETECTION = 1 << 13
+    """PV string access detection.
+
+    Gates support for register 60200.
+    """
+    MODBUS_TCP_SETTINGS = 1 << 23
+    """Modbus TCP server settings.
+
+    Gates support for register 65666.
+    """
+
+
+class FeatureMask4(IntFlag):
+    """Protocol and scheduling feature mask flags (Register 30217).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    MANAGEMENT_SYSTEM_SETTINGS = 1 << 0
+    """Management system protocol, server address and TLS settings.
+
+    Gates support for registers 48021 (management system access), 48022 (management system server address),
+    48052 (network status port), 48053 (SSL entry), 48054 (TLS version), and 48087 (protocol type).
+    """
+    BATTERY_WORKING_MODE_B = 1 << 9
+    """Battery charge/discharge working mode B.
+
+    Gates support for register 37006 (rn.STORAGE_UNIT_1_WORKING_MODE_B).
+    """
+    BAUD_RATE_NEGOTIATION_RS485_2_1 = 1 << 12
+    """RS485-2 port baud rate auto-negotiation (flag 1).
+
+    Gates support for registers 43024 (baud rate negotiation) and 43035 (baud rate setting).
+    """
+    LUNA_V200_SUPPORT = 1 << 15
+    """LUNA V200 battery firmware compatibility.
+
+    Indicates inverter firmware compatibility with LUNA2000 V200 battery packs.
+    """
+    DRY_CONTACT_SCHEDULING = 1 << 20
+    """Dry contact scheduling settings.
+
+    Gates support for registers 40300 (dry contact scheduling) and 42033 (rn.DRY_CONTACT_NORMAL_STATE).
+    """
+    BAUD_RATE_NEGOTIATION_RS485_2_2 = 1 << 22
+    """RS485-2 port baud rate auto-negotiation (flag 2).
+
+    Gates support for registers 43025 and 70068 (baud rate negotiation).
+    """
+
+
+class FeatureMask30342(IntFlag):
+    """System and ESS feature mask flags (Register 30342).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    RAPID_SHUTDOWN = 1 << 1
+    """Rapid shutdown on communication disconnect.
+
+    Gates support for registers 47323 (rapid shutdown enabled) and 47324 (rapid shutdown wait time).
+    """
+    ESS_LOW_POWER = 1 << 4
+    """Energy storage system (ESS) low power consumption mode.
+
+    Gates support for register 47842 (rn.STORAGE_ESS_LOW_POWER).
+    """
+    NETWORKING_ENHANCEMENT = 1 << 6
+    """Network signal enhancement.
+
+    Gates support for register 47164.
+    """
+    COMMUNICATION_STATUS = 1 << 12
+    """Communication status signal reporting.
+
+    Gates support for register 35286.
+    """
+
+
+class FeatureMask30308(IntFlag):
+    """Inverter operational capabilities and grid code feature mask flags (Register 30308).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    GRID_CODE = 1 << 0
+    """Grid code configuration.
+
+    Gates support for register 42000 (rn.GRID_CODE).
+    """
+    OUTPUT_MODE = 1 << 1
+    """Grid output mode (three-phase three-wire vs three-phase four-wire).
+
+    Gates support for register 42001 (rn.GRID_OUTPUT_MODE).
+    """
+    VOLTAGE_LEVEL = 1 << 2
+    """Voltage rating level.
+
+    Gates support for register 42002 (rn.ISLANDING_PROTECTION).
+    """
+    FREQUENCY_LEVEL = 1 << 3
+    """Frequency rating level.
+
+    Gates support for register 42003 (rn.INSULATION_RESISTANCE_PROTECTION_THRESHOLD).
+    """
+    REACTIVE_POWER_GRADIENT = 1 << 5
+    """Reactive power change gradient.
+
+    Gates support for register 42015.
+    """
+    ACTIVE_POWER_GRADIENT = 1 << 6
+    """Active power change gradient.
+
+    Gates support for register 42017.
+    """
+    SCHEDULE_INSTRUCTION_VALID_DURATION = 1 << 7
+    """Schedule instruction valid duration.
+
+    Gates support for register 42019.
+    """
+    MAX_APPARENT_POWER = 1 << 8
+    """Maximum apparent power benchmark.
+
+    Gates support for register 42021.
+    """
+    MAX_ACTIVE_POWER = 1 << 9
+    """Maximum active power benchmark.
+
+    Gates support for register 42023.
+    """
+    BACKUP_OFF_GRID_SWITCHING = 1 << 10
+    """Off-grid / backup mode switching support.
+
+    Gates support for registers 42044 (grid-tied/off-grid mode switching), 42045 (off-grid mode),
+    45250 (parallel off-grid switchover), 47102 (rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE),
+    47604 (rn.BACKUP_SWITCH_TO_OFF_GRID), and 47605 (rn.BACKUP_VOLTAGE_INDEPENDENT_OPERATION).
+    """
+    PQ_MODE = 1 << 11
+    """PQ mode scheduling.
+
+    Gates support for register 42046.
+    """
+    PID_COMPENSATION_DIRECTION = 1 << 12
+    """Built-in PID compensation direction.
+
+    Gates support for register 42048.
+    """
+    SPECIAL_CUT = 1 << 13
+    """Special cut setting.
+
+    Gates support for register 42050.
+    """
+    MPPT_MULTI_PEAK_SCANNING = 1 << 14
+    """Multi-peak MPPT scanning.
+
+    Gates support for register 42054 (rn.MPPT_MULTIMODAL_SCANNING).
+    """
+    MPPT_SCAN_INTERVAL = 1 << 15
+    """MPPT scanning interval configuration.
+
+    Gates support for register 42055 (rn.MPPT_SCANNING_INTERVAL).
+    """
+
+
+class FeatureMask30315(IntFlag):
+    """Power derating and characteristic curves feature mask flags (Register 30315).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    DERATED_BY_FIXED_ACTIVE_POWER_W = 1 << 0
+    """Derated by fixed active power in Watts.
+
+    Gates support for register 40120.
+    """
+    POWER_FACTOR = 1 << 1
+    """Power factor control.
+
+    Gates support for register 40122 (rn.POWER_FACTOR_2).
+    """
+    REACTIVE_POWER_COMPENSATION_QS = 1 << 2
+    """Reactive power compensation Q/S.
+
+    Gates support for register 40123 (rn.REACTIVE_POWER_COMPENSATION).
+    """
+    ACTIVE_POWER_PERCENTAGE_DERATING = 1 << 3
+    """Active power percentage derating.
+
+    Gates support for register 40125 (rn.ACTIVE_POWER_PERCENTAGE_DERATING).
+    """
+    ACTIVE_POWER_FIXED_VALUE_DERATING = 1 << 4
+    """Active power fixed value derating in kW.
+
+    Gates support for register 40126 (rn.ACTIVE_POWER_FIXED_VALUE_DERATING).
+    """
+    NIGHTTIME_REACTIVE_POWER_COMPENSATION_QS = 1 << 5
+    """Nighttime reactive power compensation Q-U.
+
+    Gates support for register 40128 (rn.REACTIVE_POWER_COMPENSATION_AT_NIGHT).
+    """
+    COSPHI_P_CURVE = 1 << 6
+    """cos phi - P characteristic curve.
+
+    Gates support for register 40133.
+    """
+    PF_U_CURVE = 1 << 7
+    """PF - U characteristic curve.
+
+    Gates support for register 40175.
+    """
+    PF_VOLTAGE_DETECTION_FILTER_TIME = 1 << 8
+    """PF-U voltage detection filter time.
+
+    Gates support for register 42032.
+    """
+    REACTIVE_POWER_ADJUSTMENT_TIME = 1 << 9
+    """Reactive power adjustment time.
+
+    Gates support for registers 40124 (rn.REACTIVE_POWER_ADJUSTMENT_TIME)
+    and 40196 (rn.CHARACTERISTIC_CURVE_REACTIVE_POWER_ADJUSTMENT_TIME).
+    """
+    OVERFREQUENCY_DERATING_RESPONSE_DURATION = 1 << 10
+    """Overfrequency derating response duration.
+
+    Gates support for register 42149.
+    """
+    QU_SCHEDULING = 1 << 12
+    """Q-U scheduling trigger and exit thresholds.
+
+    Gates support for registers 40038 (rn.Q_U_SCHEDULING_TRIGGER_POWER_PERCENTAGE)
+    and 40198 (rn.Q_U_SCHEDULING_EXIT_POWER_PERCENTAGE).
+    """
+    QP_CURVE = 1 << 14
+    """Q-P characteristic curve.
+
+    Gates support for register 40354.
+    """
+    DRM = 1 << 15
+    """Demand Response Enabling Device (DRM).
+
+    Gates support for register 42013.
+    """
+
+
+class FeatureMask30320(IntFlag):
+    """Grid protection and off-grid independent operation feature mask flags (Register 30320).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    LVRT_ACTIVE_CURRENT_MAINTENANCE_COEFFICIENT = 1 << 0
+    """LVRT active current maintenance coefficient.
+
+    Gates support for register 42118.
+    """
+    CHARGE_VOLTAGE_DERATING = 1 << 2
+    """Charge voltage derating.
+
+    Gates support for register 42243.
+    """
+    PCH_U_CURVE = 1 << 3
+    """Pch(U) power voltage characteristic curve.
+
+    Gates support for register 65620.
+    """
+    GRID_RECONNECTION_DELAY_TIME = 1 << 4
+    """Delay time for reconnecting automatically to power grid.
+
+    Gates support for register 42092.
+    """
+    INITIAL_DELAY_FREQUENCY_SENSITIVE_MODE = 1 << 5
+    """Initial delay in frequency-sensitive mode.
+
+    Gates support for register 42053.
+    """
+    SHORTTIME_GRID_DISCONNECTION = 1 << 7
+    """Short-time grid disconnection duration and quick startup.
+
+    Gates support for registers 42105 and 42116.
+    """
+    V_PHASE_GROUNDED = 1 << 8
+    """V-phase grounded detection.
+
+    Gates support for register 42115 (rn.COMMUNICATION_RESUME_STARTUP).
+    """
+    VOLTAGE_IN_INDEPENDENT_OPERATION = 1 << 9
+    """Voltage in independent operation (off-grid backup output voltage).
+
+    Gates support for register 47605 (rn.BACKUP_VOLTAGE_INDEPENDENT_OPERATION).
+    """
+    CT_ANOMALY_DETECTION = 1 << 10
+    """Current Transformer (CT) anomaly detection.
+
+    Gates support for register 47320.
+    """
+    UNDERFREQUENCY_RISE_POWER_FREQUENCY = 1 << 12
+    """Frequency of underfrequency rise power.
+
+    Gates support for register 42185.
+    """
+    OVERFREQUENCY_DERATING_FREQUENCY = 1 << 13
+    """Frequency of overfrequency derating.
+
+    Gates support for register 42186.
+    """
+
+
+class FeatureMask30350(IntFlag):
+    """Built-in PID and voltage rise suppression feature mask flags (Register 30350).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    """
+
+    BUILTIN_PID_RUNNING_MODE = 1 << 0
+    """Built-in PID module running mode.
+
+    Gates support for register 42180.
+    """
+    NIGHTTIME_OFFGRID_PID_REPAIR = 1 << 2
+    """Nighttime off-grid PID repair.
+
+    Gates support for register 42183.
+    """
+    DAYTIME_VOLTAGE_RISE_SUPPRESSION_PU_CURVE = 1 << 3
+    """Daytime voltage rise suppression P-U curve.
+
+    Gates support for register 42184.
+    """

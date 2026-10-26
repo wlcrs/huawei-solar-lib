@@ -115,7 +115,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
 
             try:
                 feature_mask = (await self.get(rn.FEATURE_MASK_30342)).value
-                self.supports_ess_low_power = bool((feature_mask >> 4) & 1)
+                self.supports_ess_low_power = bool(feature_mask & rv.FeatureMask30342.ESS_LOW_POWER)
             except ReadException:
                 _LOGGER.debug("ESS low power as it is not supported by device %d", self.client.unit_id)
                 self.supports_ess_low_power = False
