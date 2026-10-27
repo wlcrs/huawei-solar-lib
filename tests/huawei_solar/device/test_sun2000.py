@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import huawei_solar.register_values as rv
 import pytest
 from huawei_solar.exceptions import ReadException, WriteException
 from huawei_solar.register_values import StorageProductModel
@@ -122,10 +123,10 @@ async def test_supports_ess_low_power_when_bit_set(
             return Result(StorageProductModel.HUAWEI_LUNA2000, None)
         if name == rn.STORAGE_UNIT_2_PRODUCT_MODEL:
             return Result(StorageProductModel.NONE, None)
-        if name == rn.STORAGE_CAPACITY_CONTROL_MODE:
-            return Result(0, None)
+        if name == rn.FEATURE_MASK_3:
+            return Result(rv.FeatureMask3.CAPACITY_CONTROL, None)
         if name == rn.FEATURE_MASK_30342:
-            return Result(0b0001_0000, None)  # bit 4 set
+            return Result(rv.FeatureMask30342.ESS_LOW_POWER, None)
         if name == rn.METER_STATUS:
             raise ReadException(_READ_FAILED_MSG)
         msg = f"Unexpected get: {name}"
@@ -135,6 +136,7 @@ async def test_supports_ess_low_power_when_bit_set(
     monkeypatch.setattr(sun2000_device, "get", mock_get)
     await sun2000_device._populate_additional_fields()
 
+    assert sun2000_device.supports_capacity_control is True
     assert sun2000_device.supports_ess_low_power is True
 
 
@@ -156,10 +158,10 @@ async def test_supports_ess_low_power_when_bit_cleared(
             return Result(StorageProductModel.HUAWEI_LUNA2000, None)
         if name == rn.STORAGE_UNIT_2_PRODUCT_MODEL:
             return Result(StorageProductModel.NONE, None)
-        if name == rn.STORAGE_CAPACITY_CONTROL_MODE:
-            return Result(0, None)
+        if name == rn.FEATURE_MASK_3:
+            return Result(rv.FeatureMask3(0), None)
         if name == rn.FEATURE_MASK_30342:
-            return Result(0b0000_0000, None)  # bit 4 cleared
+            return Result(rv.FeatureMask30342(0), None)
         if name == rn.METER_STATUS:
             raise ReadException(_READ_FAILED_MSG)
         msg = f"Unexpected get: {name}"
@@ -169,6 +171,7 @@ async def test_supports_ess_low_power_when_bit_cleared(
     monkeypatch.setattr(sun2000_device, "get", mock_get)
     await sun2000_device._populate_additional_fields()
 
+    assert sun2000_device.supports_capacity_control is False
     assert sun2000_device.supports_ess_low_power is False
 
 
@@ -190,8 +193,8 @@ async def test_supports_ess_low_power_when_read_exception(
             return Result(StorageProductModel.HUAWEI_LUNA2000, None)
         if name == rn.STORAGE_UNIT_2_PRODUCT_MODEL:
             return Result(StorageProductModel.NONE, None)
-        if name == rn.STORAGE_CAPACITY_CONTROL_MODE:
-            return Result(0, None)
+        if name == rn.FEATURE_MASK_3:
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02)
         if name == rn.FEATURE_MASK_30342:
             raise ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02)
         if name == rn.METER_STATUS:
@@ -203,4 +206,5 @@ async def test_supports_ess_low_power_when_read_exception(
     monkeypatch.setattr(sun2000_device, "get", mock_get)
     await sun2000_device._populate_additional_fields()
 
+    assert sun2000_device.supports_capacity_control is False
     assert sun2000_device.supports_ess_low_power is False

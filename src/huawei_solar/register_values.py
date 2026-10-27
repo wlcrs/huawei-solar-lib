@@ -1292,6 +1292,12 @@ class FeatureMask3(IntFlag):
 
     Gates support for register 65666.
     """
+    CAPACITY_CONTROL = 1 << 30
+    """Energy storage capacity control / peak shaving support.
+
+    Gates support for registers 47954 (rn.STORAGE_CAPACITY_CONTROL_MODE)
+    and 47955 (rn.STORAGE_CAPACITY_CONTROL_SOC_PEAK_SHAVING).
+    """
 
 
 class FeatureMask4(IntFlag):
