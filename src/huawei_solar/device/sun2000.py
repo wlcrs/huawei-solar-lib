@@ -41,8 +41,15 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
 
     battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
     battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
-    supports_capacity_control = False
-    supports_ess_low_power = False
+    supports_capacity_control: bool = False
+    supports_ess_low_power: bool = False
+    supports_off_grid_switch: bool = False
+    supports_backup_voltage: bool = False
+    supports_active_power_fail_safe: bool = False
+    supports_active_power_limitation_mode: bool = False
+    supports_dongle_charge_power_limit: bool = False
+    supports_discharge_power_adjustment: bool = False
+    supports_recharge: bool = False
     power_meter_online = False
     power_meter_type: rv.MeterType | None = None
 
@@ -103,15 +110,64 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
                 "Detected two batteries of a different type. This can lead to unexpected behavior",
             )
 
+        await self._populate_feature_support()
+
+        with suppress(ReadException):
+            self.power_meter_online = (await self.get(rn.METER_STATUS)).value == rv.MeterStatus.NORMAL
+
+        # Caveat: if the inverter is in offline mode, and the power meter is thus offline,
+        # we will incorrectly detect that no power meter is present.
+        if self.power_meter_online:
+            self.power_meter_type = (await self.get(rn.METER_TYPE)).value
+
+    async def _populate_feature_support(self) -> None:
+        """Check feature masks to determine supported hardware and firmware capabilities."""
+        try:
+            feature_mask_3 = (await self.get(rn.FEATURE_MASK_3)).value
+            self.supports_active_power_fail_safe = bool(
+                feature_mask_3 & rv.FeatureMask3.COMMUNICATION_FAIL_ACTIVE_POWER_DERATING
+            )
+            self.supports_active_power_limitation_mode = self.supports_active_power_fail_safe
+        except ReadException:
+            _LOGGER.debug("Feature mask 3 not supported by device %d", self.client.unit_id)
+            feature_mask_3 = rv.FeatureMask3(0)
+            self.supports_active_power_fail_safe = False
+            self.supports_active_power_limitation_mode = False
+
+        try:
+            feature_mask_30308 = (await self.get(rn.FEATURE_MASK_30308)).value
+            self.supports_off_grid_switch = bool(feature_mask_30308 & rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING)
+        except ReadException:
+            _LOGGER.debug("Feature mask 30308 not supported by device %d", self.client.unit_id)
+            self.supports_off_grid_switch = False
+
+        try:
+            feature_mask_30320 = (await self.get(rn.FEATURE_MASK_30320)).value
+            self.supports_backup_voltage = self.supports_off_grid_switch and bool(
+                feature_mask_30320 & rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION
+            )
+        except ReadException:
+            _LOGGER.debug("Feature mask 30320 not supported by device %d", self.client.unit_id)
+            self.supports_backup_voltage = False
+
         if self.battery_type != rv.StorageProductModel.NONE and (
             self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice))
         ):
+            self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
+            self.supports_dongle_charge_power_limit = bool(
+                feature_mask_3 & rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT
+            )
+
             try:
-                feature_mask_3 = (await self.get(rn.FEATURE_MASK_3)).value
-                self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
+                feature_mask_2 = (await self.get(rn.FEATURE_MASK_2)).value
+                self.supports_discharge_power_adjustment = bool(
+                    feature_mask_2 & rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS
+                )
+                self.supports_recharge = self.supports_discharge_power_adjustment
             except ReadException:
-                _LOGGER.debug("Storage capacity control as it is not supported by device %d", self.client.unit_id)
-                self.supports_capacity_control = False
+                _LOGGER.debug("Feature mask 2 not supported by device %d", self.client.unit_id)
+                self.supports_discharge_power_adjustment = False
+                self.supports_recharge = False
 
             try:
                 feature_mask = (await self.get(rn.FEATURE_MASK_30342)).value

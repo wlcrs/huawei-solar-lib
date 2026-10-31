@@ -114,21 +114,30 @@ async def test_supports_ess_low_power_when_bit_set(
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[str]]:
         return [Result("SN123", None), Result("PN123", None), Result("V100", None), Result("V100", None)]
 
+    responses: dict[rn.RegisterName, Result[Any] | Exception] = {
+        rn.NB_PV_STRINGS: Result(2, None),
+        rn.NB_OPTIMIZERS: ReadException(_READ_FAILED_MSG),
+        rn.STORAGE_UNIT_1_PRODUCT_MODEL: Result(StorageProductModel.HUAWEI_LUNA2000, None),
+        rn.STORAGE_UNIT_2_PRODUCT_MODEL: Result(StorageProductModel.NONE, None),
+        rn.FEATURE_MASK_2: Result(rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS, None),
+        rn.FEATURE_MASK_3: Result(
+            rv.FeatureMask3.CAPACITY_CONTROL
+            | rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT
+            | rv.FeatureMask3.COMMUNICATION_FAIL_ACTIVE_POWER_DERATING,
+            None,
+        ),
+        rn.FEATURE_MASK_30308: Result(rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING, None),
+        rn.FEATURE_MASK_30320: Result(rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION, None),
+        rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342.ESS_LOW_POWER, None),
+        rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
+    }
+
     async def mock_get(name: rn.RegisterName) -> Result[Any]:
-        if name == rn.NB_PV_STRINGS:
-            return Result(2, None)
-        if name == rn.NB_OPTIMIZERS:
-            raise ReadException(_READ_FAILED_MSG)
-        if name == rn.STORAGE_UNIT_1_PRODUCT_MODEL:
-            return Result(StorageProductModel.HUAWEI_LUNA2000, None)
-        if name == rn.STORAGE_UNIT_2_PRODUCT_MODEL:
-            return Result(StorageProductModel.NONE, None)
-        if name == rn.FEATURE_MASK_3:
-            return Result(rv.FeatureMask3.CAPACITY_CONTROL, None)
-        if name == rn.FEATURE_MASK_30342:
-            return Result(rv.FeatureMask30342.ESS_LOW_POWER, None)
-        if name == rn.METER_STATUS:
-            raise ReadException(_READ_FAILED_MSG)
+        if name in responses:
+            val = responses[name]
+            if isinstance(val, Exception):
+                raise val
+            return val
         msg = f"Unexpected get: {name}"
         raise AssertionError(msg)
 
@@ -138,6 +147,13 @@ async def test_supports_ess_low_power_when_bit_set(
 
     assert sun2000_device.supports_capacity_control is True
     assert sun2000_device.supports_ess_low_power is True
+    assert sun2000_device.supports_off_grid_switch is True
+    assert sun2000_device.supports_backup_voltage is True
+    assert sun2000_device.supports_active_power_fail_safe is True
+    assert sun2000_device.supports_active_power_limitation_mode is True
+    assert sun2000_device.supports_dongle_charge_power_limit is True
+    assert sun2000_device.supports_discharge_power_adjustment is True
+    assert sun2000_device.supports_recharge is True
 
 
 async def test_supports_ess_low_power_when_bit_cleared(
@@ -149,21 +165,25 @@ async def test_supports_ess_low_power_when_bit_cleared(
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[str]]:
         return [Result("SN123", None), Result("PN123", None), Result("V100", None), Result("V100", None)]
 
+    responses: dict[rn.RegisterName, Result[Any] | Exception] = {
+        rn.NB_PV_STRINGS: Result(2, None),
+        rn.NB_OPTIMIZERS: ReadException(_READ_FAILED_MSG),
+        rn.STORAGE_UNIT_1_PRODUCT_MODEL: Result(StorageProductModel.HUAWEI_LUNA2000, None),
+        rn.STORAGE_UNIT_2_PRODUCT_MODEL: Result(StorageProductModel.NONE, None),
+        rn.FEATURE_MASK_2: Result(rv.FeatureMask2(0), None),
+        rn.FEATURE_MASK_3: Result(rv.FeatureMask3(0), None),
+        rn.FEATURE_MASK_30308: Result(rv.FeatureMask30308(0), None),
+        rn.FEATURE_MASK_30320: Result(rv.FeatureMask30320(0), None),
+        rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342(0), None),
+        rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
+    }
+
     async def mock_get(name: rn.RegisterName) -> Result[Any]:
-        if name == rn.NB_PV_STRINGS:
-            return Result(2, None)
-        if name == rn.NB_OPTIMIZERS:
-            raise ReadException(_READ_FAILED_MSG)
-        if name == rn.STORAGE_UNIT_1_PRODUCT_MODEL:
-            return Result(StorageProductModel.HUAWEI_LUNA2000, None)
-        if name == rn.STORAGE_UNIT_2_PRODUCT_MODEL:
-            return Result(StorageProductModel.NONE, None)
-        if name == rn.FEATURE_MASK_3:
-            return Result(rv.FeatureMask3(0), None)
-        if name == rn.FEATURE_MASK_30342:
-            return Result(rv.FeatureMask30342(0), None)
-        if name == rn.METER_STATUS:
-            raise ReadException(_READ_FAILED_MSG)
+        if name in responses:
+            val = responses[name]
+            if isinstance(val, Exception):
+                raise val
+            return val
         msg = f"Unexpected get: {name}"
         raise AssertionError(msg)
 
@@ -173,6 +193,13 @@ async def test_supports_ess_low_power_when_bit_cleared(
 
     assert sun2000_device.supports_capacity_control is False
     assert sun2000_device.supports_ess_low_power is False
+    assert sun2000_device.supports_off_grid_switch is False
+    assert sun2000_device.supports_backup_voltage is False
+    assert sun2000_device.supports_active_power_fail_safe is False
+    assert sun2000_device.supports_active_power_limitation_mode is False
+    assert sun2000_device.supports_dongle_charge_power_limit is False
+    assert sun2000_device.supports_discharge_power_adjustment is False
+    assert sun2000_device.supports_recharge is False
 
 
 async def test_supports_ess_low_power_when_read_exception(
@@ -184,21 +211,25 @@ async def test_supports_ess_low_power_when_read_exception(
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[str]]:
         return [Result("SN123", None), Result("PN123", None), Result("V100", None), Result("V100", None)]
 
+    responses: dict[rn.RegisterName, Result[Any] | Exception] = {
+        rn.NB_PV_STRINGS: Result(2, None),
+        rn.NB_OPTIMIZERS: ReadException(_READ_FAILED_MSG),
+        rn.STORAGE_UNIT_1_PRODUCT_MODEL: Result(StorageProductModel.HUAWEI_LUNA2000, None),
+        rn.STORAGE_UNIT_2_PRODUCT_MODEL: Result(StorageProductModel.NONE, None),
+        rn.FEATURE_MASK_2: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
+        rn.FEATURE_MASK_3: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
+        rn.FEATURE_MASK_30308: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
+        rn.FEATURE_MASK_30320: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
+        rn.FEATURE_MASK_30342: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
+        rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
+    }
+
     async def mock_get(name: rn.RegisterName) -> Result[Any]:
-        if name == rn.NB_PV_STRINGS:
-            return Result(2, None)
-        if name == rn.NB_OPTIMIZERS:
-            raise ReadException(_READ_FAILED_MSG)
-        if name == rn.STORAGE_UNIT_1_PRODUCT_MODEL:
-            return Result(StorageProductModel.HUAWEI_LUNA2000, None)
-        if name == rn.STORAGE_UNIT_2_PRODUCT_MODEL:
-            return Result(StorageProductModel.NONE, None)
-        if name == rn.FEATURE_MASK_3:
-            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02)
-        if name == rn.FEATURE_MASK_30342:
-            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02)
-        if name == rn.METER_STATUS:
-            raise ReadException(_READ_FAILED_MSG)
+        if name in responses:
+            val = responses[name]
+            if isinstance(val, Exception):
+                raise val
+            return val
         msg = f"Unexpected get: {name}"
         raise AssertionError(msg)
 
@@ -208,3 +239,10 @@ async def test_supports_ess_low_power_when_read_exception(
 
     assert sun2000_device.supports_capacity_control is False
     assert sun2000_device.supports_ess_low_power is False
+    assert sun2000_device.supports_off_grid_switch is False
+    assert sun2000_device.supports_backup_voltage is False
+    assert sun2000_device.supports_active_power_fail_safe is False
+    assert sun2000_device.supports_active_power_limitation_mode is False
+    assert sun2000_device.supports_dongle_charge_power_limit is False
+    assert sun2000_device.supports_discharge_power_adjustment is False
+    assert sun2000_device.supports_recharge is False

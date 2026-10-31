@@ -635,6 +635,18 @@ BATTERY_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         47590,
         writeable=True,
     ),
+    rn.STORAGE_MAXIMUM_GRID_POWER_DURING_DISCHARGE: U16Register(
+        "W",
+        1,
+        47592,
+        writeable=True,
+    ),
+    rn.STORAGE_ADJUSTMENT_DEADBAND: U16Register(
+        "W",
+        1,
+        47593,
+        writeable=True,
+    ),
     rn.BACKUP_SWITCH_TO_OFF_GRID: U16Register(None, 1, 47604, writeable=True),
     rn.BACKUP_VOLTAGE_INDEPENDENT_OPERATION: U16Register(
         rv.BackupVoltageIndependentOperation,
@@ -650,6 +662,8 @@ BATTERY_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.STORAGE_UNIT_2_PACK_1_NO: U16Register(None, 1, 47753),
     rn.STORAGE_UNIT_2_PACK_2_NO: U16Register(None, 1, 47754),
     rn.STORAGE_UNIT_2_PACK_3_NO: U16Register(None, 1, 47755),
+    rn.STORAGE_RECHARGE_SIGNAL: U16Register(None, 1, 47780, writeable=True),
+    rn.STORAGE_RECHARGE_TARGET_SOC: U16Register("%", 10, 47783, writeable=True),
 }
 REGISTERS.update(BATTERY_REGISTERS)
 
