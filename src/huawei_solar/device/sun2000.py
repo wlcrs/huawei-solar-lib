@@ -42,6 +42,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     battery_1_type: rv.StorageProductModel = rv.StorageProductModel.NONE
     battery_2_type: rv.StorageProductModel = rv.StorageProductModel.NONE
     supports_capacity_control = False
+    supports_ess_low_power = False
     power_meter_online = False
     power_meter_type: rv.MeterType | None = None
 
@@ -106,11 +107,18 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice))
         ):
             try:
-                await self.get(rn.STORAGE_CAPACITY_CONTROL_MODE)
-                self.supports_capacity_control = True
+                feature_mask_3 = (await self.get(rn.FEATURE_MASK_3)).value
+                self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
             except ReadException:
                 _LOGGER.debug("Storage capacity control as it is not supported by device %d", self.client.unit_id)
                 self.supports_capacity_control = False
+
+            try:
+                feature_mask = (await self.get(rn.FEATURE_MASK_30342)).value
+                self.supports_ess_low_power = bool(feature_mask & rv.FeatureMask30342.ESS_LOW_POWER)
+            except ReadException:
+                _LOGGER.debug("ESS low power as it is not supported by device %d", self.client.unit_id)
+                self.supports_ess_low_power = False
 
         with suppress(ReadException):
             self.power_meter_online = (await self.get(rn.METER_STATUS)).value == rv.MeterStatus.NORMAL
