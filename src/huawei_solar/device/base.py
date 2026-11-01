@@ -200,6 +200,11 @@ class HuaweiSolarDevice(ABC):
         assert self.update_lock.locked(), "update_lock must be held when calling _raw_get"
         return await self.client.get(name)
 
+    async def read_file(self, file_type: int, customized_data: bytes | None = None) -> bytes:
+        """Wrap `get_file` from `AsyncHuaweiSolarClient`."""
+        async with self.update_lock:
+            return await self.client.get_file(file_type, customized_data)
+
     async def set(self, name: rn.RegisterName, value: Any) -> bool:  # noqa: ANN401
         """Set a register to a certain value."""
         # Public set acquires the device update lock so callers don't need
