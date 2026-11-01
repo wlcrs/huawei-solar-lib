@@ -2,7 +2,6 @@
 
 import logging
 from contextlib import suppress
-from datetime import datetime
 from typing import Any
 
 from huawei_solar import register_names as rn
@@ -12,13 +11,10 @@ from huawei_solar.exceptions import (
     ReadException,
 )
 from huawei_solar.files import (
-    InverterPerformanceDataFile,
     OptimizerRealTimeData,
     OptimizerRealTimeDataFile,
     OptimizerSystemInformation,
     OptimizerSystemInformationDataFile,
-    PerformanceDataPoint,
-    PerformanceRequestType,
 )
 from huawei_solar.register_definitions import Result
 from huawei_solar.registers import METER_REGISTERS
@@ -268,7 +264,10 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     async def get_latest_optimizer_history_data(
         self,
     ) -> dict[int, OptimizerRealTimeData]:
-        """Read the latest Optimizer History Data File from the inverter."""
+        """Read the latest Optimizer History Data File from the inverter.
+
+        Targets: SUN2000 inverters with connected Huawei optimizers.
+        """
         # emulates behavior from FusionSolar app when current status of optimizers is queried
         end_time = await self._get_system_time()
         if end_time is None:
@@ -294,29 +293,14 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     async def get_optimizer_system_information_data(
         self,
     ) -> dict[int, OptimizerSystemInformation]:
-        """Read the Optimizer System Information Data File from the inverter."""
+        """Read the Optimizer System Information Data File from the inverter.
+
+        Targets: SUN2000 inverters with connected Huawei optimizers.
+        """
         file_data = await self.read_file(OptimizerSystemInformationDataFile.FILE_TYPE)
         system_information_data = OptimizerSystemInformationDataFile(file_data)
 
         return {opt.optimizer_address: opt for opt in system_information_data.optimizers}
-
-    async def get_performance_data(
-        self,
-        request_type: PerformanceRequestType | int,
-        start_time: datetime | int,
-        end_time: datetime | int,
-        cycle: int | None = None,
-    ) -> list[PerformanceDataPoint]:
-        """Read Historical Performance / Energy Data from the inverter."""
-        start_epoch = int(start_time.timestamp()) if isinstance(start_time, datetime) else start_time
-        end_epoch = int(end_time.timestamp()) if isinstance(end_time, datetime) else end_time
-
-        file_data = await self.read_file(
-            InverterPerformanceDataFile.FILE_TYPE,
-            InverterPerformanceDataFile.query_within_timespan(request_type, start_epoch, end_epoch),
-        )
-        performance_file = InverterPerformanceDataFile(file_data, request_type=request_type, cycle=cycle)
-        return performance_file.data_points
 
     @property
     def battery_type(self) -> rv.StorageProductModel:

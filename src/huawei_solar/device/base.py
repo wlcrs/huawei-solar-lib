@@ -19,6 +19,9 @@ from huawei_solar.files import (
     ActiveAlarmsDataFile,
     HistoryAlarm,
     HistoryAlarmsDataFile,
+    InverterPerformanceDataFile,
+    PerformanceDataPoint,
+    PerformanceRequestType,
 )
 from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar.registers import REGISTERS
@@ -223,7 +226,10 @@ class HuaweiSolarDevice(ABC):
         return await self.client.set(name, value)
 
     async def get_active_alarms(self, equip_id: int = 0) -> list[ActiveAlarm]:
-        """Read Active Alarms Data File from the device."""
+        """Read Active Alarms Data File from the device.
+
+        Targets: SUN2000 inverters, SmartLogger, EMMA, and other Huawei Solar devices supporting Modbus file upload.
+        """
         file_data = await self.read_file(
             ActiveAlarmsDataFile.FILE_TYPE,
             ActiveAlarmsDataFile.query_active_alarms(equip_id),
@@ -236,7 +242,10 @@ class HuaweiSolarDevice(ABC):
         start_time: datetime | int,
         end_time: datetime | int,
     ) -> list[HistoryAlarm]:
-        """Read History Alarms Data File from the device."""
+        """Read History Alarms Data File from the device.
+
+        Targets: SUN2000 inverters, SmartLogger, EMMA, and other Huawei Solar devices supporting Modbus file upload.
+        """
         start_epoch = int(start_time.timestamp()) if isinstance(start_time, datetime) else start_time
         end_epoch = int(end_time.timestamp()) if isinstance(end_time, datetime) else end_time
 
@@ -246,6 +255,28 @@ class HuaweiSolarDevice(ABC):
         )
         history_alarms_file = HistoryAlarmsDataFile(file_data)
         return history_alarms_file.alarms
+
+    async def get_performance_data(
+        self,
+        request_type: PerformanceRequestType | int,
+        start_time: datetime | int,
+        end_time: datetime | int,
+        cycle: int | None = None,
+    ) -> list[PerformanceDataPoint]:
+        """Read Historical Performance / Energy Data from the device.
+
+        Targets: SUN2000 inverters, SmartLogger, EMMA (covering inverter yield,
+        battery storage, and power meter telemetry).
+        """
+        start_epoch = int(start_time.timestamp()) if isinstance(start_time, datetime) else start_time
+        end_epoch = int(end_time.timestamp()) if isinstance(end_time, datetime) else end_time
+
+        file_data = await self.read_file(
+            InverterPerformanceDataFile.FILE_TYPE,
+            InverterPerformanceDataFile.query_within_timespan(request_type, start_epoch, end_epoch),
+        )
+        performance_file = InverterPerformanceDataFile(file_data, request_type=request_type, cycle=cycle)
+        return performance_file.data_points
 
 
 class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
