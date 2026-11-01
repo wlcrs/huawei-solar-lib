@@ -4,10 +4,11 @@ import logging
 import struct
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from huawei_solar.exceptions import DecodeError
 from huawei_solar.register_definitions.string import bytes_to_string
-from huawei_solar.register_values import _IntEnumWithPrettyString
+from huawei_solar.register_values import HUAWEI_ALARM_CODES, Alarm, _IntEnumWithPrettyString
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -198,11 +199,15 @@ class OptimizerSystemInformation:
     alias: str
     model: str
 
-    # following fields only available in V103, which is undocumented for the moment:
-    # machine_id: Optional[str] = None # machine_id looks like gibberish?  # noqa: ERA001
-    rated_power: int | None = None
+    # Following fields are available in V103:
+    machine_id: int | None = None
+    """16-bit Hardware Model Identifie"""
     one_to_more: bool | None = None
+    """ indicates a 2:1 multi-module optimizer (such as MERC-1100/1300-P-AU)."""
+    rated_power: int | None = None
+    """Rated output capacity in Watts (e.g. 450, 600, 1100, 1300)."""
     cpu_type: int | None = None
+    """Microcontroller/chip architecture type."""
 
 
 INVALID_OPTIMIZER_POSITION = 0xFFFF
@@ -219,9 +224,10 @@ class OptimizerSystemInformationDataFile:
     # always a duplicate of the second byte, resulting in string
     # numbers 257 and 514 instead of 1 and 2.
     # cfr: https://github.com/wlcrs/huawei_solar/issues/76#issue-1268597032
+    V100_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s"
+    V101_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s"
     V102_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s"
-
-    V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30s2sHHH"
+    V103_OPTIMIZER_FEATURE_DATA = ">HHxbH20s30s20s30sHHHH"
 
     def __init__(self, file_data: bytes) -> None:
         """Create Optimizer System Information Data File."""
@@ -243,7 +249,78 @@ class OptimizerSystemInformationDataFile:
             )
             offset += struct.calcsize(OptimizerSystemInformationDataFile.HEADER)
 
-            if self.file_version == b"V102":
+            if self.file_version == b"V100":
+                for _ in range(number_of_optimizers):
+                    (
+                        optimizer_address,
+                        online_status,
+                        string_number,
+                        position_in_current_string,
+                        sn,
+                        software_version,
+                    ) = struct.unpack_from(
+                        OptimizerSystemInformationDataFile.V100_OPTIMIZER_FEATURE_DATA,
+                        file_data,
+                        offset,
+                    )
+                    offset += struct.calcsize(
+                        OptimizerSystemInformationDataFile.V100_OPTIMIZER_FEATURE_DATA,
+                    )
+
+                    self.optimizers.append(
+                        OptimizerSystemInformation(
+                            optimizer_address,
+                            OptimizerOnlineStatus(online_status),
+                            string_number,
+                            (
+                                position_in_current_string
+                                if position_in_current_string != INVALID_OPTIMIZER_POSITION
+                                else None
+                            ),
+                            bytes_to_string(sn),
+                            bytes_to_string(software_version),
+                            alias="",
+                            model="NA",
+                        ),
+                    )
+
+            elif self.file_version == b"V101":
+                for _ in range(number_of_optimizers):
+                    (
+                        optimizer_address,
+                        online_status,
+                        string_number,
+                        position_in_current_string,
+                        sn,
+                        software_version,
+                        alias,
+                    ) = struct.unpack_from(
+                        OptimizerSystemInformationDataFile.V101_OPTIMIZER_FEATURE_DATA,
+                        file_data,
+                        offset,
+                    )
+                    offset += struct.calcsize(
+                        OptimizerSystemInformationDataFile.V101_OPTIMIZER_FEATURE_DATA,
+                    )
+
+                    self.optimizers.append(
+                        OptimizerSystemInformation(
+                            optimizer_address,
+                            OptimizerOnlineStatus(online_status),
+                            string_number,
+                            (
+                                position_in_current_string
+                                if position_in_current_string != INVALID_OPTIMIZER_POSITION
+                                else None
+                            ),
+                            bytes_to_string(sn),
+                            bytes_to_string(software_version),
+                            bytes_to_string(alias),
+                            model="NA",
+                        ),
+                    )
+
+            elif self.file_version == b"V102":
                 for _ in range(number_of_optimizers):
                     (
                         optimizer_address,
@@ -291,8 +368,8 @@ class OptimizerSystemInformationDataFile:
                         software_version,
                         alias,
                         model,
-                        _machine_id,
-                        one_to_more,
+                        machine_id,
+                        one_to_more_raw,
                         rated_power,
                         cpu_type,
                     ) = struct.unpack_from(
@@ -318,8 +395,8 @@ class OptimizerSystemInformationDataFile:
                             bytes_to_string(software_version),
                             bytes_to_string(alias),
                             bytes_to_string(model),
-                            # machine_id=_to_string(machine_id), # looks like gibberish? ignoring...  # noqa: ERA001
-                            one_to_more=bool(one_to_more),
+                            machine_id=machine_id,
+                            one_to_more=(one_to_more_raw & 0xFF) == 2,  # noqa: PLR2004
                             rated_power=rated_power,
                             cpu_type=cpu_type,
                         ),
@@ -332,3 +409,363 @@ class OptimizerSystemInformationDataFile:
         except struct.error as err:
             msg = "Could not decode optimizer system information data file: the contents is corrupted."
             raise DecodeError(msg) from err
+
+
+class AlarmLevel(_IntEnumWithPrettyString):
+    """Alarm severity level extracted from control word bits 0-1."""
+
+    PROMPT = 0  # Suggestion / informational notification
+    WARNING = 1  # Minor warning
+    MAJOR = 2  # Major alarm
+    CRITICAL = 3  # Critical fault requiring immediate action
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveAlarm:
+    """Active Alarm entry.
+
+    Attributes:
+        serial_no: Monotonically increasing unique sequence ID assigned by device firmware.
+        equip_id: Logical Modbus device address / slave ID of reporting unit.
+        alarm_id: Huawei alarm identifier code (maps to device alarm catalog, e.g. 2001, 2062).
+        occur_time: Timestamp when the alarm condition was initially triggered.
+        alarm_param: Auxiliary fault parameter (e.g. faulty PV string index, phase, or measured value).
+        control_word: Raw 16-bit control bitmask containing severity level (bits 0-1) and routing flags.
+        reason_id: Cause / sub-cause code specifying the precise failure mode or physical slot/location.
+
+    """
+
+    serial_no: int
+    equip_id: int
+    alarm_id: int
+    occur_time: datetime
+    alarm_param: int
+    control_word: int
+    reason_id: int
+
+    @property
+    def level(self) -> AlarmLevel:
+        """Extract alarm severity level from control word (Bits 0-1)."""
+        level_val = (((self.control_word >> 1) & 1) * 2) + (self.control_word & 1)
+        return AlarmLevel(level_val)
+
+    @property
+    def alarm_info(self) -> Alarm | None:
+        """Look up full Alarm metadata from master alarm catalog."""
+        return HUAWEI_ALARM_CODES.get(self.alarm_id)
+
+    @property
+    def name(self) -> str:
+        """Return alarm name or fallback to Alarm ID."""
+        info = self.alarm_info
+        return info.name if info else f"Unknown Alarm {self.alarm_id}"
+
+
+class ActiveAlarmsDataFile:
+    """Active Alarms Data File (File Type 0xA1 / 161)."""
+
+    FILE_TYPE = 0xA1
+    RECORD_STRUCT = "<IHHIIHH"
+
+    def __init__(self, file_data: bytes) -> None:
+        """Decode Active Alarms file."""
+        self.alarms: list[ActiveAlarm] = []
+
+        record_size = struct.calcsize(ActiveAlarmsDataFile.RECORD_STRUCT)
+        if len(file_data) < record_size:
+            return
+
+        record_count = len(file_data) // record_size
+        offset = 0
+
+        try:
+            for _ in range(record_count):
+                (
+                    serial_no,
+                    equip_id,
+                    alarm_id,
+                    occur_time,
+                    alarm_param,
+                    control_word,
+                    reason_id,
+                ) = struct.unpack_from(
+                    ActiveAlarmsDataFile.RECORD_STRUCT,
+                    file_data,
+                    offset,
+                )
+                offset += record_size
+
+                self.alarms.append(
+                    ActiveAlarm(
+                        serial_no=serial_no,
+                        equip_id=equip_id,
+                        alarm_id=alarm_id,
+                        occur_time=datetime.fromtimestamp(occur_time, tz=UTC),
+                        alarm_param=alarm_param,
+                        control_word=control_word,
+                        reason_id=reason_id,
+                    )
+                )
+        except struct.error as err:
+            msg = "Could not decode active alarms data file: the contents is corrupted."
+            raise DecodeError(msg) from err
+
+    @staticmethod
+    def query_active_alarms(equip_id: int = 0) -> bytes:
+        """Create query custom data for active alarms file download."""
+        # Tag 0x11, Length 4, equip_id uint32
+        return struct.pack(">BBI", 0x11, 4, equip_id)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryAlarm:
+    """Historical Alarm entry.
+
+    Attributes:
+        serial_no: Monotonically increasing unique sequence ID assigned by device firmware.
+        equip_id: Logical Modbus device address / slave ID of reporting unit.
+        alarm_id: Huawei alarm identifier code (maps to device alarm catalog, e.g. 2001, 2062).
+        occur_time: Timestamp when the alarm condition was initially triggered.
+        recover_time: Timestamp when the alarm condition cleared or recovered.
+        alarm_param: Auxiliary fault parameter (e.g. faulty PV string index, phase, or measured value).
+        control_word: Raw 16-bit control bitmask containing severity level (bits 0-1) and routing flags.
+        reason_id: Cause / sub-cause code specifying the precise failure mode or physical slot/location.
+
+    """
+
+    serial_no: int
+    equip_id: int
+    alarm_id: int
+    occur_time: datetime
+    recover_time: datetime
+    alarm_param: int
+    control_word: int
+    reason_id: int
+
+    @property
+    def level(self) -> AlarmLevel:
+        """Extract alarm severity level from control word (Bits 0-1)."""
+        level_val = (((self.control_word >> 1) & 1) * 2) + (self.control_word & 1)
+        return AlarmLevel(level_val)
+
+    @property
+    def alarm_info(self) -> Alarm | None:
+        """Look up full Alarm metadata from master alarm catalog."""
+        return HUAWEI_ALARM_CODES.get(self.alarm_id)
+
+    @property
+    def name(self) -> str:
+        """Return alarm name or fallback to Alarm ID."""
+        info = self.alarm_info
+        return info.name if info else f"Unknown Alarm {self.alarm_id}"
+
+
+class HistoryAlarmsDataFile:
+    """History Alarms Data File (File Type 0xA2 / 162)."""
+
+    FILE_TYPE = 0xA2
+    RECORD_STRUCT = "<IHHIIIHH"
+
+    def __init__(self, file_data: bytes) -> None:
+        """Decode History Alarms file."""
+        self.alarms: list[HistoryAlarm] = []
+
+        record_size = struct.calcsize(HistoryAlarmsDataFile.RECORD_STRUCT)
+        if len(file_data) < record_size:
+            return
+
+        record_count = len(file_data) // record_size
+        offset = 0
+
+        try:
+            for _ in range(record_count):
+                (
+                    serial_no,
+                    equip_id,
+                    alarm_id,
+                    occur_time,
+                    recover_time,
+                    alarm_param,
+                    control_word,
+                    reason_id,
+                ) = struct.unpack_from(
+                    HistoryAlarmsDataFile.RECORD_STRUCT,
+                    file_data,
+                    offset,
+                )
+                offset += record_size
+
+                self.alarms.append(
+                    HistoryAlarm(
+                        serial_no=serial_no,
+                        equip_id=equip_id,
+                        alarm_id=alarm_id,
+                        occur_time=datetime.fromtimestamp(occur_time, tz=UTC),
+                        recover_time=datetime.fromtimestamp(recover_time, tz=UTC),
+                        alarm_param=alarm_param,
+                        control_word=control_word,
+                        reason_id=reason_id,
+                    )
+                )
+        except struct.error as err:
+            msg = "Could not decode history alarms data file: the contents is corrupted."
+            raise DecodeError(msg) from err
+
+    @staticmethod
+    def query_within_timespan(start_time: int, end_time: int, tag: int = 0x24) -> bytes:
+        """Create query custom data for history alarms file download within given timeframe."""
+        if tag == 0x24:  # noqa: PLR2004
+            # Tag 0x24 (36), Length 10, start_time uint32, end_time uint32, -1 (signed byte), 0 (byte)
+            return struct.pack("<BBIIbb", tag, 10, start_time, end_time, -1, 0)
+        # Tag 0x20 / 0x21 (32 / 33), Length 9, start_time uint32, end_time uint32, -1 (signed byte)
+        return struct.pack(">BBIIb", tag, 9, start_time, end_time, -1)
+
+
+class PerformanceRequestType(_IntEnumWithPrettyString):
+    """Inverter Performance & History Request Types."""
+
+    HOUR_POWER = 0
+    DAY_POWER = 1
+    MONTH_POWER = 2
+    YEAR_POWER = 3
+    OUTPUT_POWER = 4
+    INSULATION_RESISTANCE = 5
+    BATTERY_CHARGE_AND_DISCHARGE_POWER = 6
+    METER_POWER = 7
+    BATTERY_CHARGE_DAY_POWER = 8
+    BATTERY_DISCHARGE_DAY_POWER = 9
+    ABSORB_HOUR_POWER = 10
+    ABSORB_DAY_POWER = 11
+    ABSORB_MONTH_POWER = 12
+    ABSORB_YEAR_POWER = 13
+
+
+@dataclass(frozen=True, slots=True)
+class PerformanceDataPoint:
+    """Historical telemetry data point."""
+
+    time: datetime
+    request_type: PerformanceRequestType | int
+    value: float
+
+
+class InverterPerformanceDataFile:
+    """Inverter History & Energy Performance Data File (File Type 0xA3 / 163)."""
+
+    FILE_TYPE = 0xA3
+    HUAWEI_FUNCTION_CODE = 0x41
+    SUB_FUNCTION_PERFORMANCE_DATA = 0x36
+
+    # Gains corresponding to PerformanceRequestType
+    GAINS: ClassVar[dict[PerformanceRequestType | int, int]] = {
+        PerformanceRequestType.HOUR_POWER: 100,
+        PerformanceRequestType.DAY_POWER: 100,
+        PerformanceRequestType.MONTH_POWER: 100,
+        PerformanceRequestType.YEAR_POWER: 100,
+        PerformanceRequestType.OUTPUT_POWER: 1000,
+        PerformanceRequestType.INSULATION_RESISTANCE: 1000,
+        PerformanceRequestType.BATTERY_CHARGE_AND_DISCHARGE_POWER: 1000,
+        PerformanceRequestType.METER_POWER: 1000,
+        PerformanceRequestType.BATTERY_CHARGE_DAY_POWER: 100,
+        PerformanceRequestType.BATTERY_DISCHARGE_DAY_POWER: 100,
+        PerformanceRequestType.ABSORB_HOUR_POWER: 100,
+        PerformanceRequestType.ABSORB_DAY_POWER: 100,
+        PerformanceRequestType.ABSORB_MONTH_POWER: 100,
+        PerformanceRequestType.ABSORB_YEAR_POWER: 100,
+    }
+
+    # Default interval cycles in seconds
+    DEFAULT_CYCLES: ClassVar[dict[PerformanceRequestType | int, int]] = {
+        PerformanceRequestType.HOUR_POWER: 300,  # 5-minute intervals
+        PerformanceRequestType.DAY_POWER: 86400,  # 1 day
+        PerformanceRequestType.MONTH_POWER: 2592000,  # ~30 days
+        PerformanceRequestType.YEAR_POWER: 31536000,  # ~365 days
+        PerformanceRequestType.OUTPUT_POWER: 300,
+        PerformanceRequestType.INSULATION_RESISTANCE: 86400,
+        PerformanceRequestType.BATTERY_CHARGE_AND_DISCHARGE_POWER: 300,
+        PerformanceRequestType.METER_POWER: 300,
+        PerformanceRequestType.BATTERY_CHARGE_DAY_POWER: 86400,
+        PerformanceRequestType.BATTERY_DISCHARGE_DAY_POWER: 86400,
+        PerformanceRequestType.ABSORB_HOUR_POWER: 300,
+        PerformanceRequestType.ABSORB_DAY_POWER: 86400,
+        PerformanceRequestType.ABSORB_MONTH_POWER: 2592000,
+        PerformanceRequestType.ABSORB_YEAR_POWER: 31536000,
+    }
+
+    def __init__(
+        self,
+        file_data: bytes,
+        request_type: PerformanceRequestType | int = PerformanceRequestType.HOUR_POWER,
+        cycle: int | None = None,
+    ) -> None:
+        """Decode Inverter History & Performance Data File."""
+        self.data_points: list[PerformanceDataPoint] = []
+        self.request_type = request_type
+
+        try:
+            req_enum = (
+                PerformanceRequestType(request_type)
+                if isinstance(request_type, int) and request_type in PerformanceRequestType._value2member_map_
+                else request_type
+            )
+        except (ValueError, KeyError):
+            req_enum = request_type
+
+        gain = InverterPerformanceDataFile.GAINS.get(req_enum, 100)
+        cycle_seconds = cycle or InverterPerformanceDataFile.DEFAULT_CYCLES.get(req_enum, 300)
+
+        offset = 0
+        try:
+            # Handle optional frame header if raw Modbus 0x41 0x36 frame:
+            # [0:addr, 1:0x41, 2:0x36, 3:datalen, 4:index, 5:seg_count]
+            if (
+                len(file_data) > 6  # noqa: PLR2004
+                and file_data[1] == InverterPerformanceDataFile.HUAWEI_FUNCTION_CODE
+                and file_data[2] == InverterPerformanceDataFile.SUB_FUNCTION_PERFORMANCE_DATA
+            ):
+                segment_count = file_data[5] & 0x3F
+                offset = 6
+            elif len(file_data) >= 5:  # noqa: PLR2004
+                # Raw segment data stream without function wrapper
+                segment_count = None
+            else:
+                return
+
+            seg_idx = 0
+            while offset + 5 <= len(file_data):
+                if segment_count is not None and seg_idx >= segment_count:
+                    break
+
+                (start_time, tdata_length) = struct.unpack_from(">IB", file_data, offset)
+                offset += 5
+
+                point_count = tdata_length // 4
+                for j in range(point_count):
+                    if offset + 4 > len(file_data):
+                        break
+                    (raw_value,) = struct.unpack_from(">i", file_data, offset)
+                    offset += 4
+
+                    point_time = start_time + (j * cycle_seconds)
+                    self.data_points.append(
+                        PerformanceDataPoint(
+                            time=datetime.fromtimestamp(point_time, tz=UTC),
+                            request_type=req_enum,
+                            value=raw_value / gain,
+                        )
+                    )
+                seg_idx += 1
+        except struct.error as err:
+            msg = "Could not decode inverter performance data file: the contents is corrupted."
+            raise DecodeError(msg) from err
+
+    @staticmethod
+    def query_within_timespan(
+        request_type: PerformanceRequestType | int,
+        start_time: int,
+        end_time: int,
+    ) -> bytes:
+        """Create query custom data for performance/history data file download within given timeframe."""
+        # Format: Tag 0x30, Length 12, SubId 0, Type 0, RequestType, StartTime, EndTime, 0xFF
+        req_type_val = int(request_type)
+        return struct.pack(">BBHBBIIB", 0x30, 12, 0, 0, req_type_val, start_time, end_time, 0xFF)

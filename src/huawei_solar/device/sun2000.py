@@ -264,7 +264,10 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     async def get_latest_optimizer_history_data(
         self,
     ) -> dict[int, OptimizerRealTimeData]:
-        """Read the latest Optimizer History Data File from the inverter."""
+        """Read the latest Optimizer History Data File from the inverter.
+
+        Targets: SUN2000 inverters with connected Huawei optimizers.
+        """
         # emulates behavior from FusionSolar app when current status of optimizers is queried
         end_time = await self._get_system_time()
         if end_time is None:
@@ -290,7 +293,10 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     async def get_optimizer_system_information_data(
         self,
     ) -> dict[int, OptimizerSystemInformation]:
-        """Read the Optimizer System Information Data File from the inverter."""
+        """Read the Optimizer System Information Data File from the inverter.
+
+        Targets: SUN2000 inverters with connected Huawei optimizers.
+        """
         file_data = await self.read_file(OptimizerSystemInformationDataFile.FILE_TYPE)
         system_information_data = OptimizerSystemInformationDataFile(file_data)
 
