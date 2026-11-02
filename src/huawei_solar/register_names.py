@@ -426,7 +426,27 @@ STORAGE_UNIT_2_PACK_1_NO = RegisterName("storage_unit_2_pack_1_no")
 STORAGE_UNIT_2_PACK_2_NO = RegisterName("storage_unit_2_pack_2_no")
 STORAGE_UNIT_2_PACK_3_NO = RegisterName("storage_unit_2_pack_3_no")
 STORAGE_RECHARGE_SIGNAL = RegisterName("storage_recharge_signal")
+"""Trigger maintenance storage recharge (write 1 to start, 0 to stop).
+
+In FusionSolar app: Maintenance > Battery maintenance (or Energy storage maintenance)
+> Forced charge and discharge. Select Working mode = Recharge (or Maintenance charge).
+
+To perform a recharge action:
+1. Set STORAGE_RECHARGE_TARGET_SOC (register 47783) to the desired target SOC (40% - 60%).
+2. Write 1 to STORAGE_RECHARGE_SIGNAL (register 47780) to start charging.
+   The battery will charge up to the target SOC and stop automatically.
+   Write 0 to abort early.
+"""
 STORAGE_RECHARGE_TARGET_SOC = RegisterName("storage_recharge_target_soc")
+"""Target State of Charge (40% - 60%) for maintenance storage recharge.
+
+In FusionSolar app: Maintenance > Battery maintenance (or Energy storage maintenance)
+> Forced charge and discharge. Select Working mode = Recharge (or Maintenance charge).
+
+To perform a recharge action:
+1. Set this register (47783) to the desired target SOC (allowed range: 40% - 60%).
+2. Write 1 to STORAGE_RECHARGE_SIGNAL (register 47780) to start charging.
+"""
 
 REMOTE_CHARGE_DISCHARGE_CONTROL_MODE = RegisterName("remote_charge_discharge_control_mode")
 DEFAULT_MAXIMUM_FEED_IN_POWER = RegisterName("default_maximum_feed_in_power")

@@ -50,6 +50,13 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     supports_dongle_charge_power_limit: bool = False
     supports_discharge_power_adjustment: bool = False
     supports_recharge: bool = False
+    """Whether the inverter supports the maintenance storage recharge feature.
+
+    In FusionSolar app: Maintenance > Battery maintenance > Forced charge and discharge.
+    Working mode = Recharge (or Maintenance charge).
+    Combine registers: set STORAGE_RECHARGE_TARGET_SOC (47783) between 40% - 60%,
+    then write 1 to STORAGE_RECHARGE_SIGNAL (47780) to start charging.
+    """
     power_meter_online = False
     power_meter_type: rv.MeterType | None = None
 

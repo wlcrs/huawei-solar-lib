@@ -662,6 +662,10 @@ BATTERY_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.STORAGE_UNIT_2_PACK_1_NO: U16Register(None, 1, 47753),
     rn.STORAGE_UNIT_2_PACK_2_NO: U16Register(None, 1, 47754),
     rn.STORAGE_UNIT_2_PACK_3_NO: U16Register(None, 1, 47755),
+    # Maintenance storage recharge:
+    # In FusionSolar: Maintenance > Battery maintenance > Forced charge and discharge -> Working mode = Recharge
+    # Combine registers: set STORAGE_RECHARGE_TARGET_SOC (47783) between 40%-60%,
+    # then write 1 to STORAGE_RECHARGE_SIGNAL (47780).
     rn.STORAGE_RECHARGE_SIGNAL: U16Register(None, 1, 47780, writeable=True),
     rn.STORAGE_RECHARGE_TARGET_SOC: U16Register("%", 10, 47783, writeable=True),
 }
