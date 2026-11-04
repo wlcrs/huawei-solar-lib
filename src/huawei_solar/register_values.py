@@ -113,6 +113,7 @@ class StorageWorkingModesC(_IntEnumWithPrettyString):
     TIME_OF_USE_LG = 3
     FULLY_FED_TO_GRID = 4
     TIME_OF_USE_LUNA2000 = 5
+    THIRD_PARTY_CONTROL = 6
 
 
 class StorageProductModel(IntEnum):
