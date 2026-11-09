@@ -28,4 +28,3 @@ async def test_get_device_infos_parsing() -> None:
     assert gun.model == "SmartAcGun"
     assert gun.device_id == 7
     assert gun.parent_device_id == 6
-

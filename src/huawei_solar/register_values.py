@@ -1909,6 +1909,3 @@ class ChargerOnlineStatus(IntEnum):
     """Communication failure / offline"""
     NORMAL = 1
     """Normal communication / online"""
-
-
-
