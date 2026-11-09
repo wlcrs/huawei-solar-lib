@@ -3,6 +3,8 @@
 from unittest.mock import AsyncMock, Mock
 
 from huawei_solar.device_discovery import get_device_infos
+from tmodbus.pdu import ReadDeviceIdentificationPDU
+from tmodbus.pdu.device import ConformityLevel
 
 
 async def test_get_device_infos_parsing() -> None:
@@ -28,3 +30,19 @@ async def test_get_device_infos_parsing() -> None:
     assert gun.model == "SmartAcGun"
     assert gun.device_id == 7
     assert gun.parent_device_id == 6
+
+
+def test_huawei_read_device_identification_pdu_emma_streaming() -> None:
+    """Test that HuaweiReadDeviceIdentificationPDU tolerates EMMA streaming behavior."""
+    pdu = ReadDeviceIdentificationPDU(read_device_id_code=0x03, object_id=0x87)
+    # Raw reply from EMMA:
+    # function=0x2b, sub=0x0e, dev_id=0x03, conformity=0x03, more=0xff, next=0x88, num_objs=7, obj_id=0x87, len=1, val=6
+    raw_pdu = bytes.fromhex("2b 0e 03 03 ff 88 07 87 01 06")
+    result = pdu.decode_response(raw_pdu)
+
+    assert result.device_id_code == 0x03
+    assert result.conformity_level == ConformityLevel.EXTENDED
+    assert result.more is True
+    assert result.next_object_id == 0x88
+    assert result.number_of_objects == 7
+    assert result.objects == {0x87: b"\x06"}

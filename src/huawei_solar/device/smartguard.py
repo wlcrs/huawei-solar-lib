@@ -15,3 +15,4 @@ class SmartGuardDevice(HuaweiSolarDevice):
         if not getattr(self, "serial_number", None):
             parent_sn = self.primary_device.serial_number if self.primary_device else "unknown"
             self.serial_number = f"{parent_sn}_smartguard_{self.client.unit_id}"
+
