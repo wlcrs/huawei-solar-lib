@@ -7,9 +7,6 @@ import struct
 from dataclasses import dataclass, field
 from hashlib import sha256
 
-import tmodbus.client.async_client
-import tmodbus.pdu
-import tmodbus.pdu.device
 from tmodbus.exceptions import (
     FunctionCodeError,
     InvalidResponseError,
@@ -19,7 +16,6 @@ from tmodbus.exceptions import (
 from tmodbus.pdu import (
     BaseSubFunctionClientPDU,
     register_pdu_class,
-    sub_function_code_to_pdu_map,
 )
 from tmodbus.pdu.device import (
     ConformityLevel,
@@ -423,11 +419,3 @@ class HuaweiReadDeviceIdentificationPDU(ReadDeviceIdentificationPDU):
             number_of_objects=number_of_objects,
             objects=objects,
         )
-
-
-# Overwrite ReadDeviceIdentificationPDU in tmodbus maps and modules
-sub_function_code_to_pdu_map[0x2B][0x0E] = HuaweiReadDeviceIdentificationPDU
-ReadDeviceIdentificationPDU.decode_response = HuaweiReadDeviceIdentificationPDU.decode_response  # type: ignore[assignment]
-tmodbus.pdu.ReadDeviceIdentificationPDU = HuaweiReadDeviceIdentificationPDU  # type: ignore[misc]
-tmodbus.pdu.device.ReadDeviceIdentificationPDU = HuaweiReadDeviceIdentificationPDU  # type: ignore[misc]
-tmodbus.client.async_client.ReadDeviceIdentificationPDU = HuaweiReadDeviceIdentificationPDU  # type: ignore[misc]
