@@ -46,7 +46,8 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         | TargetDevice.EMMA
         | TargetDevice.SCHARGER
         | TargetDevice.SDONGLE
-        | TargetDevice.SMARTLOGGER,
+        | TargetDevice.SMARTLOGGER
+        | TargetDevice.SMART_AC_GUN,
     ),
     rn.SERIAL_NUMBER: StringRegister(
         30015,
@@ -962,43 +963,6 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         rv.ChargerChargingWaitReason, 1, 30516, target_device=TargetDevice.SCHARGER
     ),
 
-    # Charger Gun / Connector Telemetry (0xb20a)
-    rn.CHARGER_GUN_NUMBER: U32Register(None, 1, 31000, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_TYPE: U32Register(rv.ChargerGunType, 1, 31002, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_RATED_POWER: U32Register("kW", 10, 31004, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_WORK_STATUS: U32Register(
-        rv.ChargerGunWorkStatus, 1, 31006, target_device=TargetDevice.SCHARGER
-    ),
-    rn.CHARGER_OUTPUT_RELAY_STATUS: U32Register(
-        rv.ChargerOutputRelayStatus, 1, 31008, target_device=TargetDevice.SCHARGER
-    ),
-    rn.CHARGER_GUN_TEMPERATURE: I32Register("°C", 10, 31010, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_PHASE_A_VOLTAGE: U32Register("V", 10, 31012, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_PHASE_B_VOLTAGE: U32Register("V", 10, 31014, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_PHASE_C_VOLTAGE: U32Register("V", 10, 31016, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_PHASE_A_CURRENT: U32Register("A", 10, 31018, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_PHASE_B_CURRENT: U32Register("A", 10, 31020, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_PHASE_C_CURRENT: U32Register("A", 10, 31022, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_OUTPUT_POWER: U32Register("kW", 10, 31024, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_TOTAL_ENERGY_CHARGED: U32Register(
-        "kWh", 1000, 31026, target_device=TargetDevice.SCHARGER
-    ),
-    rn.CHARGER_PWM_DUTY_CYCLE: U32Register("%", 1, 31028, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GUN_LOCK_STATUS: U32Register(
-        rv.ChargerGunLockStatus, 1, 31030, target_device=TargetDevice.SCHARGER
-    ),
-    rn.CHARGER_CABLE_MAX_CURRENT: U32Register("A", 1, 31032, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_REPORTED_WORK_MODE: U32Register(
-        rv.ChargerReportedWorkMode, 1, 31034, target_device=TargetDevice.SCHARGER
-    ),
-    rn.CHARGER_PLANNED_DEPARTURE_TIME: TimestampRegister(
-        31036, writeable=True, target_device=TargetDevice.SCHARGER
-    ),
-    rn.CHARGER_TARGET_CHARGED_ENERGY: U32Register("kWh", 10, 31038, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_CHARGING_METHOD: U32Register(
-        rv.ChargerChargingMethod, 1, 31040, target_device=TargetDevice.SCHARGER
-    ),
-
     # Charger Configuration & Settings (0xb209)
     rn.CHARGER_DYNAMIC_POWER_THRESHOLD: U32Register(
         "kW", 10, 40000, writeable=True, target_device=TargetDevice.SCHARGER
@@ -1068,45 +1032,85 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.CHARGER_INPUT_UNDERVOLTAGE_ALARM_FILTER_TIME: U32Register(
         "s", 1, 40206, writeable=True, target_device=TargetDevice.SCHARGER
     ),
+}
 
-    # Charger Gun Settings (0xb20a & 0xb209)
+SMART_AC_GUN_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
+    # SmartAcGun Telemetry (0xb20a)
+    rn.CHARGER_GUN_NUMBER: U32Register(None, 1, 31000, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_TYPE: U32Register(rv.ChargerGunType, 1, 31002, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_RATED_POWER: U32Register("kW", 10, 31004, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_WORK_STATUS: U32Register(
+        rv.ChargerGunWorkStatus, 1, 31006, target_device=TargetDevice.SMART_AC_GUN
+    ),
+    rn.CHARGER_OUTPUT_RELAY_STATUS: U32Register(
+        rv.ChargerOutputRelayStatus, 1, 31008, target_device=TargetDevice.SMART_AC_GUN
+    ),
+    rn.CHARGER_GUN_TEMPERATURE: I32Register("°C", 10, 31010, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_PHASE_A_VOLTAGE: U32Register("V", 10, 31012, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_PHASE_B_VOLTAGE: U32Register("V", 10, 31014, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_PHASE_C_VOLTAGE: U32Register("V", 10, 31016, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_PHASE_A_CURRENT: U32Register("A", 10, 31018, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_PHASE_B_CURRENT: U32Register("A", 10, 31020, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_PHASE_C_CURRENT: U32Register("A", 10, 31022, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_OUTPUT_POWER: U32Register("kW", 10, 31024, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_TOTAL_ENERGY_CHARGED: U32Register(
+        "kWh", 1000, 31026, target_device=TargetDevice.SMART_AC_GUN
+    ),
+    rn.CHARGER_PWM_DUTY_CYCLE: U32Register("%", 1, 31028, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_GUN_LOCK_STATUS: U32Register(
+        rv.ChargerGunLockStatus, 1, 31030, target_device=TargetDevice.SMART_AC_GUN
+    ),
+    rn.CHARGER_CABLE_MAX_CURRENT: U32Register("A", 1, 31032, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_REPORTED_WORK_MODE: U32Register(
+        rv.ChargerReportedWorkMode, 1, 31034, target_device=TargetDevice.SMART_AC_GUN
+    ),
+    rn.CHARGER_PLANNED_DEPARTURE_TIME: TimestampRegister(
+        31036, writeable=False, target_device=TargetDevice.SMART_AC_GUN
+    ),
+    rn.CHARGER_TARGET_CHARGED_ENERGY: U32Register("kWh", 10, 31038, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_CHARGING_METHOD: U32Register(
+        rv.ChargerChargingMethod, 1, 31040, target_device=TargetDevice.SMART_AC_GUN
+    ),
+
+    # SmartAcGun Settings (0xb20a)
     rn.CHARGER_GUN_WORK_MODE: U32Register(
-        rv.ChargerGunWorkMode, 1, 41000, writeable=True, target_device=TargetDevice.SCHARGER
+        rv.ChargerGunWorkMode, 1, 41000, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_GUN_MAX_CURRENT: U32Register(
-        "A", 10, 41002, writeable=True, target_device=TargetDevice.SCHARGER
+        "A", 10, 41002, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_SINGLE_THREE_PHASE_SWITCH: U32Register(
-        bool, 1, 41004, writeable=True, target_device=TargetDevice.SCHARGER
+        bool, 1, 41004, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_GUN_LOCK_CONTROL_MODE: U32Register(
-        rv.ChargerGunLockControlMode, 1, 41006, writeable=True, target_device=TargetDevice.SCHARGER
+        rv.ChargerGunLockControlMode, 1, 41006, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_MAX_POWER_FROM_GRID: U32Register(
-        "kW", 10, 41008, writeable=True, target_device=TargetDevice.SCHARGER
+        "kW", 10, 41008, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_SURPLUS_POWER_START_THRESHOLD: U32Register(
-        "kW", 10, 41010, writeable=True, target_device=TargetDevice.SCHARGER
+        "kW", 10, 41010, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_GUN_LOCK_PRESENT: U32Register(
-        rv.ChargerGunLockPresence, 1, 41012, target_device=TargetDevice.SCHARGER
+        rv.ChargerGunLockPresence, 1, 41012, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_METER_DERATING_CHARGE_CURRENT: U32Register(
-        "A", 1, 41014, writeable=True, target_device=TargetDevice.SCHARGER
+        "A", 1, 41014, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
-    rn.CHARGER_MIN_START_POWER: U32Register("kW", 10, 41016, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_MIN_START_POWER: U32Register("kW", 10, 41016, target_device=TargetDevice.SMART_AC_GUN),
     rn.CHARGER_ELECTRICITY_PRIORITY: U32Register(
-        None, 1, 41018, writeable=True, target_device=TargetDevice.SCHARGER
+        None, 1, 41018, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_DYNAMIC_POWER_CONTROL: U32Register(
-        bool, 1, 41020, writeable=True, target_device=TargetDevice.SCHARGER
+        bool, 1, 41020, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
     rn.CHARGER_ONLINE_STATUS: U16Register(
-        rv.ChargerOnlineStatus, 1, 65534, target_device=TargetDevice.SCHARGER
+        rv.ChargerOnlineStatus, 1, 65534, target_device=TargetDevice.SMART_AC_GUN
     ),
 }
 
 REGISTERS.update(SCHARGER_REGISTERS)
+REGISTERS.update(SMART_AC_GUN_REGISTERS)
 
 METER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.METER_STATUS: U16Register(rv.MeterStatus, 1, 37100),

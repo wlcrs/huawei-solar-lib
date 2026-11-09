@@ -9,6 +9,7 @@ from huawei_solar.device.emma import EMMADevice
 from huawei_solar.device.meter import MeterDevice
 from huawei_solar.device.scharger import SChargerDevice
 from huawei_solar.device.sdongle import SDongleDevice
+from huawei_solar.device.smart_ac_gun import SmartAcGunDevice
 from huawei_solar.device.smartlogger import SmartLoggerDevice
 from huawei_solar.device.sun2000 import SUN2000Device
 from huawei_solar.exceptions import DeviceDetectionError, ReadException
@@ -37,12 +38,9 @@ def patched_supports_device(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(EMMADevice, "supports_device", staticmethod(lambda model: model == "emma-model"))
     monkeypatch.setattr(SChargerDevice, "supports_device", staticmethod(lambda model: model == "scharger-model"))
     monkeypatch.setattr(SDongleDevice, "supports_device", staticmethod(lambda model: model == "sdongle-model"))
-    monkeypatch.setattr(
-        SmartLoggerDevice,
-        "supports_device",
-        staticmethod(lambda model: model == "smartlogger-model"),
-    )
+    monkeypatch.setattr(SmartLoggerDevice, "supports_device", staticmethod(lambda model: model == "smartlogger-model"))
     monkeypatch.setattr(MeterDevice, "supports_device", staticmethod(lambda model: model == "meter-model"))
+    monkeypatch.setattr(SmartAcGunDevice, "supports_device", staticmethod(lambda model: model == "smartacgun-model"))
 
 
 @pytest.mark.parametrize(
@@ -54,6 +52,7 @@ def patched_supports_device(monkeypatch: pytest.MonkeyPatch) -> None:
         ("sdongle-model", SDongleDevice),
         ("smartlogger-model", SmartLoggerDevice),
         ("meter-model", MeterDevice),
+        ("smartacgun-model", SmartAcGunDevice),
     ],
 )
 def test_get_device_class_for_model_all_supported_types(
@@ -222,6 +221,7 @@ async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal(
             rn.SMARTLOGGER_DEVICE_NAME,
             rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
             rn.SMARTLOGGER_EXTERNAL_METER_ACTIVE_POWER,
+            rn.CHARGER_GUN_WORK_STATUS,
         ):
             raise ReadException(
                 _READ_FAILED_MSG,
@@ -240,6 +240,31 @@ async def test_detect_device_type_sdongle_fallback_when_other_registers_illegal(
     assert detected_name == "SDongle"
 
 
+async def test_detect_device_type_smart_ac_gun_via_probe() -> None:
+    def side_effect(register: str) -> Any:  # noqa: ANN401
+        if register in (
+            rn.MODEL_NAME,
+            rn.SMARTLOGGER_DEVICE_NAME,
+            rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
+            rn.SMARTLOGGER_EXTERNAL_METER_ACTIVE_POWER,
+        ):
+            raise ReadException(
+                _READ_FAILED_MSG,
+                modbus_exception_code=IllegalDataAddressError.error_code,
+            )
+        if register == rn.CHARGER_GUN_WORK_STATUS:
+            return _value_result(1)
+        msg = f"Unexpected register read: {register!r}"
+        raise AssertionError(msg)
+
+    client = _client_with_get(unit_id=7, side_effect=side_effect)
+
+    detected_class, detected_name = await detect_device_type(client)
+
+    assert detected_class is SmartAcGunDevice
+    assert detected_name == "SmartAcGun"
+
+
 async def test_detect_device_type_raises_when_no_detection_path_matches() -> None:
     def side_effect(register: str) -> Any:  # noqa: ANN401
         if register in (
@@ -247,6 +272,7 @@ async def test_detect_device_type_raises_when_no_detection_path_matches() -> Non
             rn.SMARTLOGGER_DEVICE_NAME,
             rn.SMARTLOGGER_EQUIPMENT_SERIAL_NUMBER_ESN,
             rn.SMARTLOGGER_EXTERNAL_METER_ACTIVE_POWER,
+            rn.CHARGER_GUN_WORK_STATUS,
             rn.SDONGLE_DEVICE_SEARCH_STATUS,
         ):
             raise ReadException(

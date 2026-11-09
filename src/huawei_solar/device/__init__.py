@@ -14,6 +14,7 @@ from .emma import EMMADevice
 from .meter import MeterDevice
 from .scharger import SChargerDevice
 from .sdongle import SDongleDevice
+from .smart_ac_gun import SmartAcGunDevice
 from .smartlogger import SmartLoggerDevice
 from .sun2000 import SUN2000Device
 
@@ -46,6 +47,7 @@ def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
         SUN2000Device,
         EMMADevice,
         SChargerDevice,
+        SmartAcGunDevice,
         SDongleDevice,
         SmartLoggerDevice,
         MeterDevice,
@@ -109,6 +111,11 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
         return MeterDevice, "PowerMeter"
     _LOGGER.info("Meter telemetry probe unavailable for unit ID %d.", client.unit_id)
 
+    if await _try_read_register(client, rn.CHARGER_GUN_WORK_STATUS) is not None:
+        _LOGGER.info("Detected SmartAcGun via gun work status probe for unit ID %d.", client.unit_id)
+        return SmartAcGunDevice, "SmartAcGun"
+    _LOGGER.info("Gun work status probe unavailable for unit ID %d.", client.unit_id)
+
     if await _detect_sdongle():
         return SDongleDevice, "SDongle"
 
@@ -154,6 +161,7 @@ __all__ = [
     "SChargerDevice",
     "SDongleDevice",
     "SUN2000Device",
+    "SmartAcGunDevice",
     "SmartLoggerDevice",
     "create_device_instance",
     "create_sub_device_instance",
