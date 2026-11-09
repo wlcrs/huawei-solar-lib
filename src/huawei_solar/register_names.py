@@ -635,6 +635,12 @@ CHARGER_CHARGING_WAIT_REASON = RegisterName("charger_charging_wait_reason")
 
 0: Unknown, 1: Waiting for EV, 2: Home power excessive, 3: Insufficient green power, 4: Phase switching.
 """
+CHARGER_METER_CONNECT_STATUS = RegisterName("charger_meter_connect_status")
+"""External power meter connection status (see ChargerMeterConnectStatus: 0: Disconnected, 1: Connected).
+
+Maps to `meterConnect` in the FusionSolar app, which controls display of the power meter icon
+on the charger overview screen.
+"""
 
 # SCharger Gun / Connector Telemetry (0xb20a)
 CHARGER_GUN_NUMBER = RegisterName("charger_gun_number")

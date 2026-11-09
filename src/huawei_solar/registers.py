@@ -962,6 +962,9 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.CHARGER_CHARGING_WAIT_REASON: U32Register(
         rv.ChargerChargingWaitReason, 1, 30516, target_device=TargetDevice.SCHARGER
     ),
+    rn.CHARGER_METER_CONNECT_STATUS: U32Register(
+        rv.ChargerMeterConnectStatus, 1, 30518, target_device=TargetDevice.SCHARGER
+    ),
     # Charger Configuration & Settings (0xb209)
     rn.CHARGER_DYNAMIC_POWER_THRESHOLD: U32Register(
         "kW", 10, 40000, writeable=True, target_device=TargetDevice.SCHARGER

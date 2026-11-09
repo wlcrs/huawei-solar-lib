@@ -1716,6 +1716,13 @@ class ChargerChargingWaitReason(IntEnum):
     PHASE_SWITCHING = 4
 
 
+class ChargerMeterConnectStatus(IntEnum):
+    """External power meter connection status (Register 30518)."""
+
+    DISCONNECTED = 0
+    CONNECTED = 1
+
+
 class ChargerGunWorkStatus(IntEnum):
     """Charging gun / connector operational status (Register 31006)."""
 
