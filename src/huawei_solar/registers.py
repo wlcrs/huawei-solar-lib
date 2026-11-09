@@ -1057,7 +1057,7 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     ),
     rn.CHARGER_FEATURE_MASK_4: U32Register(None, 1, 40104, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_RANDOM_DELAY_CHARGING: U32Register(
-        rv.ChargerRandomDelayMode, 1, 40200, writeable=True, target_device=TargetDevice.SCHARGER
+        bool, 1, 40200, writeable=True, target_device=TargetDevice.SCHARGER
     ),
     rn.CHARGER_MAX_DELAY_TIME: U32Register(
         "s", 1, 40202, writeable=True, target_device=TargetDevice.SCHARGER
@@ -1077,7 +1077,7 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         "A", 10, 41002, writeable=True, target_device=TargetDevice.SCHARGER
     ),
     rn.CHARGER_SINGLE_THREE_PHASE_SWITCH: U32Register(
-        rv.ChargerPhaseSwitching, 1, 41004, writeable=True, target_device=TargetDevice.SCHARGER
+        bool, 1, 41004, writeable=True, target_device=TargetDevice.SCHARGER
     ),
     rn.CHARGER_GUN_LOCK_CONTROL_MODE: U32Register(
         rv.ChargerGunLockControlMode, 1, 41006, writeable=True, target_device=TargetDevice.SCHARGER
@@ -1099,7 +1099,7 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         None, 1, 41018, writeable=True, target_device=TargetDevice.SCHARGER
     ),
     rn.CHARGER_DYNAMIC_POWER_CONTROL: U32Register(
-        rv.ChargerDynamicPowerControl, 1, 41020, writeable=True, target_device=TargetDevice.SCHARGER
+        bool, 1, 41020, writeable=True, target_device=TargetDevice.SCHARGER
     ),
     rn.CHARGER_ONLINE_STATUS: U16Register(
         rv.ChargerOnlineStatus, 1, 65534, target_device=TargetDevice.SCHARGER

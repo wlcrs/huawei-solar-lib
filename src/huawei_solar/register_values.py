@@ -1893,24 +1893,6 @@ class ChargerVersionRollback(IntEnum):
     """Firmware version downgrade allowed"""
 
 
-class ChargerRandomDelayMode(IntEnum):
-    """Randomized delay charging mode (Register 40200)."""
-
-    DISABLED = 0
-    """Random delay charging disabled"""
-    ENABLED = 1
-    """Random delay charging enabled to prevent grid switch-on surges"""
-
-
-class ChargerPhaseSwitching(IntEnum):
-    """Automatic single-phase and three-phase switching mode (Register 41004)."""
-
-    DISABLED = 0
-    """Automatic phase switching disabled"""
-    ENABLED = 1
-    """Automatic switching between 1-phase and 3-phase enabled"""
-
-
 class ChargerGunLockPresence(IntEnum):
     """Electronic connector lock hardware presence (Register 41012)."""
 
@@ -1918,15 +1900,6 @@ class ChargerGunLockPresence(IntEnum):
     """Motorized connector lock hardware present"""
     NOT_PRESENT = 1
     """Motorized connector lock hardware not present"""
-
-
-class ChargerDynamicPowerControl(IntEnum):
-    """Dynamic power control / household main breaker overload avoidance (Register 41020)."""
-
-    DISABLED = 0
-    """Dynamic power control disabled"""
-    ENABLED = 1
-    """Dynamic power control enabled"""
 
 
 class ChargerOnlineStatus(IntEnum):

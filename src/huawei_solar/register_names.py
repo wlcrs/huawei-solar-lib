@@ -724,7 +724,7 @@ CHARGER_ALLOW_VERSION_ROLLBACK = RegisterName("charger_allow_version_rollback")
 CHARGER_FEATURE_MASK_4 = RegisterName("charger_feature_mask_4")
 """Feature capability bitmask 4 (unsigned 32-bit integer bitmask)."""
 CHARGER_RANDOM_DELAY_CHARGING = RegisterName("charger_random_delay_charging")
-"""Random delay charging mode to prevent grid surges (see ChargerRandomDelayMode: 0: Disabled, 1: Enabled)."""
+"""Random delay charging mode to prevent grid surges (0: Disabled, 1: Enabled)."""
 CHARGER_MAX_DELAY_TIME = RegisterName("charger_max_delay_time")
 """Maximum randomized charging delay duration in seconds (0 ~ 300 s)."""
 CHARGER_INPUT_UNDERVOLTAGE_ALARM_THRESHOLD = RegisterName("charger_input_undervoltage_alarm_threshold")
@@ -738,7 +738,7 @@ CHARGER_GUN_WORK_MODE = RegisterName("charger_gun_work_mode")
 CHARGER_GUN_MAX_CURRENT = RegisterName("charger_gun_max_current")
 """Maximum charging current limit setpoint (0.0 ~ 32.0 A)."""
 CHARGER_SINGLE_THREE_PHASE_SWITCH = RegisterName("charger_single_three_phase_switch")
-"""Automatic single-phase to three-phase switching permission (see ChargerPhaseSwitching: 0: Disabled, 1: Enabled)."""
+"""Automatic single-phase to three-phase switching permission (0: Disabled, 1: Enabled)."""
 CHARGER_GUN_LOCK_CONTROL_MODE = RegisterName("charger_gun_lock_control_mode")
 """Connector locking behavior policy (see ChargerGunLockControlMode: 0: Manual, 1: Charging only, 2: When plugged)."""
 CHARGER_MAX_POWER_FROM_GRID = RegisterName("charger_max_power_from_grid")
@@ -754,7 +754,7 @@ CHARGER_MIN_START_POWER = RegisterName("charger_min_start_power")
 CHARGER_ELECTRICITY_PRIORITY = RegisterName("charger_electricity_priority")
 """Household energy consumption priority level (integer ranking 1 to 100, where 1 is highest priority)."""
 CHARGER_DYNAMIC_POWER_CONTROL = RegisterName("charger_dynamic_power_control")
-"""Dynamic power control / overload avoidance switch (see ChargerDynamicPowerControl: 0: Disabled, 1: Enabled)."""
+"""Dynamic power control / overload avoidance switch (0: Disabled, 1: Enabled)."""
 CHARGER_ONLINE_STATUS = RegisterName("charger_online_status")
 """Charger communication status (see ChargerOnlineStatus: 0: Communication failure / Offline, 1: Normal / Online)."""
 
