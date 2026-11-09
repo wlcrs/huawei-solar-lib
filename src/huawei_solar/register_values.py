@@ -1704,3 +1704,111 @@ class FeatureMask30350(IntFlag):
 
     Gates support for register 42184.
     """
+
+
+class ChargerChargingWaitReason(IntEnum):
+    """Reason why charger is waiting / paused (Register 30516)."""
+
+    UNKNOWN = 0
+    WAITING_FOR_EV = 1
+    HOUSEHOLD_POWER_EXCESSIVE = 2
+    INSUFFICIENT_GREEN_POWER = 3
+    PHASE_SWITCHING = 4
+
+
+class ChargerGunWorkStatus(IntEnum):
+    """Charging gun / connector operational status (Register 31006)."""
+
+    STANDBY = 0
+    STANDBY_PLUGGED = 1
+    SCHEDULED_WAITING = 2
+    CHARGING = 3
+    CHARGING_ENDED = 4
+    FAULT = 5
+    ORDERLY_WAITING = 6
+    UPGRADING = 7
+    CHARGING_STARTING = 8
+    ALARM = 9
+    GREEN_POWER_WAITING = 10
+    GREEN_POWER_CHARGING = 11
+
+
+class ChargerGunLockStatus(IntEnum):
+    """Charging connector mechanical lock status (Register 31030)."""
+
+    LOCKED = 0
+    UNLOCKED = 1
+
+
+class ChargerGunLockControlMode(IntEnum):
+    """Connector lock control mode (Register 41006)."""
+
+    MANUAL_LOCK = 0
+    LOCK_DURING_CHARGING = 1
+    LOCK_WHEN_PLUGGED = 2
+
+
+class ChargerAcWiringMode(IntEnum):
+    """AC grid wiring mode (Register 40036)."""
+
+    SINGLE_PHASE = 0
+    THREE_PHASE_FOUR_WIRE = 1
+
+
+class ChargerContactorControlMode(IntEnum):
+    """Contactor control mode (Register 40032)."""
+
+    SINGLE_PHASE = 0
+    THREE_PHASE = 1
+
+
+class ChargerGunWorkMode(IntEnum):
+    """Operating mode setting for the charging gun (Register 41000)."""
+
+    FAST_CHARGING = 0
+    GREEN_POWER_PRIORITY = 1
+
+
+class ChargerChargingMethod(IntEnum):
+    """Active charging method (Register 31040)."""
+
+    IMMEDIATE_CHARGING = 0
+    SCHEDULED_CHARGING = 1
+    NEXT_TRIP_CHARGING = 2
+
+
+class ChargerNetworkingMode(IntEnum):
+    """Network connection interface mode (Register 40008)."""
+
+    FAST_ETHERNET = 0
+    WIFI = 1
+
+
+class ChargerGroundingSystem(IntEnum):
+    """Grounding system type (Register 40006)."""
+
+    TN_TT = 0
+    IT = 1
+
+
+class ChargerIndicatorLightStatus(IntEnum):
+    """Charger LED ring indicator light status / lamp language (Register 40038)."""
+
+    STANDBY = 0
+    """Idle / standby (pulsating white)"""
+    AUTHENTICATION_WAITING = 1
+    """Vehicle plugged in, waiting for authorization (steady blue)"""
+    SCHEDULED_WAITING = 2
+    """Scheduled charging waiting (pulsating blue)"""
+    CHARGING = 3
+    """Normal charging in progress (pulsating blue)"""
+    CHARGING_COMPLETED = 4
+    """Charging completed, connector plugged (steady blue)"""
+    GREEN_POWER_CHARGING = 5
+    """PV green power charging in progress (pulsating green)"""
+    FAULT_ALARM = 6
+    """System fault or alarm (steady or flashing red)"""
+    UPGRADING = 7
+    """Firmware upgrade in progress (flashing white)"""
+
+
