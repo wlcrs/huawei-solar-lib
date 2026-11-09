@@ -15,6 +15,7 @@ from .meter import MeterDevice
 from .scharger import SChargerDevice
 from .sdongle import SDongleDevice
 from .smart_ac_gun import SmartAcGunDevice
+from .smartguard import SmartGuardDevice
 from .smartlogger import SmartLoggerDevice
 from .sun2000 import SUN2000Device
 
@@ -50,6 +51,7 @@ def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
         SmartAcGunDevice,
         SDongleDevice,
         SmartLoggerDevice,
+        SmartGuardDevice,
         MeterDevice,
     ]:
         if candidate_bridge_class.supports_device(model_name):
@@ -138,6 +140,8 @@ async def create_device_instance(client: AsyncHuaweiSolarClient) -> HuaweiSolarD
 async def create_sub_device_instance(
     primary_device: HuaweiSolarDevice,
     unit_id: int,
+    *,
+    serial_number: str | None = None,
 ) -> HuaweiSolarDevice:
     """Create a HuaweiSolarDevice instance for extra servers accessible as subdevices via an existing device."""
     if primary_device.client.unit_id == unit_id:
@@ -150,6 +154,7 @@ async def create_sub_device_instance(
         sub_client,
         model_name=model_name,
         primary_device=primary_device,
+        serial_number=serial_number,
     )
 
 
@@ -162,6 +167,7 @@ __all__ = [
     "SDongleDevice",
     "SUN2000Device",
     "SmartAcGunDevice",
+    "SmartGuardDevice",
     "SmartLoggerDevice",
     "create_device_instance",
     "create_sub_device_instance",

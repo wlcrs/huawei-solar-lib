@@ -12,6 +12,7 @@ from huawei_solar.register_definitions import (
     I32AbsoluteValueRegister,
     I32Register,
     I64Register,
+    IPv4Register,
     LG_RESU_TimeOfUseRegisters,
     PeakSettingPeriodRegisters,
     RegisterDefinition,
@@ -978,11 +979,11 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.CHARGER_DHCP_ENABLED: U32Register(
         rv.ChargerDhcpStatus, 1, 40010, writeable=True, target_device=TargetDevice.SCHARGER
     ),
-    rn.CHARGER_IP_ADDRESS: U32Register(None, 1, 40012, writeable=True, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_SUBNET_MASK: U32Register(None, 1, 40014, writeable=True, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_GATEWAY_ADDRESS: U32Register(None, 1, 40016, writeable=True, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_PRIMARY_DNS: U32Register(None, 1, 40018, writeable=True, target_device=TargetDevice.SCHARGER),
-    rn.CHARGER_SECONDARY_DNS: U32Register(None, 1, 40020, writeable=True, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_IP_ADDRESS: IPv4Register(40012, writeable=True, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_SUBNET_MASK: IPv4Register(40014, writeable=True, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_GATEWAY_ADDRESS: IPv4Register(40016, writeable=True, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_PRIMARY_DNS: IPv4Register(40018, writeable=True, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_SECONDARY_DNS: IPv4Register(40020, writeable=True, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_CONFIGURED_DEVICE_NAME: StringRegister(40022, 10, writeable=True, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_CONTACTOR_CONTROL_MODE: U32Register(
         rv.ChargerContactorControlMode, 1, 40032, writeable=True, target_device=TargetDevice.SCHARGER

@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from enum import IntEnum
 from inspect import isclass
+from ipaddress import IPv4Address
 from typing import Any
 
 from huawei_solar.exceptions import DecodeError, WriteException
@@ -218,3 +219,50 @@ class TimestampRegister(NumberRegister[datetime | None]):
             timestamp_value = datetime.fromtimestamp(value, tz=UTC)
 
         return Result(timestamp_value, None)
+
+
+class IPv4Register(NumberRegister[IPv4Address | None]):
+    """IPv4 address register (32-bit big-endian)."""
+
+    format = U32Register.format
+    length = U32Register.length
+    invalid_value = U32Register.invalid_value
+
+    def __init__(
+        self,
+        register: int,
+        *,
+        writeable: bool = False,
+        readable: bool = True,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+    ) -> None:
+        """Initialize IPv4Register."""
+        super().__init__(
+            unit=None,
+            gain=1,
+            register=register,
+            writeable=writeable,
+            readable=readable,
+            target_device=target_device,
+        )
+
+    def decode(self, values: tuple[Any, ...]) -> Result[IPv4Address | None]:
+        """Decode IPv4 address register."""
+        value = values[0]
+        if value == self.invalid_value:
+            return Result(None, None)
+        return Result(IPv4Address(value), None)
+
+    def encode(self, data: IPv4Address | str | None) -> tuple[Any, ...]:
+        """Encode IPv4 address register."""
+        if data is None:
+            if self.invalid_value is None:
+                msg = "This register does not support writing None."
+                raise WriteException(msg)
+            return (self.invalid_value,)
+        if isinstance(data, str):
+            return (int(IPv4Address(data)),)
+        if isinstance(data, IPv4Address):
+            return (int(data),)
+        msg = f"Expected IPv4Address, str or None, but got {type(data)}"
+        raise WriteException(msg)

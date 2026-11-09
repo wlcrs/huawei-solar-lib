@@ -20,13 +20,9 @@ class SmartAcGunDevice(HuaweiSolarDevice):
 
     async def _populate_additional_fields(self) -> None:
         self.model_name = "SmartAcGun"
-        parent_sn = self.primary_device.serial_number if self.primary_device else "unknown"
-
-        gun_num: int | None = None
-        with suppress(HuaweiSolarException, ReadException):
-            gun_num = (await self.get(rn.CHARGER_GUN_NUMBER)).value
-
-        self.serial_number = f"{parent_sn}_gun_{gun_num or self.client.unit_id}"
+        if not getattr(self, "serial_number", None):
+            parent_sn = self.primary_device.serial_number if self.primary_device else "unknown"
+            self.serial_number = f"{parent_sn}_gun_{self.client.unit_id}"
 
         with suppress(HuaweiSolarException, ReadException):
             self.software_version = (await self.get(rn.CHARGER_SOFTWARE_VERSION)).value
