@@ -610,6 +610,7 @@ CHARGER_DISPATCH_SCENARIO = RegisterName("charger_dispatch_scenario")
 """Energy scheduling / dispatch scenario (see ChargerDispatchScenario).
 
 0: PV+ESS+Charger without meter, 1: with meter, 2: PV+ESS 2.0.
+Note: Not supported or does not respond on all charger models/firmwares (e.g. SCharger-22KT-S0).
 """
 
 # SCharger Body Telemetry (0xb209)
@@ -641,7 +642,10 @@ CHARGER_GUN_NUMBER = RegisterName("charger_gun_number")
 CHARGER_GUN_TYPE = RegisterName("charger_gun_type")
 """Charging connector interface type (see ChargerGunType: 0: GB18487 / Type 2)."""
 CHARGER_GUN_RATED_POWER = RegisterName("charger_gun_rated_power")
-"""Rated maximum output power of this charging connector (kW)."""
+"""Rated maximum output power of this charging connector (kW).
+
+On three-phase chargers, this may report the per-phase rating (e.g. 7.4 kW on a 22 kW charger).
+"""
 CHARGER_GUN_WORK_STATUS = RegisterName("charger_gun_work_status")
 """Operating status of the charging gun (see ChargerGunWorkStatus)."""
 CHARGER_OUTPUT_RELAY_STATUS = RegisterName("charger_output_relay_status")
@@ -756,7 +760,10 @@ CHARGER_ELECTRICITY_PRIORITY = RegisterName("charger_electricity_priority")
 CHARGER_DYNAMIC_POWER_CONTROL = RegisterName("charger_dynamic_power_control")
 """Dynamic power control / overload avoidance switch (0: Disabled, 1: Enabled)."""
 CHARGER_ONLINE_STATUS = RegisterName("charger_online_status")
-"""Charger communication status (see ChargerOnlineStatus: 0: Communication failure / Offline, 1: Normal / Online)."""
+"""Charger communication status.
+
+Raw value may include hardware flags (e.g. 0xB001 with low byte indicating online status).
+"""
 
 DAYLIGHT_SAVING_TIME = RegisterName("daylight_saving_time")
 SDONGLE_TYPE = RegisterName("sdongle_type")

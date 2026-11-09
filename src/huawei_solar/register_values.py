@@ -1743,9 +1743,12 @@ class ChargerGunLockStatus(IntEnum):
 class ChargerGunLockControlMode(IntEnum):
     """Connector lock control mode (Register 41006)."""
 
-    MANUAL_LOCK = 0
+    ALWAYS_LOCKED = 0
+    """Connector always locked"""
     LOCK_DURING_CHARGING = 1
+    """Connector locked only while charging"""
     LOCK_WHEN_PLUGGED = 2
+    """Connector locked when plugged in"""
 
 
 class ChargerAcWiringMode(IntEnum):
@@ -1900,12 +1903,3 @@ class ChargerGunLockPresence(IntEnum):
     """Motorized connector lock hardware present"""
     NOT_PRESENT = 1
     """Motorized connector lock hardware not present"""
-
-
-class ChargerOnlineStatus(IntEnum):
-    """Charger communication connectivity state (Register 65534)."""
-
-    COMMUNICATION_FAILURE = 0
-    """Communication failure / offline"""
-    NORMAL = 1
-    """Normal communication / online"""

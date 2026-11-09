@@ -996,7 +996,7 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.CHARGER_INDICATOR_LIGHT_STATUS: U32Register(
         rv.ChargerIndicatorLightStatus, 1, 40038, writeable=True, target_device=TargetDevice.SCHARGER
     ),
-    rn.CHARGER_SYSTEM_CATEGORY: StringRegister(40040, 2, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_SYSTEM_CATEGORY: StringRegister(40040, 5, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_MAX_FIXED_POWER: U32Register("kW", 10, 40054, writeable=True, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_ALLOW_VERSION_ROLLBACK: U32Register(
         rv.ChargerVersionRollback, 1, 40056, writeable=True, target_device=TargetDevice.SCHARGER
@@ -1073,7 +1073,7 @@ SMART_AC_GUN_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.CHARGER_DYNAMIC_POWER_CONTROL: U32Register(
         bool, 1, 41020, writeable=True, target_device=TargetDevice.SMART_AC_GUN
     ),
-    rn.CHARGER_ONLINE_STATUS: U16Register(rv.ChargerOnlineStatus, 1, 65534, target_device=TargetDevice.SMART_AC_GUN),
+    rn.CHARGER_ONLINE_STATUS: U16Register(None, 1, 65534, target_device=TargetDevice.SMART_AC_GUN),
 }
 
 REGISTERS.update(SCHARGER_REGISTERS)
