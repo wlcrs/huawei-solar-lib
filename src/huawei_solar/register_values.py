@@ -1812,3 +1812,130 @@ class ChargerIndicatorLightStatus(IntEnum):
     """Firmware upgrade in progress (flashing white)"""
 
 
+class ChargerAcType(IntEnum):
+    """Regional AC charger classification type (Register 30110)."""
+
+    CBG = 0
+    """China / CBG regional variant"""
+    EUROPE = 1
+    """European regional variant"""
+
+
+class ChargerNetworkingResult(IntEnum):
+    """Charger networking configuration outcome (Register 30114)."""
+
+    SUCCESS = 0
+    """Networking configuration successful"""
+    FAILURE = 1
+    """Networking configuration failed"""
+
+
+class ChargerDispatchScenario(IntEnum):
+    """Energy scheduling and dispatch scenario (Register 30132)."""
+
+    PV_ESS_CHARGER_1_0_WITHOUT_METER = 0
+    """PV + Energy Storage + Charger 1.0 without power meter"""
+    PV_ESS_CHARGER_1_0_WITH_METER = 1
+    """PV + Energy Storage + Charger 1.0 with power meter"""
+    PV_ESS_CHARGER_2_0 = 2
+    """PV + Energy Storage 2.0 scenario"""
+
+
+class ChargerGunType(IntEnum):
+    """Charging connector physical interface type (Register 31002)."""
+
+    GB18487_TYPE_2 = 0
+    """Standard GB18487 / Type 2 AC connector interface"""
+
+
+class ChargerOutputRelayStatus(IntEnum):
+    """Charging output main contactor / relay state (Register 31008)."""
+
+    DISCONNECTED = 0
+    """Contactor open / disconnected"""
+    CONNECTED = 1
+    """Contactor closed / connected"""
+
+
+class ChargerReportedWorkMode(IntEnum):
+    """Reported operating work mode of the charger gun (Register 31034)."""
+
+    FAST_CHARGING = 0
+    """Fast charging mode"""
+    GREEN_POWER = 1
+    """Green power / PV surplus priority mode"""
+    NEXT_TRIP = 2
+    """Next trip scheduled target mode"""
+
+
+class ChargerDhcpStatus(IntEnum):
+    """DHCP client state (Register 40010)."""
+
+    ENABLED = 0
+    """DHCP client enabled (automatic IPv4 configuration)"""
+    DISABLED = 1
+    """DHCP client disabled (static IPv4 configuration)"""
+
+
+class ChargerFactoryReset(IntEnum):
+    """Factory reset command (Register 40034)."""
+
+    RESET = 0
+    """Restore parameters to factory default settings"""
+
+
+class ChargerVersionRollback(IntEnum):
+    """Firmware version rollback permission (Register 40056)."""
+
+    DISALLOWED = 0
+    """Firmware version downgrade disallowed"""
+    ALLOWED = 1
+    """Firmware version downgrade allowed"""
+
+
+class ChargerRandomDelayMode(IntEnum):
+    """Randomized delay charging mode (Register 40200)."""
+
+    DISABLED = 0
+    """Random delay charging disabled"""
+    ENABLED = 1
+    """Random delay charging enabled to prevent grid switch-on surges"""
+
+
+class ChargerPhaseSwitching(IntEnum):
+    """Automatic single-phase and three-phase switching mode (Register 41004)."""
+
+    DISABLED = 0
+    """Automatic phase switching disabled"""
+    ENABLED = 1
+    """Automatic switching between 1-phase and 3-phase enabled"""
+
+
+class ChargerGunLockPresence(IntEnum):
+    """Electronic connector lock hardware presence (Register 41012)."""
+
+    PRESENT = 0
+    """Motorized connector lock hardware present"""
+    NOT_PRESENT = 1
+    """Motorized connector lock hardware not present"""
+
+
+class ChargerDynamicPowerControl(IntEnum):
+    """Dynamic power control / household main breaker overload avoidance (Register 41020)."""
+
+    DISABLED = 0
+    """Dynamic power control disabled"""
+    ENABLED = 1
+    """Dynamic power control enabled"""
+
+
+class ChargerOnlineStatus(IntEnum):
+    """Charger communication connectivity state (Register 65534)."""
+
+    COMMUNICATION_FAILURE = 0
+    """Communication failure / offline"""
+    NORMAL = 1
+    """Normal communication / online"""
+
+
+

@@ -589,7 +589,7 @@ CHARGER_ESN = RegisterName("charger_serial_number")
 CHARGER_BSP_VERSION = RegisterName("charger_bsp_version")
 """Board Support Package (BSP) firmware version of the charger."""
 CHARGER_SOFTWARE_ID = RegisterName("charger_software_id")
-"""Software Unique Identifier ID / build identity of the charger component."""
+"""Software unique component identifier / build ID of the charger component (unsigned 16-bit integer)."""
 CHARGER_HARDWARE_VERSION = RegisterName("charger_hardware_version")
 """Hardware version string of the charger."""
 CHARGER_ELECTRONIC_LABEL = RegisterName("charger_electronic_label")
@@ -599,15 +599,18 @@ CHARGER_RATED_POWER = RegisterName("charger_rated_power")
 CHARGER_MODEL = RegisterName("charger_model")
 """Charger model name string."""
 CHARGER_CONNECTOR_COUNT = RegisterName("charger_connector_count")
-"""Number of charging connectors / interfaces on the charger."""
+"""Number of physical charging connectors / interfaces on the charger (typically 1 for home AC chargers)."""
 CHARGER_BLUETOOTH_NAME = RegisterName("charger_bluetooth_name")
 """Bluetooth broadcasting name of the charger."""
 CHARGER_AC_TYPE = RegisterName("charger_ac_type")
-"""Regional AC charger classification type (0: China / CBG, 1: Europe)."""
+"""Regional AC charger classification type (see ChargerAcType: 0: China / CBG, 1: Europe)."""
 CHARGER_NETWORKING_RESULT = RegisterName("charger_networking_result")
-"""Charger networking configuration outcome (0: Success, 1: Failure)."""
+"""Charger networking configuration outcome (see ChargerNetworkingResult: 0: Success, 1: Failure)."""
 CHARGER_DISPATCH_SCENARIO = RegisterName("charger_dispatch_scenario")
-"""Energy scheduling scenario (0: PV+ESS+Charger without meter, 1: with meter, 2: PV+ESS 2.0)."""
+"""Energy scheduling / dispatch scenario (see ChargerDispatchScenario).
+
+0: PV+ESS+Charger without meter, 1: with meter, 2: PV+ESS 2.0.
+"""
 
 # SCharger Body Telemetry (0xb209)
 CHARGER_PHASE_A_VOLTAGE = RegisterName("charger_phase_a_voltage")
@@ -634,15 +637,15 @@ CHARGER_CHARGING_WAIT_REASON = RegisterName("charger_charging_wait_reason")
 
 # SCharger Gun / Connector Telemetry (0xb20a)
 CHARGER_GUN_NUMBER = RegisterName("charger_gun_number")
-"""Charging connector / gun index number."""
+"""Charging connector / gun index number (typically 1)."""
 CHARGER_GUN_TYPE = RegisterName("charger_gun_type")
-"""Charging connector type (0: GB18487 / Type 2)."""
+"""Charging connector interface type (see ChargerGunType: 0: GB18487 / Type 2)."""
 CHARGER_GUN_RATED_POWER = RegisterName("charger_gun_rated_power")
 """Rated maximum output power of this charging connector (kW)."""
 CHARGER_GUN_WORK_STATUS = RegisterName("charger_gun_work_status")
-"""Operating status of the charging gun (e.g. Standby, Charging, Fault, Green Power Charging)."""
+"""Operating status of the charging gun (see ChargerGunWorkStatus)."""
 CHARGER_OUTPUT_RELAY_STATUS = RegisterName("charger_output_relay_status")
-"""Output main contactor / relay state (0: Disconnected / Open, 1: Connected / Closed)."""
+"""Output main contactor / relay state (see ChargerOutputRelayStatus: 0: Disconnected / Open, 1: Connected / Closed)."""
 CHARGER_GUN_TEMPERATURE = RegisterName("charger_gun_temperature")
 """Temperature at the charging gun connector plug head (°C)."""
 CHARGER_GUN_PHASE_A_VOLTAGE = RegisterName("charger_gun_phase_a_voltage")
@@ -664,17 +667,17 @@ CHARGER_GUN_TOTAL_ENERGY_CHARGED = RegisterName("charger_gun_total_energy_charge
 CHARGER_PWM_DUTY_CYCLE = RegisterName("charger_pwm_duty_cycle")
 """Control Pilot (CP) communication PWM duty cycle percentage signal (%)."""
 CHARGER_GUN_LOCK_STATUS = RegisterName("charger_gun_lock_status")
-"""Mechanical connector lock status (0: Locked, 1: Unlocked)."""
+"""Mechanical connector lock status (see ChargerGunLockStatus: 0: Locked, 1: Unlocked)."""
 CHARGER_CABLE_MAX_CURRENT = RegisterName("charger_cable_max_current")
 """Maximum current capacity rating of the plugged cable detected via PP resistor (A)."""
 CHARGER_REPORTED_WORK_MODE = RegisterName("charger_reported_work_mode")
-"""Reported operational mode (0: Fast Charge, 1: Green Power, 2: Next Trip Mode)."""
+"""Reported operational mode (see ChargerReportedWorkMode: 0: Fast Charging, 1: Green Power, 2: Next Trip Mode)."""
 CHARGER_PLANNED_DEPARTURE_TIME = RegisterName("charger_planned_departure_time")
 """Scheduled departure / travel time (Unix timestamp)."""
 CHARGER_TARGET_CHARGED_ENERGY = RegisterName("charger_target_charged_energy")
 """Target energy to deliver before planned departure (kWh)."""
 CHARGER_CHARGING_METHOD = RegisterName("charger_charging_method")
-"""Active charging session control method (0: Immediate, 1: Scheduled, 2: Next Trip)."""
+"""Active charging session control method (see ChargerChargingMethod: 0: Immediate, 1: Scheduled, 2: Next Trip)."""
 
 # SCharger Configuration & Holding Registers (0xb209)
 CHARGER_DYNAMIC_POWER_THRESHOLD = RegisterName("charger_dynamic_power_threshold")
@@ -684,29 +687,29 @@ CHARGER_ORDERLY_CHARGING_POWER = RegisterName("charger_orderly_charging_power")
 CHARGER_MAIN_BREAKER_CAPACITY = RegisterName("charger_main_breaker_capacity")
 """Household incoming main service circuit breaker / air switch rating (0 ~ 250 A) for overload prevention."""
 CHARGER_GROUNDING_SYSTEM = RegisterName("charger_grounding_system")
-"""Grounding / earthing system type (0: TN/TT system, 1: IT system)."""
+"""Grounding / earthing system type (see ChargerGroundingSystem: 0: TN/TT system, 1: IT system)."""
 CHARGER_NETWORKING_MODE = RegisterName("charger_networking_mode")
-"""Network connection interface (0: Fast Ethernet FE, 1: Wi-Fi)."""
+"""Network connection interface (see ChargerNetworkingMode: 0: Fast Ethernet FE, 1: Wi-Fi)."""
 CHARGER_DHCP_ENABLED = RegisterName("charger_dhcp_enabled")
-"""DHCP client state (0: Enabled / On, 1: Disabled / Off)."""
+"""DHCP client state (see ChargerDhcpStatus: 0: Enabled / On, 1: Disabled / Off)."""
 CHARGER_IP_ADDRESS = RegisterName("charger_ip_address")
-"""Static IPv4 address of the charger (spans registers 40012-40013)."""
+"""Static IPv4 address of the charger (spans registers 40012-40013, 32-bit big-endian integer)."""
 CHARGER_SUBNET_MASK = RegisterName("charger_subnet_mask")
-"""IPv4 subnet mask of the charger (spans registers 40014-40015)."""
+"""IPv4 subnet mask of the charger (spans registers 40014-40015, 32-bit big-endian integer)."""
 CHARGER_GATEWAY_ADDRESS = RegisterName("charger_gateway_address")
-"""IPv4 default gateway address of the charger (spans registers 40016-40017)."""
+"""IPv4 default gateway address of the charger (spans registers 40016-40017, 32-bit big-endian integer)."""
 CHARGER_PRIMARY_DNS = RegisterName("charger_primary_dns")
-"""Primary DNS server IPv4 address (spans registers 40018-40019)."""
+"""Primary DNS server IPv4 address (spans registers 40018-40019, 32-bit big-endian integer)."""
 CHARGER_SECONDARY_DNS = RegisterName("charger_secondary_dns")
-"""Secondary DNS server IPv4 address (spans registers 40020-40021)."""
+"""Secondary DNS server IPv4 address (spans registers 40020-40021, 32-bit big-endian integer)."""
 CHARGER_CONFIGURED_DEVICE_NAME = RegisterName("charger_configured_device_name")
 """User-configured custom device name string (up to 20 ASCII characters)."""
 CHARGER_CONTACTOR_CONTROL_MODE = RegisterName("charger_contactor_control_mode")
-"""Contactor control mode (0: Single-phase, 1: Three-phase)."""
+"""Contactor control mode (see ChargerContactorControlMode: 0: Single-phase, 1: Three-phase)."""
 CHARGER_FACTORY_RESET = RegisterName("charger_factory_reset")
-"""Command to restore charger parameters to factory defaults (write 0)."""
+"""Command to restore charger parameters to factory defaults (see ChargerFactoryReset: write 0)."""
 CHARGER_AC_WIRING_MODE = RegisterName("charger_ac_wiring_mode")
-"""AC grid supply wiring format (0: Single-phase, 1: Three-phase four-wire)."""
+"""AC grid supply wiring format (see ChargerAcWiringMode: 0: Single-phase, 1: Three-phase four-wire)."""
 CHARGER_INDICATOR_LIGHT_STATUS = RegisterName("charger_indicator_light_status")
 """Status / mode of the charger ring indicator LED light language (灯语状态, see ChargerIndicatorLightStatus).
 
@@ -717,11 +720,11 @@ CHARGER_SYSTEM_CATEGORY = RegisterName("charger_system_category")
 CHARGER_MAX_FIXED_POWER = RegisterName("charger_max_fixed_power")
 """Maximum fixed charging power ceiling (spans registers 40054-40055, bounded between min 30510 and max 30512)."""
 CHARGER_ALLOW_VERSION_ROLLBACK = RegisterName("charger_allow_version_rollback")
-"""Permission flag allowing firmware rollback to previous version (0: Disallow, 1: Allow)."""
+"""Permission flag allowing firmware rollback (see ChargerVersionRollback: 0: Disallow, 1: Allow)."""
 CHARGER_FEATURE_MASK_4 = RegisterName("charger_feature_mask_4")
-"""Feature capability bitmask 4."""
+"""Feature capability bitmask 4 (unsigned 32-bit integer bitmask)."""
 CHARGER_RANDOM_DELAY_CHARGING = RegisterName("charger_random_delay_charging")
-"""Random delay charging mode to stagger vehicle start times and prevent grid surges (0: Disabled, 1: Enabled)."""
+"""Random delay charging mode to prevent grid surges (see ChargerRandomDelayMode: 0: Disabled, 1: Enabled)."""
 CHARGER_MAX_DELAY_TIME = RegisterName("charger_max_delay_time")
 """Maximum randomized charging delay duration in seconds (0 ~ 300 s)."""
 CHARGER_INPUT_UNDERVOLTAGE_ALARM_THRESHOLD = RegisterName("charger_input_undervoltage_alarm_threshold")
@@ -731,29 +734,29 @@ CHARGER_INPUT_UNDERVOLTAGE_ALARM_FILTER_TIME = RegisterName("charger_input_under
 
 # SCharger Gun Settings (0xb20a & 0xb209)
 CHARGER_GUN_WORK_MODE = RegisterName("charger_gun_work_mode")
-"""Operating mode setting for the charging gun (0: Fast Charging, 1: Green Power Priority)."""
+"""Operating mode setting for the charging gun (see ChargerGunWorkMode: 0: Fast Charging, 1: Green Power Priority)."""
 CHARGER_GUN_MAX_CURRENT = RegisterName("charger_gun_max_current")
 """Maximum charging current limit setpoint (0.0 ~ 32.0 A)."""
 CHARGER_SINGLE_THREE_PHASE_SWITCH = RegisterName("charger_single_three_phase_switch")
-"""Automatic single-phase to three-phase switching permission (0: Disabled, 1: Enabled)."""
+"""Automatic single-phase to three-phase switching permission (see ChargerPhaseSwitching: 0: Disabled, 1: Enabled)."""
 CHARGER_GUN_LOCK_CONTROL_MODE = RegisterName("charger_gun_lock_control_mode")
-"""Charging connector locking behavior policy (0: Manual lock, 1: Lock only while charging, 2: Lock when plugged in)."""
+"""Connector locking behavior policy (see ChargerGunLockControlMode: 0: Manual, 1: Charging only, 2: When plugged)."""
 CHARGER_MAX_POWER_FROM_GRID = RegisterName("charger_max_power_from_grid")
 """Maximum power permitted to be imported from the electrical grid during EV charging (0.0 ~ 22.0 kW)."""
 CHARGER_SURPLUS_POWER_START_THRESHOLD = RegisterName("charger_surplus_power_start_threshold")
 """Surplus solar export power threshold required before initiating charging in Green Power mode (1.4 ~ 22.0 kW)."""
 CHARGER_GUN_LOCK_PRESENT = RegisterName("charger_gun_lock_present")
-"""Presence of motorized connector lock hardware (0: Present, 1: Not present)."""
+"""Presence of motorized connector lock hardware (see ChargerGunLockPresence: 0: Present, 1: Not present)."""
 CHARGER_METER_DERATING_CHARGE_CURRENT = RegisterName("charger_meter_derating_charge_current")
 """Fallback derated charging current applied if external power meter communication is lost (6 ~ 32 A)."""
 CHARGER_MIN_START_POWER = RegisterName("charger_min_start_power")
 """Minimum start power boundary setting (1.4 ~ 22.0 kW)."""
 CHARGER_ELECTRICITY_PRIORITY = RegisterName("charger_electricity_priority")
-"""Household energy consumption priority level (1 ~ 100)."""
+"""Household energy consumption priority level (integer ranking 1 to 100, where 1 is highest priority)."""
 CHARGER_DYNAMIC_POWER_CONTROL = RegisterName("charger_dynamic_power_control")
-"""Dynamic power control / household main breaker overload avoidance switch (0: Disabled, 1: Enabled)."""
+"""Dynamic power control / overload avoidance switch (see ChargerDynamicPowerControl: 0: Disabled, 1: Enabled)."""
 CHARGER_ONLINE_STATUS = RegisterName("charger_online_status")
-"""Charger communication connectivity state (0: Communication failure / Offline, 1: Normal / Online)."""
+"""Charger communication status (see ChargerOnlineStatus: 0: Communication failure / Offline, 1: Normal / Online)."""
 
 DAYLIGHT_SAVING_TIME = RegisterName("daylight_saving_time")
 SDONGLE_TYPE = RegisterName("sdongle_type")
