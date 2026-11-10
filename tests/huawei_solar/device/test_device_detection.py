@@ -306,4 +306,3 @@ async def test_detect_device_type_raises_when_no_detection_path_matches() -> Non
 def test_real_model_names_map_to_expected_classes(model_name: str, expected_class: type) -> None:
     """Test that real device models encountered in the wild map to the correct device classes."""
     assert get_device_class_for_model(model_name) is expected_class
-
