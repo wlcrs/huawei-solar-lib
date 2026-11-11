@@ -66,6 +66,7 @@ class HuaweiSolarDevice(ABC):
         *,
         model_name: str,
         primary_device: "HuaweiSolarDevice | None" = None,
+        serial_number: str | None = None,
     ) -> Self:
         """Create instance with the necessary information."""
         device = cls(
@@ -73,6 +74,8 @@ class HuaweiSolarDevice(ABC):
             model_name,
             primary_device=primary_device,
         )
+        if serial_number is not None:
+            device.serial_number = serial_number
 
         await device._populate_additional_fields()
 

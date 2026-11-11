@@ -35,6 +35,7 @@ class DeviceInfo:
     feature_version: str | None
     unknown_field: str | None
     product_type: str | None
+    parent_device_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +67,9 @@ async def get_device_infos(client: AsyncModbusClient) -> list[DeviceInfo]:
     def _parse_device_entry(device_info_str: str) -> DeviceInfo:
         raw_device_info: dict[int, str] = {}
         for entry in device_info_str.split(";"):
-            key, value = entry.split("=")
+            if not entry or "=" not in entry:
+                continue
+            key, value = entry.split("=", 1)
             raw_device_info[int(key)] = value
 
         return DeviceInfo(
@@ -78,6 +81,7 @@ async def get_device_infos(client: AsyncModbusClient) -> list[DeviceInfo]:
             feature_version=raw_device_info.get(6),
             unknown_field=raw_device_info.get(7),
             product_type=raw_device_info.get(8),
+            parent_device_id=int(raw_device_info[9]) if 9 in raw_device_info else None,  # noqa: PLR2004
         )
 
     if DEVICE_INFOS_START_OBJECT_ID in objects:

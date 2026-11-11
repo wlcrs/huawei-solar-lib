@@ -1705,3 +1705,209 @@ class FeatureMask30350(IntFlag):
 
     Gates support for register 42184.
     """
+
+
+class ChargerChargingWaitReason(IntEnum):
+    """Reason why charger is waiting / paused (Register 30516)."""
+
+    UNKNOWN = 0
+    WAITING_FOR_EV = 1
+    HOUSEHOLD_POWER_EXCESSIVE = 2
+    INSUFFICIENT_GREEN_POWER = 3
+    PHASE_SWITCHING = 4
+
+
+class ChargerMeterConnectStatus(IntEnum):
+    """External power meter connection status (Register 30518)."""
+
+    DISCONNECTED = 0
+    CONNECTED = 1
+
+
+class ChargerGunWorkStatus(IntEnum):
+    """Charging gun / connector operational status (Register 31006)."""
+
+    STANDBY = 0
+    STANDBY_PLUGGED = 1
+    SCHEDULED_WAITING = 2
+    CHARGING = 3
+    CHARGING_ENDED = 4
+    FAULT = 5
+    ORDERLY_WAITING = 6
+    UPGRADING = 7
+    CHARGING_STARTING = 8
+    ALARM = 9
+    GREEN_POWER_WAITING = 10
+    GREEN_POWER_CHARGING = 11
+
+
+class ChargerGunLockStatus(IntEnum):
+    """Charging connector mechanical lock status (Register 31030)."""
+
+    LOCKED = 0
+    UNLOCKED = 1
+
+
+class ChargerGunLockControlMode(IntEnum):
+    """Connector lock control mode (Register 41006)."""
+
+    ALWAYS_LOCKED = 0
+    """Connector always locked"""
+    LOCK_DURING_CHARGING = 1
+    """Connector locked only while charging"""
+    LOCK_WHEN_PLUGGED = 2
+    """Connector locked when plugged in"""
+
+
+class ChargerAcWiringMode(IntEnum):
+    """AC grid wiring mode (Register 40036)."""
+
+    SINGLE_PHASE = 0
+    THREE_PHASE_FOUR_WIRE = 1
+
+
+class ChargerContactorControlMode(IntEnum):
+    """Contactor control mode (Register 40032)."""
+
+    SINGLE_PHASE = 0
+    THREE_PHASE = 1
+
+
+class ChargerGunWorkMode(IntEnum):
+    """Operating mode setting for the charging gun (Register 41000)."""
+
+    FAST_CHARGING = 0
+    GREEN_POWER_PRIORITY = 1
+
+
+class ChargerChargingMethod(IntEnum):
+    """Active charging method (Register 31040)."""
+
+    IMMEDIATE_CHARGING = 0
+    SCHEDULED_CHARGING = 1
+    NEXT_TRIP_CHARGING = 2
+
+
+class ChargerNetworkingMode(IntEnum):
+    """Network connection interface mode (Register 40008)."""
+
+    FAST_ETHERNET = 0
+    WIFI = 1
+
+
+class ChargerGroundingSystem(IntEnum):
+    """Grounding system type (Register 40006)."""
+
+    TN_TT = 0
+    IT = 1
+
+
+class ChargerIndicatorLightStatus(IntEnum):
+    """Charger LED ring indicator light status / lamp language (Register 40038)."""
+
+    STANDBY = 0
+    """Idle / standby (pulsating white)"""
+    AUTHENTICATION_WAITING = 1
+    """Vehicle plugged in, waiting for authorization (steady blue)"""
+    SCHEDULED_WAITING = 2
+    """Scheduled charging waiting (pulsating blue)"""
+    CHARGING = 3
+    """Normal charging in progress (pulsating blue)"""
+    CHARGING_COMPLETED = 4
+    """Charging completed, connector plugged (steady blue)"""
+    GREEN_POWER_CHARGING = 5
+    """PV green power charging in progress (pulsating green)"""
+    FAULT_ALARM = 6
+    """System fault or alarm (steady or flashing red)"""
+    UPGRADING = 7
+    """Firmware upgrade in progress (flashing white)"""
+
+
+class ChargerAcType(IntEnum):
+    """Regional AC charger classification type (Register 30110)."""
+
+    CBG = 0
+    """China / CBG regional variant"""
+    EUROPE = 1
+    """European regional variant"""
+
+
+class ChargerNetworkingResult(IntEnum):
+    """Charger networking configuration outcome (Register 30114)."""
+
+    SUCCESS = 0
+    """Networking configuration successful"""
+    FAILURE = 1
+    """Networking configuration failed"""
+
+
+class ChargerDispatchScenario(IntEnum):
+    """Energy scheduling and dispatch scenario (Register 30132)."""
+
+    PV_ESS_CHARGER_1_0_WITHOUT_METER = 0
+    """PV + Energy Storage + Charger 1.0 without power meter"""
+    PV_ESS_CHARGER_1_0_WITH_METER = 1
+    """PV + Energy Storage + Charger 1.0 with power meter"""
+    PV_ESS_CHARGER_2_0 = 2
+    """PV + Energy Storage 2.0 scenario"""
+
+
+class ChargerGunType(IntEnum):
+    """Charging connector physical interface type (Register 31002)."""
+
+    GB18487_TYPE_2 = 0
+    """Standard GB18487 / Type 2 AC connector interface"""
+
+
+class ChargerOutputRelayStatus(IntEnum):
+    """Charging output main contactor / relay state (Register 31008)."""
+
+    DISCONNECTED = 0
+    """Contactor open / disconnected"""
+    CONNECTED = 1
+    """Contactor closed / connected"""
+
+
+class ChargerReportedWorkMode(IntEnum):
+    """Reported operating work mode of the charger gun (Register 31034)."""
+
+    FAST_CHARGING = 0
+    """Fast charging mode"""
+    GREEN_POWER = 1
+    """Green power / PV surplus priority mode"""
+    NEXT_TRIP = 2
+    """Next trip scheduled target mode"""
+
+
+class ChargerDhcpStatus(IntEnum):
+    """DHCP client state (Register 40010)."""
+
+    ENABLED = 0
+    """DHCP client enabled (automatic IPv4 configuration)"""
+    DISABLED = 1
+    """DHCP client disabled (static IPv4 configuration)"""
+
+
+class ChargerFactoryReset(IntEnum):
+    """Factory reset command (Register 40034)."""
+
+    RESET = 0
+    """Restore parameters to factory default settings"""
+
+
+class ChargerVersionRollback(IntEnum):
+    """Firmware version rollback permission (Register 40056)."""
+
+    DISALLOWED = 0
+    """Firmware version downgrade disallowed"""
+    ALLOWED = 1
+    """Firmware version downgrade allowed"""
+
+
+class ChargerGunLockPresence(IntEnum):
+    """Electronic connector lock hardware presence (Register 41012)."""
+
+    PRESENT = 0
+    """Motorized connector lock hardware present"""
+    NOT_PRESENT = 1
+    """Motorized connector lock hardware not present"""

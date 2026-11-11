@@ -18,19 +18,19 @@ class MeterDevice(HuaweiSolarDevice):
     def supports_device(cls, model_name: str) -> bool:
         """Check if this class supports the given device.
 
-        Huawei SmartLoggers report a meter under more than one model string
+        Huawei SmartLoggers and EMMAs report a meter under more than one model string
         depending on the firmware and the read path:
 
-        - ``get_device_infos`` (FC 0x2B) returns ``"PowerMeter"`` as the generic type.
+        - ``get_device_infos`` (FC 0x2B) returns ``"PowerMeter"`` as the generic type,
+          or the specific meter model (e.g. ``"DTSU666_H"``, ``"DDSU666_H"``, ``"YDS60-80"``).
         - The MODEL_NAME register (30000) read at the meter slave returns the
           SmartLogger device-list label, of the form ``"Meter(COM<port>-<addr>)"``.
 
-        Both prefixes identify a power meter for our purposes.
+        All of these prefixes identify a power meter for our purposes.
         """
-        return model_name.startswith(("PowerMeter", "Meter"))
+        return model_name.startswith(("PowerMeter", "Meter", "DTSU", "DDSU", "YDS"))
 
     async def _populate_additional_fields(self) -> None:
-        # No standard registers are defined to read additional metadata from the
-        # meter itself. Identifying information (ESN, software version) is only
-        # available through the SmartLogger's device-discovery response.
-        self.serial_number = ""
+        if not getattr(self, "serial_number", None):
+            parent_sn = self.primary_device.serial_number if self.primary_device else "unknown"
+            self.serial_number = f"{parent_sn}_meter_{self.client.unit_id}"

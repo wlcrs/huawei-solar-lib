@@ -22,6 +22,7 @@ class TargetDevice(Flag):
     SCHARGER = auto()
     SDONGLE = auto()
     SMARTLOGGER = auto()
+    SMART_AC_GUN = auto()
 
 
 @dataclass(frozen=True, slots=True)
