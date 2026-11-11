@@ -40,8 +40,8 @@ DEFAULT_TCP_PORT = 502
 DEFAULT_BAUDRATE = 9600
 
 DEFAULT_UNIT_ID = 0
-DEFAULT_TIMEOUT = 10  # especially the SDongle can react quite slowly
-DEFAULT_SCAN_TIMEOUT = 3  # short timeout for scanning — responding devices reply in milliseconds
+DEFAULT_TIMEOUT = 15  # especially the SDongle can react quite slowly
+DEFAULT_SCAN_TIMEOUT = 5  # short timeout for scanning — responding devices reply in milliseconds
 DEFAULT_WAIT_AFTER_CONNECT = 1.0
 DEFAULT_COOLDOWN_TIME = 0.05
 DEFAULT_MAX_CONSECUTIVE_TIMEOUTS = 5
