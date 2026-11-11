@@ -246,3 +246,28 @@ async def test_supports_ess_low_power_when_read_exception(
     assert sun2000_device.supports_dongle_charge_power_limit is False
     assert sun2000_device.supports_discharge_power_adjustment is False
     assert sun2000_device.supports_recharge is False
+
+
+async def test_filter_registers_power_meter_offline_no_deadlock(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When power_meter_online is False, batch_update does not deadlock on update_lock."""
+    sun2000_device.power_meter_online = False
+
+    async def mock_get_multiple_as_dict(names: list[rn.RegisterName]) -> dict[rn.RegisterName, Result[Any]]:
+        return {name: Result(0, None) for name in names}
+
+    async def mock_raw_get(name: rn.RegisterName) -> Result[Any]:
+        if name == rn.METER_STATUS:
+            return Result(rv.MeterStatus.NORMAL, None)
+        return Result(0, None)
+
+    monkeypatch.setattr(sun2000_device.client, "get_multiple_as_dict", mock_get_multiple_as_dict)
+    monkeypatch.setattr(sun2000_device, "_raw_get", mock_raw_get)
+
+    result = await sun2000_device.batch_update([rn.METER_STATUS, rn.ACTIVE_GRID_A_POWER])
+    assert sun2000_device.power_meter_online is True
+    assert rn.METER_STATUS in result
+    assert rn.ACTIVE_GRID_A_POWER in result
+

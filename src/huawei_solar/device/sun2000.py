@@ -235,12 +235,12 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         result = register_names
 
         # Filter out power meter registers if the power meter is offline
-        power_meter_register_names = {rn for rn in register_names if rn in METER_REGISTERS}
+        power_meter_register_names = {regname for regname in register_names if regname in METER_REGISTERS}
         if power_meter_register_names:
             # Do a check of the METER_STATUS register only if the power meter is marked offline
             if not self.power_meter_online:
-                power_meter_online_register = await self.get(rn.METER_STATUS)
-                self.power_meter_online = power_meter_online_register.value
+                power_meter_online_register = await self._raw_get(rn.METER_STATUS)
+                self.power_meter_online = power_meter_online_register.value == rv.MeterStatus.NORMAL
 
                 _LOGGER.debug("Power meter online: %s", self.power_meter_online)
 
@@ -251,7 +251,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
                 )
                 result = list(
                     filter(
-                        lambda regname: regname == rn.METER_STATUS or rn not in power_meter_register_names,
+                        lambda regname: regname == rn.METER_STATUS or regname not in power_meter_register_names,
                         register_names,
                     ),
                 )
