@@ -367,9 +367,17 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
                         self.__heartbeat_enabled = await self.client.heartbeat()
 
                     await asyncio.sleep(HEARTBEAT_INTERVAL)
-                except HuaweiSolarException as err:
-                    _LOGGER.warning("Heartbeat stopped because of, %s", err)
+                except asyncio.CancelledError:
                     self.__heartbeat_enabled = False
+                    break
+                except (HuaweiSolarException, TimeoutError) as err:
+                    _LOGGER.warning("Heartbeat stopped because of: %s", err)
+                    self.__heartbeat_enabled = False
+                    break
+                except Exception:
+                    _LOGGER.exception("Heartbeat unexpectedly crashed")
+                    self.__heartbeat_enabled = False
+                    break
 
         self.__heartbeat_enabled = True
         self.__heartbeat_task = asyncio.create_task(heartbeat())
