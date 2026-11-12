@@ -1,6 +1,7 @@
 """Tests for the SUN2000Device class."""
 
 from typing import Any
+from unittest.mock import MagicMock
 
 import huawei_solar.register_values as rv
 import pytest
@@ -8,7 +9,7 @@ from huawei_solar.exceptions import ReadException, WriteException
 from huawei_solar.register_values import StorageProductModel
 
 from huawei_solar import register_names as rn
-from huawei_solar.device import SUN2000Device
+from huawei_solar.device import EMMADevice, SUN2000Device
 from huawei_solar.register_definitions import Result
 
 
@@ -200,6 +201,50 @@ async def test_supports_ess_low_power_when_bit_cleared(
     assert sun2000_device.supports_dongle_charge_power_limit is False
     assert sun2000_device.supports_discharge_power_adjustment is False
     assert sun2000_device.supports_recharge is False
+
+
+async def test_supports_ess_low_power_when_connected_through_emma(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When SUN2000 has an EMMADevice as primary device, supports_ess_low_power is still detected."""
+    sun2000_device.primary_device = MagicMock(spec=EMMADevice)
+
+    async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[str]]:
+        return [Result("SN123", None), Result("PN123", None), Result("V100", None), Result("V100", None)]
+
+    responses: dict[rn.RegisterName, Result[Any] | Exception] = {
+        rn.NB_PV_STRINGS: Result(2, None),
+        rn.NB_OPTIMIZERS: ReadException(_READ_FAILED_MSG),
+        rn.STORAGE_UNIT_1_PRODUCT_MODEL: Result(StorageProductModel.HUAWEI_LUNA2000, None),
+        rn.STORAGE_UNIT_2_PRODUCT_MODEL: Result(StorageProductModel.NONE, None),
+        rn.FEATURE_MASK_3: Result(
+            rv.FeatureMask3.CAPACITY_CONTROL | rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT,
+            None,
+        ),
+        rn.FEATURE_MASK_30308: ReadException(_READ_FAILED_MSG),
+        rn.FEATURE_MASK_30320: ReadException(_READ_FAILED_MSG),
+        rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342.ESS_LOW_POWER, None),
+        rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
+    }
+
+    async def mock_get(name: rn.RegisterName) -> Result[Any]:
+        if name in responses:
+            val = responses[name]
+            if isinstance(val, Exception):
+                raise val
+            return val
+        msg = f"Unexpected get: {name}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
+    monkeypatch.setattr(sun2000_device.client, "get", mock_get)
+    await sun2000_device._populate_additional_fields()
+
+    assert sun2000_device.supports_capacity_control is False
+    assert sun2000_device.supports_dongle_charge_power_limit is False
+    assert sun2000_device.supports_discharge_power_adjustment is False
+    assert sun2000_device.supports_ess_low_power is True
 
 
 async def test_supports_ess_low_power_when_read_exception(

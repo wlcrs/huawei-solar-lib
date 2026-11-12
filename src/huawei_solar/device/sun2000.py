@@ -149,24 +149,23 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             _LOGGER.debug("Feature mask 30320 not supported by device %d", self.client.unit_id)
             self.supports_backup_voltage = False
 
-        if self.battery_type != rv.StorageProductModel.NONE and (
-            self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice))
-        ):
-            self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
-            self.supports_dongle_charge_power_limit = bool(
-                feature_mask_3 & rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT
-            )
-
-            try:
-                feature_mask_2 = (await self.client.get(rn.FEATURE_MASK_2)).value
-                self.supports_discharge_power_adjustment = bool(
-                    feature_mask_2 & rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS
+        if self.battery_type != rv.StorageProductModel.NONE:
+            if self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice)):
+                self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
+                self.supports_dongle_charge_power_limit = bool(
+                    feature_mask_3 & rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT
                 )
-                self.supports_recharge = self.supports_discharge_power_adjustment
-            except ReadException:
-                _LOGGER.debug("Feature mask 2 not supported by device %d", self.client.unit_id)
-                self.supports_discharge_power_adjustment = False
-                self.supports_recharge = False
+
+                try:
+                    feature_mask_2 = (await self.client.get(rn.FEATURE_MASK_2)).value
+                    self.supports_discharge_power_adjustment = bool(
+                        feature_mask_2 & rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS
+                    )
+                    self.supports_recharge = self.supports_discharge_power_adjustment
+                except ReadException:
+                    _LOGGER.debug("Feature mask 2 not supported by device %d", self.client.unit_id)
+                    self.supports_discharge_power_adjustment = False
+                    self.supports_recharge = False
 
             try:
                 feature_mask = (await self.client.get(rn.FEATURE_MASK_30342)).value
