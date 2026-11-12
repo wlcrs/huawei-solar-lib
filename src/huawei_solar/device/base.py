@@ -77,7 +77,11 @@ class HuaweiSolarDevice(ABC):
         if serial_number is not None:
             device.serial_number = serial_number
 
-        await device._populate_additional_fields()
+        if device.update_lock.locked():
+            await device._populate_additional_fields()
+        else:
+            async with device.update_lock:
+                await device._populate_additional_fields()
 
         return device
 
