@@ -142,7 +142,7 @@ async def test_supports_ess_low_power_when_bit_set(
         raise AssertionError(msg)
 
     monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
-    monkeypatch.setattr(sun2000_device, "_raw_get", mock_get)
+    monkeypatch.setattr(sun2000_device.client, "get", mock_get)
     await sun2000_device._populate_additional_fields()
 
     assert sun2000_device.supports_capacity_control is True
@@ -188,7 +188,7 @@ async def test_supports_ess_low_power_when_bit_cleared(
         raise AssertionError(msg)
 
     monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
-    monkeypatch.setattr(sun2000_device, "_raw_get", mock_get)
+    monkeypatch.setattr(sun2000_device.client, "get", mock_get)
     await sun2000_device._populate_additional_fields()
 
     assert sun2000_device.supports_capacity_control is False
@@ -234,7 +234,7 @@ async def test_supports_ess_low_power_when_read_exception(
         raise AssertionError(msg)
 
     monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
-    monkeypatch.setattr(sun2000_device, "_raw_get", mock_get)
+    monkeypatch.setattr(sun2000_device.client, "get", mock_get)
     await sun2000_device._populate_additional_fields()
 
     assert sun2000_device.supports_capacity_control is False
@@ -282,7 +282,7 @@ async def test_populate_additional_fields_meter_queried_only_once(
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[str]]:
         return [Result("SN123", None), Result("PN123", None), Result("V100", None), Result("V100", None)]
 
-    async def mock_raw_get(name: rn.RegisterName) -> Result[Any]:
+    async def mock_client_get(name: rn.RegisterName) -> Result[Any]:
         queried_registers.append(name)
         if name == rn.NB_PV_STRINGS:
             return Result(2, None)
@@ -304,7 +304,7 @@ async def test_populate_additional_fields_meter_queried_only_once(
         raise AssertionError(msg)
 
     monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
-    monkeypatch.setattr(sun2000_device, "_raw_get", mock_raw_get)
+    monkeypatch.setattr(sun2000_device.client, "get", mock_client_get)
 
     await sun2000_device._populate_additional_fields()
 

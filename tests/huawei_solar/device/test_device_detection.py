@@ -404,7 +404,7 @@ async def test_create_sub_device_instance_sun2000_does_not_deadlock(
         rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
     }
 
-    async def mock_raw_get(self: SUN2000Device, name: rn.RegisterName) -> Result[Any]:
+    async def mock_get(name: rn.RegisterName) -> Result[Any]:
         if name in responses:
             val = responses[name]
             if isinstance(val, Exception):
@@ -413,7 +413,7 @@ async def test_create_sub_device_instance_sun2000_does_not_deadlock(
         msg = f"Unexpected get: {name}"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(SUN2000Device, "_raw_get", mock_raw_get)
+    sub_client.get = mock_get
 
     sub_device = await create_sub_device_instance(primary_device, 2)
 

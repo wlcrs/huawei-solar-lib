@@ -77,11 +77,6 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         )
 
     async def _populate_additional_fields(self) -> None:
-        if not self.update_lock.locked():
-            async with self.update_lock:
-                await self._populate_additional_fields()
-            return
-
         (
             serial_number_result,
             pn_result,
@@ -100,18 +95,18 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         self.firmware_version = firmware_version_result.value
         self.software_version = software_version_result.value
 
-        self.pv_string_count = (await self._raw_get(rn.NB_PV_STRINGS)).value
+        self.pv_string_count = (await self.client.get(rn.NB_PV_STRINGS)).value
         self._pv_registers = _compute_pv_registers(self.pv_string_count)
 
         # some inverters throw an IllegalAddress exception when accessing this address
         with suppress(ReadException):
-            self.has_optimizers = (await self._raw_get(rn.NB_OPTIMIZERS)).value
+            self.has_optimizers = (await self.client.get(rn.NB_OPTIMIZERS)).value
 
         with suppress(ReadException):
-            self.battery_1_type = (await self._raw_get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)).value
+            self.battery_1_type = (await self.client.get(rn.STORAGE_UNIT_1_PRODUCT_MODEL)).value
 
         with suppress(ReadException):
-            self.battery_2_type = (await self._raw_get(rn.STORAGE_UNIT_2_PRODUCT_MODEL)).value
+            self.battery_2_type = (await self.client.get(rn.STORAGE_UNIT_2_PRODUCT_MODEL)).value
 
         if (
             self.battery_1_type is not rv.StorageProductModel.NONE
@@ -127,7 +122,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     async def _populate_feature_support(self) -> None:
         """Check feature masks to determine supported hardware and firmware capabilities."""
         try:
-            feature_mask_3 = (await self._raw_get(rn.FEATURE_MASK_3)).value
+            feature_mask_3 = (await self.client.get(rn.FEATURE_MASK_3)).value
             self.supports_active_power_fail_safe = bool(
                 feature_mask_3 & rv.FeatureMask3.COMMUNICATION_FAIL_ACTIVE_POWER_DERATING
             )
@@ -139,14 +134,14 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             self.supports_active_power_limitation_mode = False
 
         try:
-            feature_mask_30308 = (await self._raw_get(rn.FEATURE_MASK_30308)).value
+            feature_mask_30308 = (await self.client.get(rn.FEATURE_MASK_30308)).value
             self.supports_off_grid_switch = bool(feature_mask_30308 & rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING)
         except ReadException:
             _LOGGER.debug("Feature mask 30308 not supported by device %d", self.client.unit_id)
             self.supports_off_grid_switch = False
 
         try:
-            feature_mask_30320 = (await self._raw_get(rn.FEATURE_MASK_30320)).value
+            feature_mask_30320 = (await self.client.get(rn.FEATURE_MASK_30320)).value
             self.supports_backup_voltage = self.supports_off_grid_switch and bool(
                 feature_mask_30320 & rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION
             )
@@ -163,7 +158,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             )
 
             try:
-                feature_mask_2 = (await self._raw_get(rn.FEATURE_MASK_2)).value
+                feature_mask_2 = (await self.client.get(rn.FEATURE_MASK_2)).value
                 self.supports_discharge_power_adjustment = bool(
                     feature_mask_2 & rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS
                 )
@@ -174,19 +169,19 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
                 self.supports_recharge = False
 
             try:
-                feature_mask = (await self._raw_get(rn.FEATURE_MASK_30342)).value
+                feature_mask = (await self.client.get(rn.FEATURE_MASK_30342)).value
                 self.supports_ess_low_power = bool(feature_mask & rv.FeatureMask30342.ESS_LOW_POWER)
             except ReadException:
                 _LOGGER.debug("ESS low power as it is not supported by device %d", self.client.unit_id)
                 self.supports_ess_low_power = False
 
         with suppress(ReadException):
-            self.power_meter_online = (await self._raw_get(rn.METER_STATUS)).value == rv.MeterStatus.NORMAL
+            self.power_meter_online = (await self.client.get(rn.METER_STATUS)).value == rv.MeterStatus.NORMAL
 
         # Caveat: if the inverter is in offline mode, and the power meter is thus offline,
         # we will incorrectly detect that no power meter is present.
         if self.power_meter_online:
-            self.power_meter_type = (await self._raw_get(rn.METER_TYPE)).value
+            self.power_meter_type = (await self.client.get(rn.METER_TYPE)).value
 
     def _handle_batch_read_error(
         self,
