@@ -142,7 +142,7 @@ async def test_supports_ess_low_power_when_bit_set(
         raise AssertionError(msg)
 
     monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
-    monkeypatch.setattr(sun2000_device, "get", mock_get)
+    monkeypatch.setattr(sun2000_device, "_raw_get", mock_get)
     await sun2000_device._populate_additional_fields()
 
     assert sun2000_device.supports_capacity_control is True
@@ -188,7 +188,7 @@ async def test_supports_ess_low_power_when_bit_cleared(
         raise AssertionError(msg)
 
     monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
-    monkeypatch.setattr(sun2000_device, "get", mock_get)
+    monkeypatch.setattr(sun2000_device, "_raw_get", mock_get)
     await sun2000_device._populate_additional_fields()
 
     assert sun2000_device.supports_capacity_control is False
@@ -234,7 +234,7 @@ async def test_supports_ess_low_power_when_read_exception(
         raise AssertionError(msg)
 
     monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
-    monkeypatch.setattr(sun2000_device, "get", mock_get)
+    monkeypatch.setattr(sun2000_device, "_raw_get", mock_get)
     await sun2000_device._populate_additional_fields()
 
     assert sun2000_device.supports_capacity_control is False
@@ -270,3 +270,45 @@ async def test_filter_registers_power_meter_offline_no_deadlock(
     assert sun2000_device.power_meter_online is True
     assert rn.METER_STATUS in result
     assert rn.ACTIVE_GRID_A_POWER in result
+
+
+async def test_populate_additional_fields_meter_queried_only_once(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """rn.METER_STATUS and rn.METER_TYPE should only be queried once during _populate_additional_fields."""
+    queried_registers: list[rn.RegisterName] = []
+
+    async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[str]]:
+        return [Result("SN123", None), Result("PN123", None), Result("V100", None), Result("V100", None)]
+
+    async def mock_raw_get(name: rn.RegisterName) -> Result[Any]:
+        queried_registers.append(name)
+        if name == rn.NB_PV_STRINGS:
+            return Result(2, None)
+        if name == rn.METER_STATUS:
+            return Result(rv.MeterStatus.NORMAL, None)
+        if name == rn.METER_TYPE:
+            return Result(rv.MeterType.THREE_PHASE, None)
+        if name in (rn.NB_OPTIMIZERS, rn.STORAGE_UNIT_1_PRODUCT_MODEL, rn.STORAGE_UNIT_2_PRODUCT_MODEL):
+            raise ReadException(_READ_FAILED_MSG)
+        if name in (
+            rn.FEATURE_MASK_3,
+            rn.FEATURE_MASK_30308,
+            rn.FEATURE_MASK_30320,
+            rn.FEATURE_MASK_2,
+            rn.FEATURE_MASK_30342,
+        ):
+            raise ReadException(_READ_FAILED_MSG)
+        msg = f"Unexpected get: {name}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
+    monkeypatch.setattr(sun2000_device, "_raw_get", mock_raw_get)
+
+    await sun2000_device._populate_additional_fields()
+
+    assert sun2000_device.power_meter_online is True
+    assert sun2000_device.power_meter_type == rv.MeterType.THREE_PHASE
+    assert queried_registers.count(rn.METER_STATUS) == 1
+    assert queried_registers.count(rn.METER_TYPE) == 1

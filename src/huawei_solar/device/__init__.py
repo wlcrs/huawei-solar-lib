@@ -148,14 +148,15 @@ async def create_sub_device_instance(
         msg = "The unit_id for the sub-device must be different from the primary device's unit_id."
         raise ValueError(msg)
 
-    sub_client = primary_device.client.for_unit_id(unit_id)
-    device_type, model_name = await detect_device_type(sub_client)
-    return await device_type.create(
-        sub_client,
-        model_name=model_name,
-        primary_device=primary_device,
-        serial_number=serial_number,
-    )
+    async with primary_device.update_lock:
+        sub_client = primary_device.client.for_unit_id(unit_id)
+        device_type, model_name = await detect_device_type(sub_client)
+        return await device_type.create(
+            sub_client,
+            model_name=model_name,
+            primary_device=primary_device,
+            serial_number=serial_number,
+        )
 
 
 __all__ = [
