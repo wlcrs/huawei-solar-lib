@@ -137,16 +137,10 @@ class TimeoutAwareSmartTransport(AsyncSmartTransport):
             retry_on_device_failure=retry_on_device_failure,
         )
 
-        # reset the amount of consecutive timeouts after reconnecting
-        base_on_reconnected = self.on_reconnected
-
-        def reset_timeouts_count_on_reconnected() -> None:
-            """Reset the consecutive timeouts count on reconnect."""
-            self._consecutive_timeouts = 0
-            if base_on_reconnected:
-                base_on_reconnected()
-
-        self.on_reconnected = reset_timeouts_count_on_reconnected
+    async def _do_auto_reconnect(self) -> None:
+        """Reconnect to the Modbus device and reset consecutive timeouts."""
+        await super()._do_auto_reconnect()
+        self._consecutive_timeouts = 0
 
     async def send_and_receive(self, unit_id: int, pdu: BaseClientPDU[RT]) -> RT:
         """Send a request and force a reconnect after repeated timeouts."""

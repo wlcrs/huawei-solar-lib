@@ -270,4 +270,3 @@ async def test_filter_registers_power_meter_offline_no_deadlock(
     assert sun2000_device.power_meter_online is True
     assert rn.METER_STATUS in result
     assert rn.ACTIVE_GRID_A_POWER in result
-
