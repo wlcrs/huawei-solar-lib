@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import suppress
+from datetime import datetime, timedelta
 from typing import Any
 
 from huawei_solar import register_names as rn
@@ -16,8 +17,8 @@ from huawei_solar.files import (
     OptimizerSystemInformation,
     OptimizerSystemInformationDataFile,
 )
-from huawei_solar.register_definitions import Result
-from huawei_solar.registers import METER_REGISTERS
+from huawei_solar.register_definitions import Result, TimestampRegister
+from huawei_solar.registers import METER_REGISTERS, REGISTERS
 
 from .base import HuaweiSolarDeviceWithLogin
 from .emma import EMMADevice
@@ -63,6 +64,9 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     _pv_registers: list[str]
 
     _previous_device_status: str | None = None
+
+    _time_zone: int | None = None
+    _dst: bool | None = None
 
     @classmethod
     def supports_device(cls, model_name: str) -> bool:
@@ -118,6 +122,14 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             )
 
         await self._populate_feature_support()
+
+        # The timestamp registers (startup/shutdown time, ...) hold the inverter's local wall-clock time.
+        # TIME_ZONE and DAYLIGHT_SAVING_TIME are needed to convert them to UTC.
+        # Reading them fails on some firmware versions (cfr. https://github.com/wlcrs/huawei_solar/issues/1264)
+        with suppress(ReadException):
+            self._dst = (await self.client.get(rn.DAYLIGHT_SAVING_TIME)).value
+        with suppress(ReadException):
+            self._time_zone = (await self.client.get(rn.TIME_ZONE)).value
 
     async def _populate_feature_support(self) -> None:
         """Check feature masks to determine supported hardware and firmware capabilities."""
@@ -248,6 +260,31 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
                 )
 
         return result
+
+    def _local_timestamp_to_utc(self, register_name: rn.RegisterName, result: Result[Any]) -> Result[Any]:
+        """Convert a timestamp register from the inverter's local wall-clock time to UTC.
+
+        TimestampRegister decodes the raw value as if it were UTC, but the inverter stores
+        its local time in these registers. Shift it by the inverter's TIME_ZONE and DST.
+        """
+        if not isinstance(REGISTERS.get(register_name), TimestampRegister) or result.value is None:
+            return result
+
+        assert isinstance(result.value, datetime)
+        value = result.value
+        if self._time_zone:
+            value -= timedelta(minutes=self._time_zone)
+        if self._dst:
+            value -= timedelta(hours=1)
+        return Result(value, result.unit)
+
+    async def batch_update(self, register_names: list[rn.RegisterName]) -> dict[rn.RegisterName, Result[Any]]:
+        """Retrieve the values of the given registers, with timestamps converted to UTC."""
+        result = await super().batch_update(register_names)
+        return {name: self._local_timestamp_to_utc(name, value) for name, value in result.items()}
+
+    async def _raw_get(self, name: rn.RegisterName) -> Result[Any]:
+        return self._local_timestamp_to_utc(name, await super()._raw_get(name))
 
     async def _get_system_time(self) -> int | None:
         """Get the system time from the inverter."""
