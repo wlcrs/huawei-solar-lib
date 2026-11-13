@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Self
 
@@ -111,6 +112,18 @@ class HuaweiSolarDevice(ABC):
         """
         return register_names
 
+    def _transform_datetime(self, value: datetime) -> datetime:
+        """Optionally transform a decoded UTC datetime before returning it."""
+        return value
+
+    def _transform_register_values(
+        self,
+        register_name: rn.RegisterName,  # noqa: ARG002
+        result: "Result[Any]",
+    ) -> "Result[Any]":
+        """Optionally transform the value of a register before returning it."""
+        return result
+
     async def batch_update(self, register_names: list[rn.RegisterName]) -> "dict[rn.RegisterName, Result[Any]]":
         """Efficiently retrieve the values of all the registers passed in register_names.
 
@@ -174,6 +187,8 @@ class HuaweiSolarDevice(ABC):
                     values = {}
 
                 self._detect_state_changes(values)
+                for key, value in values.items():
+                    values[key] = self._transform_register_values(key, value)
                 result.update(values)
 
                 first_idx = last_idx + 1
@@ -204,7 +219,7 @@ class HuaweiSolarDevice(ABC):
         Use this from internal code when `update_lock` is already held.
         """
         assert self.update_lock.locked(), "update_lock must be held when calling _raw_get"
-        return await self.client.get(name)
+        return self._transform_register_values(name, await self.client.get(name))
 
     async def read_file(self, file_type: int, customized_data: bytes | None = None) -> bytes:
         """Wrap `get_file` from `AsyncHuaweiSolarClient`."""
@@ -238,7 +253,9 @@ class HuaweiSolarDevice(ABC):
             ActiveAlarmsDataFile.query_active_alarms(equip_id),
         )
         active_alarms_file = ActiveAlarmsDataFile(file_data)
-        return active_alarms_file.alarms
+        return [
+            replace(alarm, occur_time=self._transform_datetime(alarm.occur_time)) for alarm in active_alarms_file.alarms
+        ]
 
     async def get_history_alarms(
         self,
@@ -257,7 +274,14 @@ class HuaweiSolarDevice(ABC):
             HistoryAlarmsDataFile.query_within_timespan(start_epoch, end_epoch),
         )
         history_alarms_file = HistoryAlarmsDataFile(file_data)
-        return history_alarms_file.alarms
+        return [
+            replace(
+                alarm,
+                occur_time=self._transform_datetime(alarm.occur_time),
+                recover_time=self._transform_datetime(alarm.recover_time),
+            )
+            for alarm in history_alarms_file.alarms
+        ]
 
     async def get_performance_data(
         self,
@@ -279,7 +303,7 @@ class HuaweiSolarDevice(ABC):
             InverterPerformanceDataFile.query_within_timespan(request_type, start_epoch, end_epoch),
         )
         performance_file = InverterPerformanceDataFile(file_data, request_type=request_type, cycle=cycle)
-        return performance_file.data_points
+        return [replace(point, time=self._transform_datetime(point.time)) for point in performance_file.data_points]
 
 
 class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):

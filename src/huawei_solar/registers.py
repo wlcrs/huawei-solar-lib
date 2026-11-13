@@ -907,15 +907,8 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         target_device=TargetDevice.EMMA,
     ),
     rn.EMMA_DST_STATE: U16Register(None, 1, 31002, target_device=TargetDevice.EMMA),
-    rn.EMMA_LOCAL_TIME: U32Register(
-        "seconds",
-        1,
-        31003,
-        target_device=TargetDevice.EMMA,
-    ),
-    rn.EMMA_SYSTEM_TIME: U32Register(
-        "seconds",
-        1,
+    rn.EMMA_LOCAL_TIME: TimestampRegister(31003, target_device=TargetDevice.EMMA),
+    rn.EMMA_SYSTEM_TIME: TimestampRegister(
         40470,
         writeable=True,
         target_device=TargetDevice.EMMA,
@@ -1255,7 +1248,7 @@ SDONGLE_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
 REGISTERS.update(SDONGLE_REGISTERS)
 
 SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
-    rn.SMARTLOGGER_DATE_TIME: U32Register(None, 1, 40000, writeable=True, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_DATE_TIME: TimestampRegister(40000, writeable=True, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_CITY: U32Register(None, 1, 40002, writeable=True, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DAYLIGHT_SAVING_TIME_DST: U16Register(
         None,
@@ -1267,7 +1260,7 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.SMARTLOGGER_TIME_ZONE: I32Register("s", 1, 40005, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DST_STATE: U16Register(None, 1, 40007, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DST_OFFSET: U16Register("mins", 1, 40008, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_LOCAL_TIME: U32Register(None, 1, 40009, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_LOCAL_TIME: TimestampRegister(40009, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_PV_INVERTER_SHUTDOWN: U16Register(
         None,
         1,

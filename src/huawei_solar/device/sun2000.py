@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import suppress
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from huawei_solar import register_names as rn
@@ -16,8 +17,8 @@ from huawei_solar.files import (
     OptimizerSystemInformation,
     OptimizerSystemInformationDataFile,
 )
-from huawei_solar.register_definitions import Result
-from huawei_solar.registers import METER_REGISTERS
+from huawei_solar.register_definitions import Result, TimestampRegister
+from huawei_solar.registers import METER_REGISTERS, REGISTERS
 
 from .base import HuaweiSolarDeviceWithLogin
 from .emma import EMMADevice
@@ -61,6 +62,9 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     power_meter_type: rv.MeterType | None = None
 
     _pv_registers: list[str]
+
+    _time_zone: int | None = None
+    _dst: bool | None = None
 
     _previous_device_status: str | None = None
 
@@ -182,6 +186,12 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         if self.power_meter_online:
             self.power_meter_type = (await self.client.get(rn.METER_TYPE)).value
 
+        # reading these registers fails on some firmware versions (cfr. https://github.com/wlcrs/huawei_solar/issues/1264)
+        with suppress(ReadException):
+            self._dst = (await self.client.get(rn.DAYLIGHT_SAVING_TIME)).value
+        with suppress(ReadException):
+            self._time_zone = (await self.client.get(rn.TIME_ZONE)).value
+
     def _handle_batch_read_error(
         self,
         queried_register_names: list[rn.RegisterName],
@@ -222,6 +232,27 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
 
             self._previous_device_status = new_device_status
 
+        if rn.TIME_ZONE in new_values:
+            self._time_zone = new_values[rn.TIME_ZONE].value
+        if rn.DAYLIGHT_SAVING_TIME in new_values:
+            self._dst = new_values[rn.DAYLIGHT_SAVING_TIME].value
+
+    def _transform_datetime(self, value: datetime) -> datetime:
+        if self._time_zone:
+            value -= timedelta(minutes=self._time_zone)
+        # if DST is in effect, we need to shift another hour.
+        if self._dst:
+            value -= timedelta(hours=1)
+
+        return value.astimezone(tz=UTC)
+
+    def _transform_register_values(self, register_name: rn.RegisterName, result: Result[Any]) -> Result[Any]:
+        if isinstance(REGISTERS[register_name], TimestampRegister) and result.value is not None:
+            assert isinstance(result.value, datetime)
+            return Result(self._transform_datetime(result.value), result.unit)
+
+        return result
+
     async def _filter_registers(self, register_names: list[rn.RegisterName]) -> list[rn.RegisterName]:
         result = register_names
 
@@ -254,8 +285,8 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         if self.primary_device and isinstance(self.primary_device, EMMADevice):
             # Inverters don't return their own system time when connected via EMMA.
             # Instead, we need to read the local time from the EMMA device.
-
-            return (await self.primary_device.get(rn.EMMA_LOCAL_TIME)).value  # type: ignore[no-any-return]
+            emma_local_time = (await self.primary_device.client.get(rn.EMMA_LOCAL_TIME)).value
+            return int(emma_local_time.timestamp()) if emma_local_time is not None else None
 
         return (await self.get(rn.SYSTEM_TIME_RAW)).value  # type: ignore[no-any-return]
 
