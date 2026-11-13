@@ -35,16 +35,34 @@ class SmartLoggerDevice(HuaweiSolarDevice):
             self._dst_state = (await self.client.get(rn.SMARTLOGGER_DST_STATE)).value
         with suppress(ReadException):
             self._dst_offset = (await self.client.get(rn.SMARTLOGGER_DST_OFFSET)).value
+        self._update_matched_timezone()
+
+    def _update_matched_timezone(self) -> None:
+        if self._time_zone is None:
+            return
+        offset = timedelta(seconds=self._time_zone) + (
+            timedelta(minutes=self._dst_offset or 0) if self._dst_state else timedelta(0)
+        )
+        device_dst = bool(self._dst_state) if self._dst_state is not None else None
+        self._adopt_matching_host_timezone(offset, device_dst=device_dst)
 
     def _detect_state_changes(self, new_values: dict[rn.RegisterName, Result[Any]]) -> None:
-        if rn.SMARTLOGGER_TIME_ZONE in new_values:
-            self._time_zone = new_values[rn.SMARTLOGGER_TIME_ZONE].value
-        if rn.SMARTLOGGER_DST_STATE in new_values:
-            self._dst_state = new_values[rn.SMARTLOGGER_DST_STATE].value
-        if rn.SMARTLOGGER_DST_OFFSET in new_values:
-            self._dst_offset = new_values[rn.SMARTLOGGER_DST_OFFSET].value
+        if (
+            rn.SMARTLOGGER_TIME_ZONE in new_values
+            or rn.SMARTLOGGER_DST_STATE in new_values
+            or rn.SMARTLOGGER_DST_OFFSET in new_values
+        ):
+            if rn.SMARTLOGGER_TIME_ZONE in new_values:
+                self._time_zone = new_values[rn.SMARTLOGGER_TIME_ZONE].value
+            if rn.SMARTLOGGER_DST_STATE in new_values:
+                self._dst_state = new_values[rn.SMARTLOGGER_DST_STATE].value
+            if rn.SMARTLOGGER_DST_OFFSET in new_values:
+                self._dst_offset = new_values[rn.SMARTLOGGER_DST_OFFSET].value
+            self._update_matched_timezone()
 
     def _transform_datetime(self, value: datetime) -> datetime:
+        if self._use_host_timezone:
+            return super()._transform_datetime(value)
         if self._time_zone:
             value -= timedelta(seconds=self._time_zone)
         if self._dst_state and self._dst_offset:

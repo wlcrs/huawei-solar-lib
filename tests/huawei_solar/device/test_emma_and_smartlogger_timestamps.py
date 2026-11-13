@@ -1,9 +1,11 @@
 """Tests for EMMA and SmartLogger timestamp register and file datetime handling."""
 
 import struct
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -130,3 +132,76 @@ async def test_smartlogger_detect_state_changes_updates_tz(
     )
     result = await smartlogger_device.batch_update([rn.SMARTLOGGER_LOCAL_TIME])
     assert result[rn.SMARTLOGGER_LOCAL_TIME].value == datetime(2026, 8, 21, 11, 0, 0, tzinfo=UTC)
+
+
+async def test_emma_adopts_matching_host_timezone_across_dst(
+    emma_device: EMMADevice,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When host timezone matches EMMA's current offset, historical/cross-DST timestamps use its DST rules."""
+    brussels = ZoneInfo("Europe/Brussels")
+    current_offset = datetime.now(tz=UTC).astimezone(brussels).utcoffset()
+    assert current_offset is not None
+
+    monkeypatch.setenv("TZ", "Europe/Brussels")
+    time.tzset()
+    try:
+        utc_now = datetime(2026, 8, 21, 10, 0, 0, tzinfo=UTC)
+        local_now = utc_now + current_offset
+
+        async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
+            if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
+                return [Result("EMMA123", None), Result("V100", None)]
+            if names == [rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME]:
+                return [Result(local_now, None), Result(utc_now, None)]
+            msg = f"Unexpected get_multiple: {names}"
+            raise AssertionError(msg)
+
+        monkeypatch.setattr(emma_device.client, "get_multiple", mock_get_multiple)
+        monkeypatch.setattr(emma_device.client, "get", AsyncMock(return_value=Result("EMMA-A02", None)))
+
+        await emma_device._populate_additional_fields()
+        assert emma_device._use_host_timezone is True
+
+        # Summer (+2h) and winter (+1h) timestamps are both converted accurately
+        assert emma_device._transform_datetime(datetime(2026, 8, 21, 12, 0, 0, tzinfo=UTC)) == datetime(
+            2026, 8, 21, 10, 0, 0, tzinfo=UTC
+        )
+        assert emma_device._transform_datetime(datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)) == datetime(
+            2026, 1, 15, 11, 0, 0, tzinfo=UTC
+        )
+    finally:
+        monkeypatch.delenv("TZ", raising=False)
+        time.tzset()
+
+
+async def test_emma_falls_back_to_fixed_offset_when_host_timezone_mismatches(
+    emma_device: EMMADevice,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When host timezone does not match EMMA's offset, EMMA keeps the fixed device offset."""
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    try:
+        utc_now = datetime(2026, 8, 21, 10, 0, 0, tzinfo=UTC)
+        local_now = datetime(2026, 8, 21, 12, 0, 0, tzinfo=UTC)  # +2h, never matches New York (-4h/-5h)
+
+        async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
+            if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
+                return [Result("EMMA123", None), Result("V100", None)]
+            if names == [rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME]:
+                return [Result(local_now, None), Result(utc_now, None)]
+            msg = f"Unexpected get_multiple: {names}"
+            raise AssertionError(msg)
+
+        monkeypatch.setattr(emma_device.client, "get_multiple", mock_get_multiple)
+        monkeypatch.setattr(emma_device.client, "get", AsyncMock(return_value=Result("EMMA-A02", None)))
+
+        await emma_device._populate_additional_fields()
+        assert emma_device._use_host_timezone is False
+        assert emma_device._transform_datetime(datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)) == datetime(
+            2026, 1, 15, 10, 0, 0, tzinfo=UTC
+        )
+    finally:
+        monkeypatch.delenv("TZ", raising=False)
+        time.tzset()

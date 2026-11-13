@@ -51,8 +51,11 @@ class EMMADevice(HuaweiSolarDevice):
             if local_time_result.value is not None and system_time_result.value is not None:
                 diff_minutes = round((local_time_result.value - system_time_result.value).total_seconds() / 60)
                 self._utc_offset = timedelta(minutes=diff_minutes)
+                self._adopt_matching_host_timezone(self._utc_offset)
 
     def _transform_datetime(self, value: datetime) -> datetime:
+        if self._use_host_timezone:
+            return super()._transform_datetime(value)
         if self._utc_offset:
             value -= self._utc_offset
 

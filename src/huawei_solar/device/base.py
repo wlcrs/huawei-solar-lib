@@ -2,9 +2,10 @@
 
 import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Self
 
 from huawei_solar import register_names as rn
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+
 HEARTBEAT_INTERVAL = 15
 
 
@@ -46,6 +48,7 @@ class HuaweiSolarDevice(ABC):
     serial_number: str
     update_lock: asyncio.Lock
     primary_device: "HuaweiSolarDevice | None" = None
+    _use_host_timezone: bool = False
 
     def __init__(
         self,
@@ -112,8 +115,28 @@ class HuaweiSolarDevice(ABC):
         """
         return register_names
 
+    def _adopt_matching_host_timezone(
+        self,
+        device_offset: timedelta,
+        *,
+        device_dst: bool | None = None,
+    ) -> None:
+        """Adopt the host's local timezone if its current offset and DST state match the device."""
+        self._use_host_timezone = False
+        now_local = datetime.now().astimezone()
+        if now_local.utcoffset() != device_offset:
+            return
+        if device_dst is not None:
+            tm_isdst = time.localtime().tm_isdst
+            if tm_isdst >= 0 and bool(tm_isdst) != device_dst:
+                return
+
+        self._use_host_timezone = True
+
     def _transform_datetime(self, value: datetime) -> datetime:
         """Optionally transform a decoded UTC datetime before returning it."""
+        if self._use_host_timezone:
+            return value.replace(tzinfo=None).astimezone(tz=UTC)
         return value
 
     def _transform_register_values(

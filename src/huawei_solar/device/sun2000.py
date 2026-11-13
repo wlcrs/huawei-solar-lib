@@ -191,6 +191,13 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             self._dst = (await self.client.get(rn.DAYLIGHT_SAVING_TIME)).value
         with suppress(ReadException):
             self._time_zone = (await self.client.get(rn.TIME_ZONE)).value
+        self._update_matched_timezone()
+
+    def _update_matched_timezone(self) -> None:
+        if self._time_zone is None:
+            return
+        offset = timedelta(minutes=self._time_zone) + (timedelta(hours=1) if self._dst else timedelta(0))
+        self._adopt_matching_host_timezone(offset, device_dst=self._dst)
 
     def _handle_batch_read_error(
         self,
@@ -232,12 +239,16 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
 
             self._previous_device_status = new_device_status
 
-        if rn.TIME_ZONE in new_values:
-            self._time_zone = new_values[rn.TIME_ZONE].value
-        if rn.DAYLIGHT_SAVING_TIME in new_values:
-            self._dst = new_values[rn.DAYLIGHT_SAVING_TIME].value
+        if rn.TIME_ZONE in new_values or rn.DAYLIGHT_SAVING_TIME in new_values:
+            if rn.TIME_ZONE in new_values:
+                self._time_zone = new_values[rn.TIME_ZONE].value
+            if rn.DAYLIGHT_SAVING_TIME in new_values:
+                self._dst = new_values[rn.DAYLIGHT_SAVING_TIME].value
+            self._update_matched_timezone()
 
     def _transform_datetime(self, value: datetime) -> datetime:
+        if self._use_host_timezone:
+            return super()._transform_datetime(value)
         if self._time_zone:
             value -= timedelta(minutes=self._time_zone)
         # if DST is in effect, we need to shift another hour.
