@@ -1,6 +1,7 @@
 """Tests for device detection in huawei_solar.device.__init__."""
 
 import asyncio
+import logging
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock
@@ -296,6 +297,48 @@ async def test_detect_device_type_raises_when_no_detection_path_matches() -> Non
 
     with pytest.raises(DeviceDetectionError, match="Unable to detect the device type"):
         await detect_device_type(client)
+
+
+async def test_detect_device_type_failure_logs_probed_unit_id(caplog: pytest.LogCaptureFixture) -> None:
+    """A failed detection must name the probed unit ID, not the default SDongle unit ID."""
+    client = _client_with_get(
+        unit_id=7,
+        side_effect=ReadException(_READ_FAILED_MSG, modbus_exception_code=IllegalDataAddressError.error_code),
+    )
+
+    with (
+        caplog.at_level(logging.DEBUG, logger="huawei_solar.device"),
+        pytest.raises(DeviceDetectionError, match="for unit ID 7"),
+    ):
+        await detect_device_type(client)
+
+    assert f"unit ID {DEFAULT_SDONGLE_UNIT_ID}" not in caplog.text
+    assert [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING] == [
+        "Failed to detect device type for unit ID 7."
+    ]
+
+
+async def test_detect_device_type_sdongle_fast_track_miss_does_not_warn(
+    patched_supports_device: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A device on unit ID 100 that is not an SDongle is detected via MODEL_NAME without a warning."""
+
+    def side_effect(register: str) -> Any:  # noqa: ANN401
+        if register == rn.SDONGLE_DEVICE_SEARCH_STATUS:
+            raise ReadException(_READ_FAILED_MSG, modbus_exception_code=IllegalDataAddressError.error_code)
+        if register == rn.MODEL_NAME:
+            return _value_result("sun2000-model")
+        msg = f"Unexpected register read: {register!r}"
+        raise AssertionError(msg)
+
+    client = _client_with_get(unit_id=DEFAULT_SDONGLE_UNIT_ID, side_effect=side_effect)
+
+    with caplog.at_level(logging.DEBUG, logger="huawei_solar.device"):
+        detected_class, _ = await detect_device_type(client)
+
+    assert detected_class is SUN2000Device
+    assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
 
 
 @pytest.mark.parametrize(
