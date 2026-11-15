@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, ClassVar, NamedTuple
 
+from huawei_solar.alarm_names import HUAWEI_FILE_ALARM_CODES, is_manual_clear_alarm
 from huawei_solar.exceptions import DecodeError
 from huawei_solar.register_definitions.string import bytes_to_string
 from huawei_solar.register_values import HUAWEI_ALARM_CODES, Alarm, _IntEnumWithPrettyString
@@ -470,8 +471,62 @@ def _decode_reason(alarm_id: int, control_word: int, raw: bytes, *, hems_layout:
     return _AlarmReason(word & 0x3F, topn=topn, location=location, slot=(word >> 6) & 0x3F, cabinet=(word >> 12) & 0x0F)
 
 
+_LEVEL_BY_NAME = {str(level).lower(): level for level in AlarmLevel}
+
+
+def lookup_alarm(alarm_id: int) -> Alarm | None:
+    """Return the name and level of an alarm id from the alarm files, if known.
+
+    EMMA, SmartGuard and SCharger alarms come from `HUAWEI_FILE_ALARM_CODES`, SUN2000 and SmartLogger alarms from
+    `HUAWEI_ALARM_CODES`.
+    """
+    return HUAWEI_FILE_ALARM_CODES.get(alarm_id) or HUAWEI_ALARM_CODES.get(alarm_id)
+
+
+class _AlarmRecordMixin:
+    """Properties shared by ActiveAlarm and HistoryAlarm."""
+
+    __slots__ = ()
+
+    alarm_id: int
+    control_word: int
+    reason_id: int
+
+    @property
+    def level(self) -> AlarmLevel:
+        """Alarm severity level from the control word (bits 0-1)."""
+        return AlarmLevel(self.control_word & 0b11)
+
+    @property
+    def alarm_info(self) -> Alarm | None:
+        """Look up the name and catalogue level of this alarm."""
+        return lookup_alarm(self.alarm_id)
+
+    @property
+    def name(self) -> str:
+        """Return the alarm name, or "Alarm <id>-<reason>" when the id is not known."""
+        info = self.alarm_info
+        return info.name if info else f"Alarm {self.alarm_id}-{self.reason_id}"
+
+    @property
+    def effective_level(self) -> AlarmLevel:
+        """Return the catalogue level when the alarm is known, otherwise the control word level.
+
+        FusionSolar shows the catalogue level instead of the control word level when it knows the alarm.
+        """
+        info = self.alarm_info
+        if info is None:
+            return self.level
+        return _LEVEL_BY_NAME.get(info.level.lower(), self.level)
+
+    @property
+    def manual_clear(self) -> bool:
+        """Return True when the alarm stays active until it is cleared manually (per the FusionSolar catalogue)."""
+        return is_manual_clear_alarm(self.alarm_id, self.reason_id)
+
+
 @dataclass(frozen=True, slots=True)
-class ActiveAlarm:
+class ActiveAlarm(_AlarmRecordMixin):
     """Active Alarm entry.
 
     Attributes:
@@ -502,22 +557,6 @@ class ActiveAlarm:
     slot: int | None = None
     cabinet: int | None = None
     reason_raw: int = 0
-
-    @property
-    def level(self) -> AlarmLevel:
-        """Alarm severity level from the control word (bits 0-1)."""
-        return AlarmLevel(self.control_word & 0b11)
-
-    @property
-    def alarm_info(self) -> Alarm | None:
-        """Look up full Alarm metadata from master alarm catalog."""
-        return HUAWEI_ALARM_CODES.get(self.alarm_id)
-
-    @property
-    def name(self) -> str:
-        """Return alarm name or fallback to Alarm ID."""
-        info = self.alarm_info
-        return info.name if info else f"Unknown Alarm {self.alarm_id}"
 
 
 class ActiveAlarmsDataFile:
@@ -593,7 +632,7 @@ def _iter_alarm_records(record_struct: str, file_data: bytes, kind: str) -> Iter
 
 
 @dataclass(frozen=True, slots=True)
-class HistoryAlarm:
+class HistoryAlarm(_AlarmRecordMixin):
     """Historical Alarm entry.
 
     Attributes:
@@ -626,22 +665,6 @@ class HistoryAlarm:
     slot: int | None = None
     cabinet: int | None = None
     reason_raw: int = 0
-
-    @property
-    def level(self) -> AlarmLevel:
-        """Alarm severity level from the control word (bits 0-1)."""
-        return AlarmLevel(self.control_word & 0b11)
-
-    @property
-    def alarm_info(self) -> Alarm | None:
-        """Look up full Alarm metadata from master alarm catalog."""
-        return HUAWEI_ALARM_CODES.get(self.alarm_id)
-
-    @property
-    def name(self) -> str:
-        """Return alarm name or fallback to Alarm ID."""
-        info = self.alarm_info
-        return info.name if info else f"Unknown Alarm {self.alarm_id}"
 
 
 class HistoryAlarmsDataFile:

@@ -1,5 +1,6 @@
 """Interact with Huawei inverters over Modbus."""
 
+from .alarm_names import HUAWEI_FILE_ALARM_CODES
 from .device import (
     EMMADevice,
     HuaweiSolarDevice,
@@ -50,6 +51,7 @@ from .register_values import HUAWEI_ALARM_CODES, Alarm
 
 __all__ = [
     "HUAWEI_ALARM_CODES",
+    "HUAWEI_FILE_ALARM_CODES",
     "ActiveAlarm",
     "ActiveAlarmsDataFile",
     "Alarm",
