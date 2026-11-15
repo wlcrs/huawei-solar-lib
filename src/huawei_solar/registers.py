@@ -90,6 +90,9 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.FEATURE_MASK_30306: U16Register(rv.FeatureMask30306, 1, 30306, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30308: U16Register(rv.FeatureMask30308, 1, 30308, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30315: U16Register(rv.FeatureMask30315, 1, 30315, target_device=TargetDevice.SUN2000),
+    rn.FEATURE_MASK_30316: U16Register(
+        rv.FeatureMask30316, 1, 30316, ignore_invalid=True, target_device=TargetDevice.SUN2000
+    ),
     rn.FEATURE_MASK_30320: U16Register(rv.FeatureMask30320, 1, 30320, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30342: U16Register(rv.FeatureMask30342, 1, 30342, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30350: U16Register(rv.FeatureMask30350, 1, 30350, target_device=TargetDevice.SUN2000),

@@ -1562,6 +1562,7 @@ class FeatureMask30308(IntFlag):
     Gates support for registers 42044 (grid-tied/off-grid mode switching), 42045 (off-grid mode),
     45250 (parallel off-grid switchover), 47102 (rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE),
     47604 (rn.BACKUP_SWITCH_TO_OFF_GRID), and 47605 (rn.BACKUP_VOLTAGE_INDEPENDENT_OPERATION).
+    42044 and 47604 also need FeatureMask30316.GRID_TIED_OFF_GRID_SWITCHING.
     """
     PQ_MODE = 1 << 11
     """PQ mode scheduling.
@@ -1667,6 +1668,21 @@ class FeatureMask30315(IntFlag):
     """Demand Response Enabling Device (DRM).
 
     Gates support for register 42013.
+    """
+
+
+class FeatureMask30316(IntFlag):
+    """Off-grid switching feature mask flags (Register 30316).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    Only bit 1 is known, from the display conditions of the FusionSolar app.
+    """
+
+    GRID_TIED_OFF_GRID_SWITCHING = 1 << 1
+    """Grid-tied / off-grid switching by the inverter.
+
+    Together with FeatureMask30308.BACKUP_OFF_GRID_SWITCHING, gates support for registers 42044
+    (grid-tied/off-grid mode switching) and 47604 (rn.BACKUP_SWITCH_TO_OFF_GRID).
     """
 
 

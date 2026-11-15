@@ -139,21 +139,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             self.supports_active_power_fail_safe = False
             self.supports_active_power_limitation_mode = False
 
-        try:
-            feature_mask_30308 = (await self.client.get(rn.FEATURE_MASK_30308)).value
-            self.supports_off_grid_switch = bool(feature_mask_30308 & rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING)
-        except ReadException:
-            _LOGGER.debug("Feature mask 30308 not supported by device %d", self.client.unit_id)
-            self.supports_off_grid_switch = False
-
-        try:
-            feature_mask_30320 = (await self.client.get(rn.FEATURE_MASK_30320)).value
-            self.supports_backup_voltage = self.supports_off_grid_switch and bool(
-                feature_mask_30320 & rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION
-            )
-        except ReadException:
-            _LOGGER.debug("Feature mask 30320 not supported by device %d", self.client.unit_id)
-            self.supports_backup_voltage = False
+        await self._populate_backup_support()
 
         await self._populate_battery_feature_support(feature_mask_3)
 
@@ -222,6 +208,28 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         feature_mask_30342 = await self._read_feature_mask(rn.FEATURE_MASK_30342)
         self.supports_ess_low_power = feature_mask_30342 is not None and bool(
             feature_mask_30342 & rv.FeatureMask30342.ESS_LOW_POWER
+        )
+
+    async def _populate_backup_support(self) -> None:
+        """Check the feature masks that gate the off-grid switch and the backup voltage."""
+        feature_mask_30308 = await self._read_feature_mask(rn.FEATURE_MASK_30308)
+        supports_backup_off_grid = feature_mask_30308 is not None and bool(
+            feature_mask_30308 & rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING
+        )
+
+        # The FusionSolar app only offers "Switch to off-grid" (47604) when bit 1 of 30316 is set as well. An inverter
+        # behind an EMMA with a SmartGuard has it cleared, and writing 47604 there has no effect: the SmartGuard
+        # switches the backup loads.
+        feature_mask_30316 = await self._read_feature_mask(rn.FEATURE_MASK_30316) if supports_backup_off_grid else None
+        self.supports_off_grid_switch = feature_mask_30316 is not None and bool(
+            feature_mask_30316 & rv.FeatureMask30316.GRID_TIED_OFF_GRID_SWITCHING
+        )
+
+        feature_mask_30320 = await self._read_feature_mask(rn.FEATURE_MASK_30320)
+        self.supports_backup_voltage = (
+            supports_backup_off_grid
+            and feature_mask_30320 is not None
+            and bool(feature_mask_30320 & rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION)
         )
 
     def _update_matched_timezone(self) -> None:
