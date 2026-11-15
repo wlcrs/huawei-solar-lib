@@ -57,6 +57,7 @@ def _setup_emma_client_mocks(
 
     monkeypatch.setattr(emma_device.client, "get_multiple", mock_get_multiple)
     monkeypatch.setattr(emma_device.client, "get", mock_get)
+    monkeypatch.setattr(emma_device, "_populate_app_feature_support", AsyncMock())
     return queried
 
 

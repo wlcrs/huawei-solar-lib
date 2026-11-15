@@ -577,6 +577,7 @@ async def test_create_sub_device_instance_emma_does_not_deadlock(
         rn.EMMA_LOCAL_TIME: ReadException(_READ_FAILED_MSG),
         rn.EMMA_BATTERY_PRODUCT_MODEL: ReadException(_READ_FAILED_MSG),
         rn.EMMA_FEATURE_MASK_30164: ReadException(_READ_FAILED_MSG),
+        rn.EMMA_SYSTEM_STATE: ReadException(_READ_FAILED_MSG),
     }
 
     async def mock_get(name: rn.RegisterName) -> Result[Any]:
