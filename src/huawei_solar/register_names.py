@@ -1317,3 +1317,21 @@ the result with SMARTGUARD_STATUS: the FusionSolar app polls it every second for
 switching off-grid and 1 after switching back. The app only offers OFF_GRID when the status is ON_GRID, and ON_GRID
 when the status is one of the off-grid states.
 """
+
+
+# LUNA2000 battery pack health. From the battery module page of the FusionSolar app; verified on a LUNA2000-S1 behind a
+# SUN2000-12K-MAP0.
+STORAGE_UNIT_1_BATTERY_PACK_1_STATE_OF_HEALTH = RegisterName("storage_unit_1_battery_pack_1_state_of_health")
+"""State of health of battery unit 1, pack 1 (%)."""
+STORAGE_UNIT_1_BATTERY_PACK_2_STATE_OF_HEALTH = RegisterName("storage_unit_1_battery_pack_2_state_of_health")
+"""State of health of battery unit 1, pack 2 (%)."""
+STORAGE_UNIT_1_BATTERY_PACK_3_STATE_OF_HEALTH = RegisterName("storage_unit_1_battery_pack_3_state_of_health")
+"""State of health of battery unit 1, pack 3 (%)."""
+STORAGE_UNIT_1_BATTERY_PACK_1_HEATING_STATUS = RegisterName("storage_unit_1_battery_pack_1_heating_status")
+"""Heating status of battery unit 1, pack 1 (see BatteryPackHeatingStatus)."""
+STORAGE_UNIT_1_BATTERY_PACK_2_HEATING_STATUS = RegisterName("storage_unit_1_battery_pack_2_heating_status")
+"""Heating status of battery unit 1, pack 2 (see BatteryPackHeatingStatus)."""
+STORAGE_UNIT_1_BATTERY_PACK_3_HEATING_STATUS = RegisterName("storage_unit_1_battery_pack_3_heating_status")
+"""Heating status of battery unit 1, pack 3 (see BatteryPackHeatingStatus)."""
+STORAGE_ESTIMATED_BACKUP_TIME = RegisterName("storage_estimated_backup_time")
+"""Estimated backup time on battery (min). Unknown (None) when the inverter cannot estimate it."""

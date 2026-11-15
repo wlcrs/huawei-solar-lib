@@ -2137,3 +2137,14 @@ class SmartGuardGridSwitchover(IntEnum):
 
     OFF_GRID = 0
     ON_GRID = 1
+
+
+class BatteryPackHeatingStatus(_IntEnumWithPrettyString):
+    """Battery pack heating status (registers 37929-37931)."""
+
+    IDLE = 0
+    """Pack heating is idle."""
+    HEATING = 1
+    """Pack heating is running."""
+    FAULT = 2
+    """Pack heating is faulty."""
