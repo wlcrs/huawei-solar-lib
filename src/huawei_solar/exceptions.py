@@ -40,6 +40,18 @@ class DecodeError(ReadException):
     """Decoding failed."""
 
 
+class FileNotReadyError(ReadException):
+    """The device was still preparing the requested file, so its contents could not be read yet.
+
+    Raised instead of returning an empty file, which callers would read as "no data" (for example "no alarms").
+    """
+
+    def __init__(self, *args: Any, progress: int | None = None, **kwargs: Any) -> None:  # noqa: ANN401
+        """Create FileNotReadyError."""
+        super().__init__(*args, **kwargs)
+        self.progress = progress
+
+
 class UnexpectedResponseContent(HuaweiSolarException):
     """The response from the device contained unexpected content."""
 
