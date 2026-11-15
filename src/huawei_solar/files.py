@@ -2,9 +2,10 @@
 
 import logging
 import struct
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import ClassVar
+from typing import Any, ClassVar, NamedTuple
 
 from huawei_solar.exceptions import DecodeError
 from huawei_solar.register_definitions.string import bytes_to_string
@@ -412,12 +413,52 @@ class OptimizerSystemInformationDataFile:
 
 
 class AlarmLevel(_IntEnumWithPrettyString):
-    """Alarm severity level extracted from control word bits 0-1."""
+    """Alarm severity: control word bits 0-1, same scale as the FusionSolar alarm catalogue."""
 
-    PROMPT = 0  # Suggestion / informational notification
-    WARNING = 1  # Minor warning
-    MAJOR = 2  # Major alarm
-    CRITICAL = 3  # Critical fault requiring immediate action
+    CRITICAL = 0
+    MAJOR = 1
+    MINOR = 2
+    WARNING = 3
+
+
+# Alarm ids of the LUNA2000 battery rack controller (BCU): their reason field packs the reason id with the
+# battery pack slot and the cabinet number.
+_BCU_ALARM_IDS = range(3000, 4000)
+
+
+class _AlarmReason(NamedTuple):
+    reason_id: int
+    topn: bool
+    location: bool
+    slot: int | None
+    cabinet: int | None
+
+
+def _decode_reason(alarm_id: int, control_word: int, raw: bytes, *, hems_layout: bool) -> _AlarmReason:
+    """Decode the 2-byte reason field of an alarm record like FusionSolar does.
+
+    The reason field is not a little-endian u16 like the rest of the record. Normally the reason id is the
+    second byte. Two flag bits in the control word mark a "TopN" alarm (reason in the first byte) or a "Location"
+    alarm (a little-endian bitfield with the slot and cabinet). LUNA2000 BCU alarms that are not TopN use the
+    same bitfield, big-endian.
+
+    The flag bits are 11 (TopN) and 10 (Location) in history records and in records read through an EMMA
+    (`hems_layout`), and 12 and 11 otherwise.
+    """
+    topn_bit, location_bit = (11, 10) if hems_layout else (12, 11)
+    topn_flag = (control_word >> topn_bit) & 1
+    location_flag = (control_word >> location_bit) & 1
+    topn = topn_flag == 1 and location_flag == 0
+    location = topn_flag == 1 and location_flag == 1
+
+    if location:
+        word = raw[0] | (raw[1] << 8)
+    elif alarm_id in _BCU_ALARM_IDS and not topn:
+        word = (raw[0] << 8) | raw[1]
+    else:
+        return _AlarmReason(raw[0] if topn else raw[1], topn=topn, location=False, slot=None, cabinet=None)
+
+    return _AlarmReason(word & 0x3F, topn=topn, location=location, slot=(word >> 6) & 0x3F, cabinet=(word >> 12) & 0x0F)
 
 
 @dataclass(frozen=True, slots=True)
@@ -426,12 +467,17 @@ class ActiveAlarm:
 
     Attributes:
         serial_no: Monotonically increasing unique sequence ID assigned by device firmware.
-        equip_id: Logical Modbus device address / slave ID of reporting unit.
+        equip_id: Logical address of the reporting device (its Modbus unit behind an EMMA).
         alarm_id: Huawei alarm identifier code (maps to device alarm catalog, e.g. 2001, 2062).
         occur_time: Timestamp when the alarm condition was initially triggered.
-        alarm_param: Auxiliary fault parameter (e.g. faulty PV string index, phase, or measured value).
-        control_word: Raw 16-bit control bitmask containing severity level (bits 0-1) and routing flags.
-        reason_id: Cause / sub-cause code specifying the precise failure mode or physical slot/location.
+        alarm_param: Auxiliary fault parameter (signed; e.g. faulty PV string index, phase, or measured value).
+        control_word: Raw 16-bit control word: severity level (bits 0-1) and the TopN/Location flags.
+        reason_id: Cause / sub-cause code specifying the precise failure mode.
+        topn: The control word marks this as a "TopN" alarm.
+        location: The control word marks this as a "Location" alarm, with a slot and cabinet number.
+        slot: Battery pack slot number (Location alarms and LUNA2000 BCU alarms 3000-3999), otherwise None.
+        cabinet: Cabinet number (Location alarms and LUNA2000 BCU alarms 3000-3999), otherwise None.
+        reason_raw: The two raw bytes of the reason field, as a big-endian number (for debugging).
 
     """
 
@@ -442,12 +488,16 @@ class ActiveAlarm:
     alarm_param: int
     control_word: int
     reason_id: int
+    topn: bool = False
+    location: bool = False
+    slot: int | None = None
+    cabinet: int | None = None
+    reason_raw: int = 0
 
     @property
     def level(self) -> AlarmLevel:
-        """Extract alarm severity level from control word (Bits 0-1)."""
-        level_val = (((self.control_word >> 1) & 1) * 2) + (self.control_word & 1)
-        return AlarmLevel(level_val)
+        """Alarm severity level from the control word (bits 0-1)."""
+        return AlarmLevel(self.control_word & 0b11)
 
     @property
     def alarm_info(self) -> Alarm | None:
@@ -462,39 +512,35 @@ class ActiveAlarm:
 
 
 class ActiveAlarmsDataFile:
-    """Active Alarms Data File (File Type 0xA1 / 161)."""
+    """Active Alarms Data File (File Type 0xA1 / 161).
+
+    A bare array of 20-byte records without a header. Little-endian, except for the reason field (see
+    `_decode_reason`).
+    """
 
     FILE_TYPE = 0xA1
-    RECORD_STRUCT = "<IHHIIHH"
+    # serial, equip id, alarm id, occur time, parameter (signed), control word, raw reason field
+    RECORD_STRUCT = "<IHHIiH2s"
 
-    def __init__(self, file_data: bytes) -> None:
-        """Decode Active Alarms file."""
+    def __init__(self, file_data: bytes, *, hems_layout: bool = False) -> None:
+        """Decode Active Alarms file.
+
+        Set `hems_layout` when the file was read through an EMMA: the TopN/Location flags then sit one bit lower
+        in the control word.
+        """
         self.alarms: list[ActiveAlarm] = []
 
-        record_size = struct.calcsize(ActiveAlarmsDataFile.RECORD_STRUCT)
-        if len(file_data) < record_size:
-            return
-
-        record_count = len(file_data) // record_size
-        offset = 0
-
         try:
-            for _ in range(record_count):
-                (
-                    serial_no,
-                    equip_id,
-                    alarm_id,
-                    occur_time,
-                    alarm_param,
-                    control_word,
-                    reason_id,
-                ) = struct.unpack_from(
-                    ActiveAlarmsDataFile.RECORD_STRUCT,
-                    file_data,
-                    offset,
-                )
-                offset += record_size
-
+            for (
+                serial_no,
+                equip_id,
+                alarm_id,
+                occur_time,
+                alarm_param,
+                control_word,
+                raw_reason,
+            ) in _iter_alarm_records(ActiveAlarmsDataFile.RECORD_STRUCT, file_data, "active"):
+                reason = _decode_reason(alarm_id, control_word, raw_reason, hems_layout=hems_layout)
                 self.alarms.append(
                     ActiveAlarm(
                         serial_no=serial_no,
@@ -503,7 +549,12 @@ class ActiveAlarmsDataFile:
                         occur_time=datetime.fromtimestamp(occur_time, tz=UTC),
                         alarm_param=alarm_param,
                         control_word=control_word,
-                        reason_id=reason_id,
+                        reason_id=reason.reason_id,
+                        topn=reason.topn,
+                        location=reason.location,
+                        slot=reason.slot,
+                        cabinet=reason.cabinet,
+                        reason_raw=int.from_bytes(raw_reason),
                     )
                 )
         except struct.error as err:
@@ -517,19 +568,39 @@ class ActiveAlarmsDataFile:
         return struct.pack(">BBI", 0x11, 4, equip_id)
 
 
+def _iter_alarm_records(record_struct: str, file_data: bytes, kind: str) -> Iterator[tuple[Any, ...]]:
+    """Unpack the fixed-size records of an alarm file, ignoring an incomplete trailing record."""
+    record_size = struct.calcsize(record_struct)
+    record_count, trailing = divmod(len(file_data), record_size)
+    if trailing:
+        _LOGGER.warning(
+            "Ignoring %d trailing bytes in the %s alarms file: %s",
+            trailing,
+            kind,
+            file_data[-trailing:].hex(" "),
+        )
+    for index in range(record_count):
+        yield struct.unpack_from(record_struct, file_data, index * record_size)
+
+
 @dataclass(frozen=True, slots=True)
 class HistoryAlarm:
     """Historical Alarm entry.
 
     Attributes:
         serial_no: Monotonically increasing unique sequence ID assigned by device firmware.
-        equip_id: Logical Modbus device address / slave ID of reporting unit.
+        equip_id: Logical address of the reporting device (its Modbus unit behind an EMMA).
         alarm_id: Huawei alarm identifier code (maps to device alarm catalog, e.g. 2001, 2062).
         occur_time: Timestamp when the alarm condition was initially triggered.
         recover_time: Timestamp when the alarm condition cleared or recovered.
-        alarm_param: Auxiliary fault parameter (e.g. faulty PV string index, phase, or measured value).
-        control_word: Raw 16-bit control bitmask containing severity level (bits 0-1) and routing flags.
-        reason_id: Cause / sub-cause code specifying the precise failure mode or physical slot/location.
+        alarm_param: Auxiliary fault parameter (signed; e.g. faulty PV string index, phase, or measured value).
+        control_word: Raw 16-bit control word: severity level (bits 0-1) and the TopN/Location flags.
+        reason_id: Cause / sub-cause code specifying the precise failure mode.
+        topn: The control word marks this as a "TopN" alarm.
+        location: The control word marks this as a "Location" alarm, with a slot and cabinet number.
+        slot: Battery pack slot number (Location alarms and LUNA2000 BCU alarms 3000-3999), otherwise None.
+        cabinet: Cabinet number (Location alarms and LUNA2000 BCU alarms 3000-3999), otherwise None.
+        reason_raw: The two raw bytes of the reason field, as a big-endian number (for debugging).
 
     """
 
@@ -541,12 +612,16 @@ class HistoryAlarm:
     alarm_param: int
     control_word: int
     reason_id: int
+    topn: bool = False
+    location: bool = False
+    slot: int | None = None
+    cabinet: int | None = None
+    reason_raw: int = 0
 
     @property
     def level(self) -> AlarmLevel:
-        """Extract alarm severity level from control word (Bits 0-1)."""
-        level_val = (((self.control_word >> 1) & 1) * 2) + (self.control_word & 1)
-        return AlarmLevel(level_val)
+        """Alarm severity level from the control word (bits 0-1)."""
+        return AlarmLevel(self.control_word & 0b11)
 
     @property
     def alarm_info(self) -> Alarm | None:
@@ -561,40 +636,32 @@ class HistoryAlarm:
 
 
 class HistoryAlarmsDataFile:
-    """History Alarms Data File (File Type 0xA2 / 162)."""
+    """History Alarms Data File (File Type 0xA2 / 162).
+
+    A bare array of 24-byte records without a header. Little-endian, except for the reason field (see
+    `_decode_reason`). FusionSolar always decodes the TopN/Location flags of history records in the EMMA layout.
+    """
 
     FILE_TYPE = 0xA2
-    RECORD_STRUCT = "<IHHIIIHH"
+    # serial, equip id, alarm id, occur time, recover time, parameter (signed), control word, raw reason field
+    RECORD_STRUCT = "<IHHIIiH2s"
 
     def __init__(self, file_data: bytes) -> None:
         """Decode History Alarms file."""
         self.alarms: list[HistoryAlarm] = []
 
-        record_size = struct.calcsize(HistoryAlarmsDataFile.RECORD_STRUCT)
-        if len(file_data) < record_size:
-            return
-
-        record_count = len(file_data) // record_size
-        offset = 0
-
         try:
-            for _ in range(record_count):
-                (
-                    serial_no,
-                    equip_id,
-                    alarm_id,
-                    occur_time,
-                    recover_time,
-                    alarm_param,
-                    control_word,
-                    reason_id,
-                ) = struct.unpack_from(
-                    HistoryAlarmsDataFile.RECORD_STRUCT,
-                    file_data,
-                    offset,
-                )
-                offset += record_size
-
+            for (
+                serial_no,
+                equip_id,
+                alarm_id,
+                occur_time,
+                recover_time,
+                alarm_param,
+                control_word,
+                raw_reason,
+            ) in _iter_alarm_records(HistoryAlarmsDataFile.RECORD_STRUCT, file_data, "history"):
+                reason = _decode_reason(alarm_id, control_word, raw_reason, hems_layout=True)
                 self.alarms.append(
                     HistoryAlarm(
                         serial_no=serial_no,
@@ -604,7 +671,12 @@ class HistoryAlarmsDataFile:
                         recover_time=datetime.fromtimestamp(recover_time, tz=UTC),
                         alarm_param=alarm_param,
                         control_word=control_word,
-                        reason_id=reason_id,
+                        reason_id=reason.reason_id,
+                        topn=reason.topn,
+                        location=reason.location,
+                        slot=reason.slot,
+                        cabinet=reason.cabinet,
+                        reason_raw=int.from_bytes(raw_reason),
                     )
                 )
         except struct.error as err:
