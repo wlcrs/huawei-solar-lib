@@ -2101,3 +2101,39 @@ class ChargerGunLockPresence(IntEnum):
     """Motorized connector lock hardware present"""
     NOT_PRESENT = 1
     """Motorized connector lock hardware not present"""
+
+
+class SmartGuardPhaseType(IntEnum):
+    """SmartGuard phase type (register 30057)."""
+
+    SINGLE_PHASE = 0
+    THREE_PHASE = 1
+
+
+class SmartGuardStatus(IntEnum):
+    """SmartGuard running status (register 30509)."""
+
+    STANDBY = 0
+    ON_GRID = 1
+    OFF_GRID_GENERATOR = 2
+    OFF_GRID_INVERTER = 3
+    OFF_GRID_GENERATOR_AND_INVERTER = 4
+    BYPASSED = 5
+    UNEXPECTED_SHUTDOWN = 6
+    UNEXPECTED_SHUTDOWN_GRID_SUPPLY = 7
+
+
+SMARTGUARD_OFF_GRID_STATUSES = frozenset(
+    {
+        SmartGuardStatus.OFF_GRID_GENERATOR,
+        SmartGuardStatus.OFF_GRID_INVERTER,
+        SmartGuardStatus.OFF_GRID_GENERATOR_AND_INVERTER,
+    }
+)
+
+
+class SmartGuardGridSwitchover(IntEnum):
+    """SmartGuard manual switchover command (register 40021)."""
+
+    OFF_GRID = 0
+    ON_GRID = 1

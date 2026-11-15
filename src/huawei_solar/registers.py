@@ -1,5 +1,6 @@
 """Register definitions from the Huawei inverter."""
 
+from enum import IntEnum
 from functools import partial
 from typing import Any, TypeVar
 
@@ -37,6 +38,18 @@ def bitfield_decoder[T](definition: dict[int, T], bitfield: int) -> list[Any]:
             result.append(value)
 
     return result
+
+
+def tolerant_enum_decoder[E: IntEnum](enum_class: type[E], value: int) -> E | None:
+    """Decode an enum register, mapping values unknown to this library to None.
+
+    Used for registers taken from the FusionSolar app: newer firmware may report other values, and a strict IntEnum
+    would fail the whole batch read.
+    """
+    try:
+        return enum_class(value)
+    except ValueError:
+        return None
 
 
 REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
@@ -1148,6 +1161,37 @@ SMART_AC_GUN_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
 
 REGISTERS.update(SCHARGER_REGISTERS)
 REGISTERS.update(SMART_AC_GUN_REGISTERS)
+
+SMARTGUARD_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
+    rn.SMARTGUARD_SOFTWARE_VERSION: StringRegister(30035, 10, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_PHASE_TYPE: U16Register(rv.SmartGuardPhaseType, 1, 30057, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_FEATURE_MASK: U32Register(None, 1, 30059, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_VOLTAGE: U16Register("V", 10, 30500, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_A_VOLTAGE: U16Register("V", 10, 30501, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_B_VOLTAGE: U16Register("V", 10, 30502, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_C_VOLTAGE: U16Register("V", 10, 30503, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_STATUS: U16Register(
+        partial(tolerant_enum_decoder, rv.SmartGuardStatus), 1, 30509, target_device=TargetDevice.SMARTGUARD
+    ),
+    rn.SMARTGUARD_GENERATOR_VOLTAGE: U16Register("V", 10, 30522, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_A_VOLTAGE: U16Register("V", 10, 30523, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_B_VOLTAGE: U16Register("V", 10, 30524, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_C_VOLTAGE: U16Register("V", 10, 30525, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_INTERNAL_TEMPERATURE: I16Register("°C", 10, 30536, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_VOLTAGE: U16Register("V", 10, 30537, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_A_VOLTAGE: U16Register("V", 10, 30538, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_B_VOLTAGE: U16Register("V", 10, 30539, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_C_VOLTAGE: U16Register("V", 10, 30540, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_SWITCHOVER: U16Register(
+        rv.SmartGuardGridSwitchover,
+        1,
+        40021,
+        writeable=True,
+        readable=False,
+        target_device=TargetDevice.SMARTGUARD,
+    ),
+}
+REGISTERS.update(SMARTGUARD_REGISTERS)
 
 METER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.METER_STATUS: U16Register(rv.MeterStatus, 1, 37100),
