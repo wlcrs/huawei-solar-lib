@@ -108,12 +108,13 @@ async def test_supports_capacity_control_requires_luna2000_battery(
     battery_response: Result[Any] | Exception,
     expected_battery_type: rv.StorageProductModel,
 ) -> None:
-    """Capacity control is disabled without querying 30164/40200 if no LUNA2000 battery is reported."""
+    """Capacity control is disabled without probing 40200 if no LUNA2000 battery is reported."""
     queried = _setup_emma_client_mocks(
         emma_device,
         monkeypatch,
         {
             rn.EMMA_BATTERY_PRODUCT_MODEL: battery_response,
+            rn.EMMA_FEATURE_MASK_30164: Result(rv.EmmaFeatureMask30164(0), None),
         },
     )
 
@@ -121,7 +122,52 @@ async def test_supports_capacity_control_requires_luna2000_battery(
 
     assert emma_device.battery_type == expected_battery_type
     assert emma_device.supports_capacity_control is False
-    assert rn.EMMA_FEATURE_MASK_30164 not in queried
+    assert emma_device.supports_power_limited_grid_connection is True
+    assert rn.EMMA_FEATURE_MASK_30164 in queried
+    assert rn.EMMA_CAPACITY_CONTROL_MODE not in queried
+
+
+@pytest.mark.parametrize(
+    ("mask_response", "expected_power_limited", "expected_di_scheduling"),
+    [
+        (Result(rv.EmmaFeatureMask30164(0), None), True, True),
+        (Result(rv.EmmaFeatureMask30164.POWER_LIMITED_GRID_CONNECTION, None), False, True),
+        (Result(rv.EmmaFeatureMask30164.DI_SCHEDULING, None), True, False),
+        (
+            Result(
+                rv.EmmaFeatureMask30164.POWER_LIMITED_GRID_CONNECTION | rv.EmmaFeatureMask30164.DI_SCHEDULING,
+                None,
+            ),
+            False,
+            False,
+        ),
+        (ReadException(_READ_FAILED_MSG), True, True),
+        (Result(None, None), True, True),
+    ],
+)
+async def test_feature_mask_30164_gating_without_battery(
+    emma_device: EMMADevice,
+    monkeypatch: pytest.MonkeyPatch,
+    mask_response: Result[Any] | Exception,
+    *,
+    expected_power_limited: bool,
+    expected_di_scheduling: bool,
+) -> None:
+    """Register 30164 bits 3 and 4 hide power-limited grid connection and DI scheduling even without a battery."""
+    queried = _setup_emma_client_mocks(
+        emma_device,
+        monkeypatch,
+        {
+            rn.EMMA_BATTERY_PRODUCT_MODEL: Result(rv.StorageProductModel.NONE, None),
+            rn.EMMA_FEATURE_MASK_30164: mask_response,
+        },
+    )
+
+    await emma_device._populate_additional_fields()
+
+    assert emma_device.supports_power_limited_grid_connection is expected_power_limited
+    assert emma_device.supports_di_scheduling is expected_di_scheduling
+    assert emma_device.supports_capacity_control is False
     assert rn.EMMA_CAPACITY_CONTROL_MODE not in queried
 
 
@@ -160,7 +206,15 @@ async def test_supports_capacity_control_fallback_when_30164_unavailable(
 
 
 def test_emma_capacity_control_register_codecs() -> None:
-    """Verify EMMA peak shaving registers encode/decode expected values."""
+    """Verify EMMA peak shaving and feature mask registers encode/decode expected values."""
+    assert REGISTERS[rn.EMMA_FEATURE_MASK_30122].decode((1 << 20,)).value == (
+        rv.EmmaFeatureMask30122.THREE_PHASE_UNBALANCE_CONTROL
+    )
+    assert REGISTERS[rn.EMMA_FEATURE_MASK_30124].decode((1 << 15,)).value == rv.EmmaFeatureMask30124.CHARGE_FROM_AC
+    assert REGISTERS[rn.EMMA_FEATURE_MASK_30126].decode((1 << 19,)).value == (
+        rv.EmmaFeatureMask30126.DRY_CONTACT_LIMITATION_MODE
+    )
+    assert REGISTERS[rn.EMMA_FEATURE_MASK_30172].decode((1 << 7,)).value == rv.EmmaFeatureMask30172.BATTERY_EOD_EOC_SOC
     assert REGISTERS[rn.EMMA_FEATURE_MASK_30164].decode((1 << 5,)).value == rv.EmmaFeatureMask30164.CAPACITY_CONTROL
     assert REGISTERS[rn.EMMA_FEATURE_MASK_30164].decode((0xFFFFFFFF,)).value is None
     assert REGISTERS[rn.EMMA_BATTERY_PRODUCT_MODEL].decode((2,)).value == rv.StorageProductModel.HUAWEI_LUNA2000

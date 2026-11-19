@@ -1707,6 +1707,100 @@ class FeatureMask30350(IntFlag):
     """
 
 
+class EmmaFeatureMask30122(IntFlag):
+    """EMMA feature mask flags (Register 30122).
+
+    When a bit is 1, the gated feature/registers are supported by the EMMA.
+    """
+
+    BAUD_RATE_NEGOTIATION = 1 << 1
+    """Baud rate negotiation (Register 41210)."""
+    BACKUP_SEAMLESS_SWITCH = 1 << 6
+    """Seamless backup switching (Group 70054; registers 41213, 41215, 41216)."""
+    GENERATOR_AND_MAINS_ANOMALY_DETECTION = 1 << 12
+    """Generator parameters and mains anomaly detection (Registers 41215, 40345, 40347, 40348)."""
+    MANAGEMENT_SYSTEM_AND_MODBUS_TCP = 1 << 14
+    """Management system and Modbus TCP settings (Groups 70072, 70081)."""
+    RESTORE_DEFAULTS = 1 << 16
+    """Restore defaults option (Register 40512)."""
+    FEED_THRESHOLD_CROSSING_PROTECTION = 1 << 19
+    """Feed threshold crossing protection (Group 70074; registers 40111-40114)."""
+    THREE_PHASE_UNBALANCE_CONTROL = 1 << 20
+    """Three-phase unbalance / split-phase power control (Group 70199; register 40110)."""
+    CURRENT_LIMITING_GRID_CONNECTION = 1 << 26
+    """Current-limiting grid connection (Group 70073; registers 40116-40119)."""
+    NTP_CLOCK_SOURCE = 1 << 28
+    """NTP clock source and server settings (Registers 40489, 40550, 40580-40582, 31008, 31010)."""
+    ACTIVE_POWER_REMOTE_OUTPUT_CONTROL = 1 << 29
+    """Active power remote output control (Group 70156; registers 41500-41552)."""
+    MASTER_SLAVE_MODE = 1 << 30
+    """Master/slave running mode (Register 40343)."""
+
+
+class EmmaFeatureMask30124(IntFlag):
+    """EMMA feature mask flags (Register 30124).
+
+    When a bit is 1, the gated feature/registers are supported by the EMMA.
+    """
+
+    CT_ABNORMAL_WIRING_DETECTION = 1 << 0
+    """CT abnormal wiring detection (Register 41008)."""
+    DRM_CONTROL = 1 << 1
+    """DRM switch and dry contact DRM function (Registers 40184, 40191)."""
+    ECHONET = 1 << 3
+    """ECHONET Lite configuration (Group 70204; register 40971)."""
+    MANUAL_PARALLEL_OFF_GRID_SWITCHOVER = 1 << 9
+    """Manual parallel/off-grid switchover (Register 40267)."""
+    CHARGE_FROM_AC = 1 << 15
+    """Charge from AC / grid charge controls (Registers 40051, 40052, and 40002 gating)."""
+    POWER_GRID_SYSTEM = 1 << 18
+    """Power grid system configuration (Register 41217)."""
+    DEVICE_LOG = 1 << 22
+    """Device log export (Group 70240)."""
+    COM2_PORT_MODE = 1 << 24
+    """COM2 port mode and communication status (Registers 40840, 40841, 32400)."""
+    MANAGEMENT_SYSTEM_UNBINDING = 1 << 29
+    """Management system unbinding (Group 70071)."""
+    EXTERNAL_CT_AND_METER_APPLICATIONS = 1 << 30
+    """External CT and power meter application settings (Registers 41006, 41012-41014)."""
+
+
+class EmmaFeatureMask30126(IntFlag):
+    """EMMA feature mask flags (Register 30126).
+
+    When a bit is 1, the gated feature/registers are supported by the EMMA.
+    """
+
+    THIRD_PARTY_EMS_INTERCONNECTION = 1 << 0
+    """Third-party EMS interconnection (Group 70318; register 31143)."""
+    INNER_CT_APPLICATIONS = 1 << 9
+    """Inner CT application settings (Register 41013)."""
+    UPGRADE_DELAY = 1 << 17
+    """Upgrade delay setting (Register 40613)."""
+    DRY_CONTACT_LIMITATION_MODE = 1 << 19
+    """Dry contact limitation mode (Registers 40191, 40101)."""
+
+
+class EmmaFeatureMask30172(IntFlag):
+    """EMMA feature mask flags (Register 30172).
+
+    When a bit is 1, the gated feature/registers are supported by the EMMA.
+    """
+
+    STRING_VOLTAGE_LEVEL = 1 << 1
+    """String voltage level (Register 41009)."""
+    VOLTAGE_IN_INDEPENDENT_OPERATION = 1 << 2
+    """Voltage in independent operation (Register 41010)."""
+    OFF_GRID_BACKUP_POWER_SOC = 1 << 4
+    """Off-grid backup power SOC (Register 40266)."""
+    INSUFFICIENT_BACKUP_TIME_REMINDER = 1 << 5
+    """Insufficient backup time reminder (Register 41216)."""
+    BATTERY_EOD_EOC_SOC = 1 << 7
+    """Battery end-of-discharge and end-of-charge SOC (Registers 40053, 40054)."""
+    OFF_GRID_MODE = 1 << 11
+    """Off-grid mode setting (Register 40268)."""
+
+
 class EmmaFeatureMask30164(IntFlag):
     """EMMA feature hide/disable bitmask flags (Register 30164).
 

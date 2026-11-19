@@ -24,6 +24,8 @@ class EMMADevice(HuaweiSolarDevice):
     software_version: str
     battery_type: rv.StorageProductModel = rv.StorageProductModel.NONE
     supports_capacity_control: bool = False
+    supports_power_limited_grid_connection: bool = True
+    supports_di_scheduling: bool = True
     _utc_offset: timedelta | None = None
 
     @classmethod
@@ -62,17 +64,13 @@ class EMMADevice(HuaweiSolarDevice):
         await self._populate_feature_support()
 
     async def _populate_feature_support(self) -> None:
-        """Check connected battery model and feature flags to determine supported capabilities."""
+        """Check site battery model and feature flags to determine supported capabilities."""
         try:
             battery_type = (await self.client.get(rn.EMMA_BATTERY_PRODUCT_MODEL)).value
             self.battery_type = battery_type if battery_type is not None else rv.StorageProductModel.NONE
         except ReadException:
             _LOGGER.debug("EMMA battery product model not supported by device %d", self.client.unit_id)
             self.battery_type = rv.StorageProductModel.NONE
-
-        if self.battery_type != rv.StorageProductModel.HUAWEI_LUNA2000:
-            self.supports_capacity_control = False
-            return
 
         feature_mask_30164: rv.EmmaFeatureMask30164 | None = None
         try:
@@ -81,7 +79,20 @@ class EMMADevice(HuaweiSolarDevice):
             _LOGGER.debug("EMMA feature mask 30164 not supported by device %d", self.client.unit_id)
 
         if feature_mask_30164 is not None:
-            # Register 30164 is an inverted (hide/disable) bitmask: bit 5 == 1 disables capacity control.
+            # Register 30164 is an inverted (hide/disable) bitmask: bit == 1 disables the feature.
+            self.supports_power_limited_grid_connection = not bool(
+                feature_mask_30164 & rv.EmmaFeatureMask30164.POWER_LIMITED_GRID_CONNECTION
+            )
+            self.supports_di_scheduling = not bool(feature_mask_30164 & rv.EmmaFeatureMask30164.DI_SCHEDULING)
+        else:
+            self.supports_power_limited_grid_connection = True
+            self.supports_di_scheduling = True
+
+        if self.battery_type != rv.StorageProductModel.HUAWEI_LUNA2000:
+            self.supports_capacity_control = False
+            return
+
+        if feature_mask_30164 is not None:
             self.supports_capacity_control = not bool(feature_mask_30164 & rv.EmmaFeatureMask30164.CAPACITY_CONTROL)
             return
 

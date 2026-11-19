@@ -698,10 +698,34 @@ REGISTERS.update(CAPACITY_CONTROL_REGISTERS)
 
 EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.EMMA_SOFTWARE_VERSION: StringRegister(30035, 15, target_device=TargetDevice.EMMA),
+    rn.EMMA_FEATURE_MASK_30122: U32Register(
+        rv.EmmaFeatureMask30122,
+        1,
+        30122,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_FEATURE_MASK_30124: U32Register(
+        rv.EmmaFeatureMask30124,
+        1,
+        30124,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_FEATURE_MASK_30126: U32Register(
+        rv.EmmaFeatureMask30126,
+        1,
+        30126,
+        target_device=TargetDevice.EMMA,
+    ),
     rn.EMMA_FEATURE_MASK_30164: U32Register(
         rv.EmmaFeatureMask30164,
         1,
         30164,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_FEATURE_MASK_30172: U32Register(
+        rv.EmmaFeatureMask30172,
+        1,
+        30172,
         target_device=TargetDevice.EMMA,
     ),
     rn.EMMA_MODEL: StringRegister(30222, 20, target_device=TargetDevice.EMMA),

@@ -581,14 +581,22 @@ EMMA_DST_STATE = RegisterName("emma_dst_state")
 EMMA_LOCAL_TIME = RegisterName("emma_local_time")
 EMMA_SYSTEM_TIME = RegisterName("emma_system_time")
 LOCAL_TIME_YEAR = RegisterName("local_time_year")
+EMMA_FEATURE_MASK_30122 = RegisterName("emma_feature_mask_30122")
+"""Feature mask flags for EMMA (register 30122)."""
+EMMA_FEATURE_MASK_30124 = RegisterName("emma_feature_mask_30124")
+"""Feature mask flags for EMMA (register 30124)."""
+EMMA_FEATURE_MASK_30126 = RegisterName("emma_feature_mask_30126")
+"""Feature mask flags for EMMA (register 30126)."""
 EMMA_FEATURE_MASK_30164 = RegisterName("emma_feature_mask_30164")
 """Inverted (disable/hide) feature bitmask for EMMA (register 30164)."""
+EMMA_FEATURE_MASK_30172 = RegisterName("emma_feature_mask_30172")
+"""Feature mask flags for EMMA (register 30172)."""
 EMMA_CAPACITY_CONTROL_MIN_SOC_PEAK_SHAVING = RegisterName("emma_capacity_control_min_soc_peak_shaving")
 """Minimum allowed peak shaving SOC bound reported by EMMA (register 30700)."""
 EMMA_CAPACITY_CONTROL_MAX_SOC_PEAK_SHAVING = RegisterName("emma_capacity_control_max_soc_peak_shaving")
 """Maximum allowed peak shaving SOC bound reported by EMMA (register 30701)."""
 EMMA_BATTERY_PRODUCT_MODEL = RegisterName("emma_battery_product_model")
-"""Connected energy storage product model reported by EMMA (register 30706)."""
+"""Site-level energy storage product model managed by EMMA (register 30706)."""
 EMMA_CAPACITY_CONTROL_MODE = RegisterName("emma_capacity_control_mode")
 """EMMA peak shaving / capacity control limitation mode (register 40200)."""
 EMMA_CAPACITY_CONTROL_SOC_PEAK_SHAVING = RegisterName("emma_capacity_control_soc_peak_shaving")

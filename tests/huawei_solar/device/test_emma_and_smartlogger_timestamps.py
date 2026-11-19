@@ -51,6 +51,8 @@ async def test_emma_populates_offset_and_transforms_only_local_time(
             return Result("EMMA-A02", None)
         if name == rn.EMMA_BATTERY_PRODUCT_MODEL:
             return Result(rv.StorageProductModel.NONE, None)
+        if name == rn.EMMA_FEATURE_MASK_30164:
+            return Result(rv.EmmaFeatureMask30164(0), None)
         if name == rn.EMMA_LOCAL_TIME:
             return Result(datetime(2026, 8, 21, 12, 0, 0, tzinfo=UTC), None)
         if name == rn.EMMA_SYSTEM_TIME:
@@ -165,6 +167,8 @@ async def test_emma_adopts_matching_host_timezone_across_dst(
                 return Result("EMMA-A02", None)
             if name == rn.EMMA_BATTERY_PRODUCT_MODEL:
                 return Result(rv.StorageProductModel.NONE, None)
+            if name == rn.EMMA_FEATURE_MASK_30164:
+                return Result(rv.EmmaFeatureMask30164(0), None)
             msg = f"Unexpected get: {name}"
             raise AssertionError(msg)
 
@@ -210,6 +214,8 @@ async def test_emma_falls_back_to_fixed_offset_when_host_timezone_mismatches(
                 return Result("EMMA-A02", None)
             if name == rn.EMMA_BATTERY_PRODUCT_MODEL:
                 return Result(rv.StorageProductModel.NONE, None)
+            if name == rn.EMMA_FEATURE_MASK_30164:
+                return Result(rv.EmmaFeatureMask30164(0), None)
             msg = f"Unexpected get: {name}"
             raise AssertionError(msg)
 
