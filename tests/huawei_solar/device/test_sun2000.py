@@ -130,6 +130,11 @@ async def test_supports_ess_low_power_when_bit_set(
             | rv.FeatureMask3.COMMUNICATION_FAIL_ACTIVE_POWER_DERATING,
             None,
         ),
+        rn.FEATURE_MASK_30283: Result(rv.FeatureMask30283.THIRD_PARTY_CONTROL, None),
+        rn.FEATURE_MASK_30306: Result(
+            rv.FeatureMask30306.BATTERY_RECHARGE | rv.FeatureMask30306.DISCHARGE_POWER_ADJUSTMENT,
+            None,
+        ),
         rn.FEATURE_MASK_30308: Result(rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING, None),
         rn.FEATURE_MASK_30320: Result(rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION, None),
         rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342.ESS_LOW_POWER, None),
@@ -158,8 +163,10 @@ async def test_supports_ess_low_power_when_bit_set(
     assert sun2000_device.supports_active_power_fail_safe is True
     assert sun2000_device.supports_active_power_limitation_mode is True
     assert sun2000_device.supports_dongle_charge_power_limit is True
+    assert sun2000_device.supports_charge_from_grid_power is True
     assert sun2000_device.supports_discharge_power_adjustment is True
     assert sun2000_device.supports_recharge is True
+    assert sun2000_device.supports_third_party_control is True
 
 
 async def test_supports_ess_low_power_when_bit_cleared(
@@ -178,6 +185,8 @@ async def test_supports_ess_low_power_when_bit_cleared(
         rn.STORAGE_UNIT_2_PRODUCT_MODEL: Result(StorageProductModel.NONE, None),
         rn.FEATURE_MASK_2: Result(rv.FeatureMask2(0), None),
         rn.FEATURE_MASK_3: Result(rv.FeatureMask3(0), None),
+        rn.FEATURE_MASK_30283: Result(rv.FeatureMask30283(0), None),
+        rn.FEATURE_MASK_30306: Result(rv.FeatureMask30306(0), None),
         rn.FEATURE_MASK_30308: Result(rv.FeatureMask30308(0), None),
         rn.FEATURE_MASK_30320: Result(rv.FeatureMask30320(0), None),
         rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342(0), None),
@@ -206,8 +215,10 @@ async def test_supports_ess_low_power_when_bit_cleared(
     assert sun2000_device.supports_active_power_fail_safe is False
     assert sun2000_device.supports_active_power_limitation_mode is False
     assert sun2000_device.supports_dongle_charge_power_limit is False
+    assert sun2000_device.supports_charge_from_grid_power is False
     assert sun2000_device.supports_discharge_power_adjustment is False
     assert sun2000_device.supports_recharge is False
+    assert sun2000_device.supports_third_party_control is False
 
 
 async def test_supports_ess_low_power_when_connected_through_emma(
@@ -229,6 +240,7 @@ async def test_supports_ess_low_power_when_connected_through_emma(
             rv.FeatureMask3.CAPACITY_CONTROL | rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT,
             None,
         ),
+        rn.FEATURE_MASK_30283: Result(rv.FeatureMask30283.THIRD_PARTY_CONTROL, None),
         rn.FEATURE_MASK_30308: ReadException(_READ_FAILED_MSG),
         rn.FEATURE_MASK_30320: ReadException(_READ_FAILED_MSG),
         rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342.ESS_LOW_POWER, None),
@@ -252,7 +264,10 @@ async def test_supports_ess_low_power_when_connected_through_emma(
 
     assert sun2000_device.supports_capacity_control is False
     assert sun2000_device.supports_dongle_charge_power_limit is False
+    assert sun2000_device.supports_charge_from_grid_power is False
     assert sun2000_device.supports_discharge_power_adjustment is False
+    assert sun2000_device.supports_recharge is False
+    assert sun2000_device.supports_third_party_control is True
     assert sun2000_device.supports_ess_low_power is True
 
 
@@ -272,6 +287,8 @@ async def test_supports_ess_low_power_when_read_exception(
         rn.STORAGE_UNIT_2_PRODUCT_MODEL: Result(StorageProductModel.NONE, None),
         rn.FEATURE_MASK_2: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
         rn.FEATURE_MASK_3: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
+        rn.FEATURE_MASK_30283: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
+        rn.FEATURE_MASK_30306: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
         rn.FEATURE_MASK_30308: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
         rn.FEATURE_MASK_30320: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
         rn.FEATURE_MASK_30342: ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
@@ -300,8 +317,149 @@ async def test_supports_ess_low_power_when_read_exception(
     assert sun2000_device.supports_active_power_fail_safe is False
     assert sun2000_device.supports_active_power_limitation_mode is False
     assert sun2000_device.supports_dongle_charge_power_limit is False
+    assert sun2000_device.supports_charge_from_grid_power is False
     assert sun2000_device.supports_discharge_power_adjustment is False
     assert sun2000_device.supports_recharge is False
+    assert sun2000_device.supports_third_party_control is False
+
+
+async def _populate_with_mocked_responses(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[rn.RegisterName, Result[Any] | Exception],
+) -> None:
+    """Populate a SUN2000Device using default battery feature-mask stubs merged with overrides."""
+
+    async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[str]]:
+        return [Result("SN123", None), Result("PN123", None), Result("V100", None), Result("V100", None)]
+
+    responses: dict[rn.RegisterName, Result[Any] | Exception] = {
+        rn.NB_PV_STRINGS: Result(2, None),
+        rn.NB_OPTIMIZERS: ReadException(_READ_FAILED_MSG),
+        rn.STORAGE_UNIT_1_PRODUCT_MODEL: Result(StorageProductModel.HUAWEI_LUNA2000, None),
+        rn.STORAGE_UNIT_2_PRODUCT_MODEL: Result(StorageProductModel.NONE, None),
+        rn.FEATURE_MASK_2: Result(rv.FeatureMask2(0), None),
+        rn.FEATURE_MASK_3: Result(rv.FeatureMask3(0), None),
+        rn.FEATURE_MASK_30283: Result(rv.FeatureMask30283(0), None),
+        rn.FEATURE_MASK_30306: Result(rv.FeatureMask30306(0), None),
+        rn.FEATURE_MASK_30308: Result(rv.FeatureMask30308(0), None),
+        rn.FEATURE_MASK_30320: Result(rv.FeatureMask30320(0), None),
+        rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342(0), None),
+        rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
+        rn.DAYLIGHT_SAVING_TIME: ReadException(_READ_FAILED_MSG),
+        rn.TIME_ZONE: ReadException(_READ_FAILED_MSG),
+        **overrides,
+    }
+
+    async def mock_get(name: rn.RegisterName) -> Result[Any]:
+        if name in responses:
+            val = responses[name]
+            if isinstance(val, Exception):
+                raise val
+            return val
+        msg = f"Unexpected get: {name}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(sun2000_device.client, "get_multiple", mock_get_multiple)
+    monkeypatch.setattr(sun2000_device.client, "get", mock_get)
+    await sun2000_device._populate_additional_fields()
+
+
+async def test_battery_feature_support_lg_resu(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LG RESU disables recharge even if bit 9 of FEATURE_MASK_30306 is set."""
+    await _populate_with_mocked_responses(
+        sun2000_device,
+        monkeypatch,
+        {
+            rn.STORAGE_UNIT_1_PRODUCT_MODEL: Result(StorageProductModel.LG_RESU, None),
+            rn.FEATURE_MASK_2: Result(rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS, None),
+            rn.FEATURE_MASK_30283: Result(rv.FeatureMask30283.THIRD_PARTY_CONTROL, None),
+            rn.FEATURE_MASK_30306: Result(
+                rv.FeatureMask30306.BATTERY_RECHARGE | rv.FeatureMask30306.DISCHARGE_POWER_ADJUSTMENT,
+                None,
+            ),
+        },
+    )
+
+    assert sun2000_device.supports_recharge is False
+    assert sun2000_device.supports_charge_from_grid_power is True
+    assert sun2000_device.supports_discharge_power_adjustment is True
+    assert sun2000_device.supports_third_party_control is True
+
+
+async def test_discharge_power_adjustment_requires_both_masks(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Discharge power adjustment requires both FEATURE_MASK_2 bit 28 and FEATURE_MASK_30306 bit 15."""
+    await _populate_with_mocked_responses(
+        sun2000_device,
+        monkeypatch,
+        {
+            rn.FEATURE_MASK_2: Result(rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS, None),
+            rn.FEATURE_MASK_30306: Result(rv.FeatureMask30306(0), None),
+        },
+    )
+    assert sun2000_device.supports_charge_from_grid_power is True
+    assert sun2000_device.supports_discharge_power_adjustment is False
+    assert sun2000_device.supports_recharge is False
+
+    await _populate_with_mocked_responses(
+        sun2000_device,
+        monkeypatch,
+        {
+            rn.FEATURE_MASK_2: Result(rv.FeatureMask2(0), None),
+            rn.FEATURE_MASK_30306: Result(
+                rv.FeatureMask30306.BATTERY_RECHARGE | rv.FeatureMask30306.DISCHARGE_POWER_ADJUSTMENT,
+                None,
+            ),
+        },
+    )
+    assert sun2000_device.supports_charge_from_grid_power is False
+    assert sun2000_device.supports_discharge_power_adjustment is False
+    assert sun2000_device.supports_recharge is True
+
+
+async def test_recharge_supported_on_battery_2_luna2000(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LUNA2000 on storage unit 2 only also satisfies the recharge battery-type check."""
+    await _populate_with_mocked_responses(
+        sun2000_device,
+        monkeypatch,
+        {
+            rn.STORAGE_UNIT_1_PRODUCT_MODEL: Result(StorageProductModel.NONE, None),
+            rn.STORAGE_UNIT_2_PRODUCT_MODEL: Result(StorageProductModel.HUAWEI_LUNA2000, None),
+            rn.FEATURE_MASK_30306: Result(rv.FeatureMask30306.BATTERY_RECHARGE, None),
+        },
+    )
+    assert sun2000_device.supports_recharge is True
+
+
+async def test_invalid_none_feature_masks_resolve_to_false(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When feature masks decode as None (invalid value), gated flags stay False."""
+    await _populate_with_mocked_responses(
+        sun2000_device,
+        monkeypatch,
+        {
+            rn.FEATURE_MASK_2: Result(None, None),
+            rn.FEATURE_MASK_30283: Result(None, None),
+            rn.FEATURE_MASK_30306: Result(None, None),
+            rn.FEATURE_MASK_30342: Result(None, None),
+        },
+    )
+    assert sun2000_device.supports_charge_from_grid_power is False
+    assert sun2000_device.supports_discharge_power_adjustment is False
+    assert sun2000_device.supports_recharge is False
+    assert sun2000_device.supports_third_party_control is False
+    assert sun2000_device.supports_ess_low_power is False
 
 
 async def test_filter_registers_power_meter_offline_no_deadlock(
@@ -353,6 +511,8 @@ async def test_populate_additional_fields_meter_queried_only_once(
             rn.FEATURE_MASK_30308,
             rn.FEATURE_MASK_30320,
             rn.FEATURE_MASK_2,
+            rn.FEATURE_MASK_30283,
+            rn.FEATURE_MASK_30306,
             rn.FEATURE_MASK_30342,
             rn.DAYLIGHT_SAVING_TIME,
             rn.TIME_ZONE,

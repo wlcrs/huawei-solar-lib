@@ -49,8 +49,10 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     supports_active_power_fail_safe: bool = False
     supports_active_power_limitation_mode: bool = False
     supports_dongle_charge_power_limit: bool = False
+    supports_charge_from_grid_power: bool = False
     supports_discharge_power_adjustment: bool = False
     supports_recharge: bool = False
+    supports_third_party_control: bool = False
     """Whether the inverter supports the maintenance storage recharge feature.
 
     In FusionSolar app: Maintenance > Battery maintenance > Forced charge and discharge.
@@ -153,30 +155,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             _LOGGER.debug("Feature mask 30320 not supported by device %d", self.client.unit_id)
             self.supports_backup_voltage = False
 
-        if self.battery_type != rv.StorageProductModel.NONE:
-            if self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice)):
-                self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
-                self.supports_dongle_charge_power_limit = bool(
-                    feature_mask_3 & rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT
-                )
-
-                try:
-                    feature_mask_2 = (await self.client.get(rn.FEATURE_MASK_2)).value
-                    self.supports_discharge_power_adjustment = bool(
-                        feature_mask_2 & rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS
-                    )
-                    self.supports_recharge = self.supports_discharge_power_adjustment
-                except ReadException:
-                    _LOGGER.debug("Feature mask 2 not supported by device %d", self.client.unit_id)
-                    self.supports_discharge_power_adjustment = False
-                    self.supports_recharge = False
-
-            try:
-                feature_mask = (await self.client.get(rn.FEATURE_MASK_30342)).value
-                self.supports_ess_low_power = bool(feature_mask & rv.FeatureMask30342.ESS_LOW_POWER)
-            except ReadException:
-                _LOGGER.debug("ESS low power as it is not supported by device %d", self.client.unit_id)
-                self.supports_ess_low_power = False
+        await self._populate_battery_feature_support(feature_mask_3)
 
         with suppress(ReadException):
             self.power_meter_online = (await self.client.get(rn.METER_STATUS)).value == rv.MeterStatus.NORMAL
@@ -192,6 +171,58 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         with suppress(ReadException):
             self._time_zone = (await self.client.get(rn.TIME_ZONE)).value
         self._update_matched_timezone()
+
+    async def _read_feature_mask(self, register_name: rn.RegisterName) -> int | None:
+        """Read a feature mask register, returning None if unsupported or invalid."""
+        try:
+            result = await self.client.get(register_name)
+        except ReadException:
+            _LOGGER.debug("Feature mask %s not supported by device %d", register_name, self.client.unit_id)
+            return None
+        return result.value if isinstance(result.value, int) else None
+
+    async def _populate_battery_feature_support(self, feature_mask_3: rv.FeatureMask3) -> None:
+        """Check battery-related feature masks to determine supported capabilities."""
+        if self.battery_type == rv.StorageProductModel.NONE:
+            return
+
+        has_luna2000 = rv.StorageProductModel.HUAWEI_LUNA2000 in (
+            self.battery_1_type,
+            self.battery_2_type,
+        )
+
+        if self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice)):
+            self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
+            self.supports_dongle_charge_power_limit = bool(
+                feature_mask_3 & rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT
+            )
+
+            feature_mask_2 = await self._read_feature_mask(rn.FEATURE_MASK_2)
+            feature_mask_30306 = await self._read_feature_mask(rn.FEATURE_MASK_30306)
+
+            self.supports_charge_from_grid_power = feature_mask_2 is not None and bool(
+                feature_mask_2 & rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS
+            )
+            self.supports_discharge_power_adjustment = (
+                self.supports_charge_from_grid_power
+                and feature_mask_30306 is not None
+                and bool(feature_mask_30306 & rv.FeatureMask30306.DISCHARGE_POWER_ADJUSTMENT)
+            )
+            self.supports_recharge = (
+                has_luna2000
+                and feature_mask_30306 is not None
+                and bool(feature_mask_30306 & rv.FeatureMask30306.BATTERY_RECHARGE)
+            )
+
+        feature_mask_30283 = await self._read_feature_mask(rn.FEATURE_MASK_30283)
+        self.supports_third_party_control = feature_mask_30283 is not None and bool(
+            feature_mask_30283 & rv.FeatureMask30283.THIRD_PARTY_CONTROL
+        )
+
+        feature_mask_30342 = await self._read_feature_mask(rn.FEATURE_MASK_30342)
+        self.supports_ess_low_power = feature_mask_30342 is not None and bool(
+            feature_mask_30342 & rv.FeatureMask30342.ESS_LOW_POWER
+        )
 
     def _update_matched_timezone(self) -> None:
         if self._time_zone is None:
