@@ -49,3 +49,12 @@ def test_all_register_names_have_a_register() -> None:
             register_names_without_register.append(register_name)
 
     assert not register_names_without_register, f"Register names without a register: {register_names_without_register}"
+
+
+def test_storage_unit_1_state_of_health_register() -> None:
+    """Verify STORAGE_UNIT_1_STATE_OF_HEALTH (37005) decoding."""
+    register = REGISTERS[rn.STORAGE_UNIT_1_STATE_OF_HEALTH]
+    decoded = register.decode((985,))
+    assert decoded.value == 98.5
+    assert decoded.unit == "%"
+    assert register.decode((0xFFFF,)).value is None
