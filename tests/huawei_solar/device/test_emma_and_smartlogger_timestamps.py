@@ -11,6 +11,7 @@ import pytest
 
 from huawei_solar import AsyncHuaweiSolarClient
 from huawei_solar import register_names as rn
+from huawei_solar import register_values as rv
 from huawei_solar.device import EMMADevice, SmartLoggerDevice
 from huawei_solar.register_definitions import Result
 
@@ -48,6 +49,8 @@ async def test_emma_populates_offset_and_transforms_only_local_time(
     async def mock_client_get(name: rn.RegisterName) -> Result[Any]:
         if name == rn.EMMA_MODEL:
             return Result("EMMA-A02", None)
+        if name == rn.EMMA_BATTERY_PRODUCT_MODEL:
+            return Result(rv.StorageProductModel.NONE, None)
         if name == rn.EMMA_LOCAL_TIME:
             return Result(datetime(2026, 8, 21, 12, 0, 0, tzinfo=UTC), None)
         if name == rn.EMMA_SYSTEM_TIME:
@@ -157,8 +160,16 @@ async def test_emma_adopts_matching_host_timezone_across_dst(
             msg = f"Unexpected get_multiple: {names}"
             raise AssertionError(msg)
 
+        async def mock_client_get(name: rn.RegisterName) -> Result[Any]:
+            if name == rn.EMMA_MODEL:
+                return Result("EMMA-A02", None)
+            if name == rn.EMMA_BATTERY_PRODUCT_MODEL:
+                return Result(rv.StorageProductModel.NONE, None)
+            msg = f"Unexpected get: {name}"
+            raise AssertionError(msg)
+
         monkeypatch.setattr(emma_device.client, "get_multiple", mock_get_multiple)
-        monkeypatch.setattr(emma_device.client, "get", AsyncMock(return_value=Result("EMMA-A02", None)))
+        monkeypatch.setattr(emma_device.client, "get", mock_client_get)
 
         await emma_device._populate_additional_fields()
         assert emma_device._use_host_timezone is True
@@ -194,8 +205,16 @@ async def test_emma_falls_back_to_fixed_offset_when_host_timezone_mismatches(
             msg = f"Unexpected get_multiple: {names}"
             raise AssertionError(msg)
 
+        async def mock_client_get(name: rn.RegisterName) -> Result[Any]:
+            if name == rn.EMMA_MODEL:
+                return Result("EMMA-A02", None)
+            if name == rn.EMMA_BATTERY_PRODUCT_MODEL:
+                return Result(rv.StorageProductModel.NONE, None)
+            msg = f"Unexpected get: {name}"
+            raise AssertionError(msg)
+
         monkeypatch.setattr(emma_device.client, "get_multiple", mock_get_multiple)
-        monkeypatch.setattr(emma_device.client, "get", AsyncMock(return_value=Result("EMMA-A02", None)))
+        monkeypatch.setattr(emma_device.client, "get", mock_client_get)
 
         await emma_device._populate_additional_fields()
         assert emma_device._use_host_timezone is False

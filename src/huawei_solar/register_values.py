@@ -1707,6 +1707,37 @@ class FeatureMask30350(IntFlag):
     """
 
 
+class EmmaFeatureMask30164(IntFlag):
+    """EMMA feature hide/disable bitmask flags (Register 30164).
+
+    Unlike standard FeatureMask registers, this register is an inverted
+    (disable/hide) bitmask: when a bit is 1, the feature is disabled/hidden;
+    when a bit is 0, the feature is allowed.
+    """
+
+    COM2_SERIAL_PARAMETERS = 1 << 2
+    """COM2 serial communication parameters hidden/disabled.
+
+    Gates support for registers 40836, 40837, and 40838.
+    """
+    POWER_LIMITED_GRID_CONNECTION = 1 << 3
+    """Power-limited grid connection hidden/disabled.
+
+    Gates support for group 70059 and register 40100 (rn.EMMA_POWER_CONTROL_MODE_AT_GRID_CONNECTION_POINT).
+    """
+    DI_SCHEDULING = 1 << 4
+    """DI active power scheduling hidden/disabled.
+
+    Gates support for group 70047 and register 40150.
+    """
+    CAPACITY_CONTROL = 1 << 5
+    """Peak shaving / capacity control hidden/disabled.
+
+    Gates support for group 70057 and registers 40200 (rn.EMMA_CAPACITY_CONTROL_MODE),
+    40201 (rn.EMMA_CAPACITY_CONTROL_SOC_PEAK_SHAVING), and 40202 (rn.EMMA_CAPACITY_CONTROL_PERIODS).
+    """
+
+
 class ChargerChargingWaitReason(IntEnum):
     """Reason why charger is waiting / paused (Register 30516)."""
 

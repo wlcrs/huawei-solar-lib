@@ -698,6 +698,12 @@ REGISTERS.update(CAPACITY_CONTROL_REGISTERS)
 
 EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.EMMA_SOFTWARE_VERSION: StringRegister(30035, 15, target_device=TargetDevice.EMMA),
+    rn.EMMA_FEATURE_MASK_30164: U32Register(
+        rv.EmmaFeatureMask30164,
+        1,
+        30164,
+        target_device=TargetDevice.EMMA,
+    ),
     rn.EMMA_MODEL: StringRegister(30222, 20, target_device=TargetDevice.EMMA),
     rn.INVERTER_TOTAL_ABSORBED_ENERGY: U64Register("kWh", 100, 30302, target_device=TargetDevice.EMMA),
     rn.ENERGY_CHARGED_TODAY: U32Register("kWh", 100, 30306, target_device=TargetDevice.EMMA),
@@ -771,6 +777,24 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         "kWh",
         100,
         30550,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_MIN_SOC_PEAK_SHAVING: U16Register(
+        "%",
+        100,
+        30700,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_MAX_SOC_PEAK_SHAVING: U16Register(
+        "%",
+        100,
+        30701,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_BATTERY_PRODUCT_MODEL: U16Register(
+        rv.StorageProductModel,
+        1,
+        30706,
         target_device=TargetDevice.EMMA,
     ),
     rn.NUMBER_OF_INVERTERS_FOUND: U16Register(None, 1, 30801, target_device=TargetDevice.EMMA),
@@ -889,6 +913,25 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         bool,
         1,
         40110,
+        writeable=True,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_MODE: U16Register(
+        rv.StorageCapacityControlMode,
+        1,
+        40200,
+        writeable=True,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_SOC_PEAK_SHAVING: U16Register(
+        "%",
+        10,
+        40201,
+        writeable=True,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_PERIODS: PeakSettingPeriodRegisters(
+        40202,
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
