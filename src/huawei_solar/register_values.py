@@ -1456,6 +1456,55 @@ class FeatureMask30342(IntFlag):
     """
 
 
+class FeatureMask30283(IntFlag):
+    """Third-party dispatch and grid-connection feature mask flags (Register 30283).
+
+    When a bit is 0, the gated registers or options are unsupported by the inverter.
+    """
+
+    THIRD_PARTY_CONTROL = 1 << 8
+    """Third-party control / dispatch working mode.
+
+    Gates option 6 (THIRD_PARTY_CONTROL) on register 47086 (rn.STORAGE_WORKING_MODE_SETTINGS)
+    and working mode 12 on register 37006 (rn.STORAGE_UNIT_1_WORKING_MODE_B).
+    """
+    CURRENT_LIMITING_GRID_CONNECTION = 1 << 12
+    """Current-limiting grid connection control.
+
+    Gates support for register 45230.
+    """
+    THREE_PHASE_UNBALANCE_CONTROL = 1 << 20
+    """Three-phase unbalance control.
+
+    Gates support for register 45238.
+    """
+
+
+class FeatureMask30306(IntFlag):
+    """Battery maintenance and discharge adjustment feature mask flags (Register 30306).
+
+    When a bit is 0, the gated registers or options are unsupported by the inverter.
+    """
+
+    BATTERY_RECHARGE = 1 << 9
+    """Maintenance battery recharge mode.
+
+    Together with a HUAWEI_LUNA2000 battery, gates support for registers 47780
+    (rn.STORAGE_RECHARGE_SIGNAL) and 47783 (rn.STORAGE_RECHARGE_TARGET_SOC).
+    """
+    BATTERY_SAFETY_SELF_CHECK = 1 << 10
+    """Battery safety self-check.
+
+    Gates support for registers 37832, 37900, and 47782.
+    """
+    DISCHARGE_POWER_ADJUSTMENT = 1 << 15
+    """Discharge power adjustment parameters.
+
+    Together with FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS, gates support for registers
+    47592 (rn.STORAGE_MAXIMUM_GRID_POWER_DURING_DISCHARGE) and 47593 (rn.STORAGE_ADJUSTMENT_DEADBAND).
+    """
+
+
 class FeatureMask30308(IntFlag):
     """Inverter operational capabilities and grid code feature mask flags (Register 30308).
 

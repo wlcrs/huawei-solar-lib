@@ -86,6 +86,8 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.FEATURE_MASK_2: U32Register(rv.FeatureMask2, 1, 30213),
     rn.FEATURE_MASK_3: U32Register(rv.FeatureMask3, 1, 30215),
     rn.FEATURE_MASK_4: U32Register(rv.FeatureMask4, 1, 30217),
+    rn.FEATURE_MASK_30283: U32Register(rv.FeatureMask30283, 1, 30283, target_device=TargetDevice.SUN2000),
+    rn.FEATURE_MASK_30306: U16Register(rv.FeatureMask30306, 1, 30306, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30308: U16Register(rv.FeatureMask30308, 1, 30308, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30315: U16Register(rv.FeatureMask30315, 1, 30315, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30320: U16Register(rv.FeatureMask30320, 1, 30320, target_device=TargetDevice.SUN2000),
