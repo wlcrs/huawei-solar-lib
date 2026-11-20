@@ -33,8 +33,11 @@ FEATURE_MASK_1 = RegisterName("feature_mask_1")
 FEATURE_MASK_2 = RegisterName("feature_mask_2")
 FEATURE_MASK_3 = RegisterName("feature_mask_3")
 FEATURE_MASK_4 = RegisterName("feature_mask_4")
+FEATURE_MASK_30283 = RegisterName("feature_mask_30283")
+FEATURE_MASK_30306 = RegisterName("feature_mask_30306")
 FEATURE_MASK_30308 = RegisterName("feature_mask_30308")
 FEATURE_MASK_30315 = RegisterName("feature_mask_30315")
+FEATURE_MASK_30316 = RegisterName("feature_mask_30316")
 FEATURE_MASK_30320 = RegisterName("feature_mask_30320")
 FEATURE_MASK_30342 = RegisterName("feature_mask_30342")
 FEATURE_MASK_30350 = RegisterName("feature_mask_30350")
@@ -184,6 +187,7 @@ STORAGE_UNIT_1_RUNNING_STATUS = RegisterName("storage_unit_1_running_status")
 STORAGE_UNIT_1_CHARGE_DISCHARGE_POWER = RegisterName("storage_unit_1_charge_discharge_power")
 STORAGE_UNIT_1_BUS_VOLTAGE = RegisterName("storage_unit_1_bus_voltage")
 STORAGE_UNIT_1_STATE_OF_CAPACITY = RegisterName("storage_unit_1_state_of_capacity")
+STORAGE_UNIT_1_STATE_OF_HEALTH = RegisterName("storage_unit_1_state_of_health")
 STORAGE_UNIT_1_WORKING_MODE_B = RegisterName("storage_unit_1_working_mode_b")
 STORAGE_UNIT_1_RATED_CHARGE_POWER = RegisterName("storage_unit_1_rated_charge_power")
 STORAGE_UNIT_1_RATED_DISCHARGE_POWER = RegisterName("storage_unit_1_rated_discharge_power")
@@ -581,6 +585,28 @@ EMMA_DST_STATE = RegisterName("emma_dst_state")
 EMMA_LOCAL_TIME = RegisterName("emma_local_time")
 EMMA_SYSTEM_TIME = RegisterName("emma_system_time")
 LOCAL_TIME_YEAR = RegisterName("local_time_year")
+EMMA_FEATURE_MASK_30122 = RegisterName("emma_feature_mask_30122")
+"""Feature mask flags for EMMA (register 30122)."""
+EMMA_FEATURE_MASK_30124 = RegisterName("emma_feature_mask_30124")
+"""Feature mask flags for EMMA (register 30124)."""
+EMMA_FEATURE_MASK_30126 = RegisterName("emma_feature_mask_30126")
+"""Feature mask flags for EMMA (register 30126)."""
+EMMA_FEATURE_MASK_30164 = RegisterName("emma_feature_mask_30164")
+"""Inverted (disable/hide) feature bitmask for EMMA (register 30164)."""
+EMMA_FEATURE_MASK_30172 = RegisterName("emma_feature_mask_30172")
+"""Feature mask flags for EMMA (register 30172)."""
+EMMA_CAPACITY_CONTROL_MIN_SOC_PEAK_SHAVING = RegisterName("emma_capacity_control_min_soc_peak_shaving")
+"""Minimum allowed peak shaving SOC bound reported by EMMA (register 30700)."""
+EMMA_CAPACITY_CONTROL_MAX_SOC_PEAK_SHAVING = RegisterName("emma_capacity_control_max_soc_peak_shaving")
+"""Maximum allowed peak shaving SOC bound reported by EMMA (register 30701)."""
+EMMA_BATTERY_PRODUCT_MODEL = RegisterName("emma_battery_product_model")
+"""Site-level energy storage product model managed by EMMA (register 30706)."""
+EMMA_CAPACITY_CONTROL_MODE = RegisterName("emma_capacity_control_mode")
+"""EMMA peak shaving / capacity control limitation mode (register 40200)."""
+EMMA_CAPACITY_CONTROL_SOC_PEAK_SHAVING = RegisterName("emma_capacity_control_soc_peak_shaving")
+"""EMMA peak shaving backup SOC (register 40201)."""
+EMMA_CAPACITY_CONTROL_PERIODS = RegisterName("emma_capacity_control_periods")
+"""EMMA peak shaving / capacity control periods (register 40202)."""
 
 CHARGER_SOFTWARE_VERSION = RegisterName("charger_software_version")
 """Software version string of the charger."""
@@ -1245,3 +1271,49 @@ SMARTLOGGER_EMI_OPERATION_MODE = RegisterName("smartlogger_emi_operation_mode")
 """SmartLogger environmental monitoring instrument (EMI) operating mode (master vs slave)."""
 SMARTLOGGER_SOFTWARE_PACKAGE_NAME = RegisterName("smartlogger_software_package_name")
 """SmartLogger installed software package name string."""
+
+# SmartGuard
+# Not part of the public Modbus interface definitions. Taken from the SmartGuard pages of the FusionSolar app and
+# verified on a SmartGuard-63A-T0 behind an EMMA (Modbus unit ID 2).
+SMARTGUARD_SOFTWARE_VERSION = RegisterName("smartguard_software_version")
+"""Software version string of the SmartGuard."""
+SMARTGUARD_PHASE_TYPE = RegisterName("smartguard_phase_type")
+"""Single-phase or three-phase SmartGuard (see SmartGuardPhaseType)."""
+SMARTGUARD_FEATURE_MASK = RegisterName("smartguard_feature_mask")
+"""Feature mask. The app only offers the manual on/off-grid switchover when bit 0 is set."""
+SMARTGUARD_GRID_VOLTAGE = RegisterName("smartguard_grid_voltage")
+"""Grid voltage at the SmartGuard (single-phase models)."""
+SMARTGUARD_GRID_PHASE_A_VOLTAGE = RegisterName("smartguard_grid_phase_a_voltage")
+"""Grid phase A voltage at the SmartGuard (three-phase models)."""
+SMARTGUARD_GRID_PHASE_B_VOLTAGE = RegisterName("smartguard_grid_phase_b_voltage")
+"""Grid phase B voltage at the SmartGuard (three-phase models)."""
+SMARTGUARD_GRID_PHASE_C_VOLTAGE = RegisterName("smartguard_grid_phase_c_voltage")
+"""Grid phase C voltage at the SmartGuard (three-phase models)."""
+SMARTGUARD_STATUS = RegisterName("smartguard_status")
+"""Running status of the SmartGuard (see SmartGuardStatus): on-grid, off-grid, bypassed, ..."""
+SMARTGUARD_GENERATOR_VOLTAGE = RegisterName("smartguard_generator_voltage")
+"""Generator voltage (single-phase models)."""
+SMARTGUARD_GENERATOR_PHASE_A_VOLTAGE = RegisterName("smartguard_generator_phase_a_voltage")
+"""Generator phase A voltage (three-phase models)."""
+SMARTGUARD_GENERATOR_PHASE_B_VOLTAGE = RegisterName("smartguard_generator_phase_b_voltage")
+"""Generator phase B voltage (three-phase models)."""
+SMARTGUARD_GENERATOR_PHASE_C_VOLTAGE = RegisterName("smartguard_generator_phase_c_voltage")
+"""Generator phase C voltage (three-phase models)."""
+SMARTGUARD_INTERNAL_TEMPERATURE = RegisterName("smartguard_internal_temperature")
+"""Internal ambient temperature of the SmartGuard."""
+SMARTGUARD_BACKUP_LOAD_VOLTAGE = RegisterName("smartguard_backup_load_voltage")
+"""Voltage on the backup load port (single-phase models)."""
+SMARTGUARD_BACKUP_LOAD_PHASE_A_VOLTAGE = RegisterName("smartguard_backup_load_phase_a_voltage")
+"""Phase A voltage on the backup load port (three-phase models)."""
+SMARTGUARD_BACKUP_LOAD_PHASE_B_VOLTAGE = RegisterName("smartguard_backup_load_phase_b_voltage")
+"""Phase B voltage on the backup load port (three-phase models)."""
+SMARTGUARD_BACKUP_LOAD_PHASE_C_VOLTAGE = RegisterName("smartguard_backup_load_phase_c_voltage")
+"""Phase C voltage on the backup load port (three-phase models)."""
+SMARTGUARD_GRID_SWITCHOVER = RegisterName("smartguard_grid_switchover")
+"""Manual switchover command, write-only (see SmartGuardGridSwitchover).
+
+Writing OFF_GRID moves the backup loads to the inverter/battery; writing ON_GRID moves them back to the grid. Confirm
+the result with SMARTGUARD_STATUS: the FusionSolar app polls it every second for up to 30 s and expects 2, 3 or 4 after
+switching off-grid and 1 after switching back. The app only offers OFF_GRID when the status is ON_GRID, and ON_GRID
+when the status is one of the off-grid states.
+"""

@@ -69,11 +69,11 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
     async def _detect_sdongle() -> bool:
         device_search_status = await _try_read_register(client, rn.SDONGLE_DEVICE_SEARCH_STATUS)
         if device_search_status is None:
-            _LOGGER.warning("Failed to detect device type for unit ID %d.", DEFAULT_SDONGLE_UNIT_ID)
+            _LOGGER.info("SDongle device search status probe unavailable for unit ID %d.", client.unit_id)
             return False
         _LOGGER.debug(
             "Successfully retrieved SDongle 'device search status' register for unit ID %d: %s",
-            DEFAULT_SDONGLE_UNIT_ID,
+            client.unit_id,
             device_search_status,
         )
         return True
@@ -122,8 +122,11 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
         return SDongleDevice, "SDongle"
 
     # If we reach here, we couldn't detect the device type
-    _LOGGER.warning("Failed to detect device type.")
-    msg = "Unable to detect the device type. The device may not be supported or may not be responding correctly."
+    _LOGGER.warning("Failed to detect device type for unit ID %d.", client.unit_id)
+    msg = (
+        f"Unable to detect the device type for unit ID {client.unit_id}. "
+        "The device may not be supported or may not be responding correctly."
+    )
     raise DeviceDetectionError(msg)
 
 

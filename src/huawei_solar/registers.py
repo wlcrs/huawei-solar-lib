@@ -86,8 +86,13 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.FEATURE_MASK_2: U32Register(rv.FeatureMask2, 1, 30213),
     rn.FEATURE_MASK_3: U32Register(rv.FeatureMask3, 1, 30215),
     rn.FEATURE_MASK_4: U32Register(rv.FeatureMask4, 1, 30217),
+    rn.FEATURE_MASK_30283: U32Register(rv.FeatureMask30283, 1, 30283, target_device=TargetDevice.SUN2000),
+    rn.FEATURE_MASK_30306: U16Register(rv.FeatureMask30306, 1, 30306, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30308: U16Register(rv.FeatureMask30308, 1, 30308, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30315: U16Register(rv.FeatureMask30315, 1, 30315, target_device=TargetDevice.SUN2000),
+    rn.FEATURE_MASK_30316: U16Register(
+        rv.FeatureMask30316, 1, 30316, ignore_invalid=True, target_device=TargetDevice.SUN2000
+    ),
     rn.FEATURE_MASK_30320: U16Register(rv.FeatureMask30320, 1, 30320, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30342: U16Register(rv.FeatureMask30342, 1, 30342, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30350: U16Register(rv.FeatureMask30350, 1, 30350, target_device=TargetDevice.SUN2000),
@@ -376,6 +381,7 @@ BATTERY_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.STORAGE_UNIT_1_CHARGE_DISCHARGE_POWER: I32Register("W", 1, 37001),
     rn.STORAGE_UNIT_1_BUS_VOLTAGE: U16Register("V", 10, 37003),
     rn.STORAGE_UNIT_1_STATE_OF_CAPACITY: U16Register("%", 10, 37004),
+    rn.STORAGE_UNIT_1_STATE_OF_HEALTH: U16Register("%", 10, 37005),
     rn.STORAGE_UNIT_1_WORKING_MODE_B: U16Register(rv.StorageWorkingModesB, 1, 37006),
     rn.STORAGE_UNIT_1_RATED_CHARGE_POWER: U32Register("W", 1, 37007),
     rn.STORAGE_UNIT_1_RATED_DISCHARGE_POWER: U32Register("W", 1, 37009),
@@ -698,6 +704,36 @@ REGISTERS.update(CAPACITY_CONTROL_REGISTERS)
 
 EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.EMMA_SOFTWARE_VERSION: StringRegister(30035, 15, target_device=TargetDevice.EMMA),
+    rn.EMMA_FEATURE_MASK_30122: U32Register(
+        rv.EmmaFeatureMask30122,
+        1,
+        30122,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_FEATURE_MASK_30124: U32Register(
+        rv.EmmaFeatureMask30124,
+        1,
+        30124,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_FEATURE_MASK_30126: U32Register(
+        rv.EmmaFeatureMask30126,
+        1,
+        30126,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_FEATURE_MASK_30164: U32Register(
+        rv.EmmaFeatureMask30164,
+        1,
+        30164,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_FEATURE_MASK_30172: U32Register(
+        rv.EmmaFeatureMask30172,
+        1,
+        30172,
+        target_device=TargetDevice.EMMA,
+    ),
     rn.EMMA_MODEL: StringRegister(30222, 20, target_device=TargetDevice.EMMA),
     rn.INVERTER_TOTAL_ABSORBED_ENERGY: U64Register("kWh", 100, 30302, target_device=TargetDevice.EMMA),
     rn.ENERGY_CHARGED_TODAY: U32Register("kWh", 100, 30306, target_device=TargetDevice.EMMA),
@@ -771,6 +807,24 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         "kWh",
         100,
         30550,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_MIN_SOC_PEAK_SHAVING: U16Register(
+        "%",
+        100,
+        30700,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_MAX_SOC_PEAK_SHAVING: U16Register(
+        "%",
+        100,
+        30701,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_BATTERY_PRODUCT_MODEL: U16Register(
+        rv.StorageProductModel,
+        1,
+        30706,
         target_device=TargetDevice.EMMA,
     ),
     rn.NUMBER_OF_INVERTERS_FOUND: U16Register(None, 1, 30801, target_device=TargetDevice.EMMA),
@@ -892,6 +946,25 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
+    rn.EMMA_CAPACITY_CONTROL_MODE: U16Register(
+        rv.StorageCapacityControlMode,
+        1,
+        40200,
+        writeable=True,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_SOC_PEAK_SHAVING: U16Register(
+        "%",
+        10,
+        40201,
+        writeable=True,
+        target_device=TargetDevice.EMMA,
+    ),
+    rn.EMMA_CAPACITY_CONTROL_PERIODS: PeakSettingPeriodRegisters(
+        40202,
+        writeable=True,
+        target_device=TargetDevice.EMMA,
+    ),
     rn.EMMA_POWER_SUPPLY_CONFIGURATION: U16Register(
         rv.EmmaPowerSupplyConfiguration,
         1,
@@ -907,15 +980,8 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         target_device=TargetDevice.EMMA,
     ),
     rn.EMMA_DST_STATE: U16Register(None, 1, 31002, target_device=TargetDevice.EMMA),
-    rn.EMMA_LOCAL_TIME: U32Register(
-        "seconds",
-        1,
-        31003,
-        target_device=TargetDevice.EMMA,
-    ),
-    rn.EMMA_SYSTEM_TIME: U32Register(
-        "seconds",
-        1,
+    rn.EMMA_LOCAL_TIME: TimestampRegister(31003, target_device=TargetDevice.EMMA),
+    rn.EMMA_SYSTEM_TIME: TimestampRegister(
         40470,
         writeable=True,
         target_device=TargetDevice.EMMA,
@@ -1082,6 +1148,35 @@ SMART_AC_GUN_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
 
 REGISTERS.update(SCHARGER_REGISTERS)
 REGISTERS.update(SMART_AC_GUN_REGISTERS)
+
+SMARTGUARD_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
+    rn.SMARTGUARD_SOFTWARE_VERSION: StringRegister(30035, 10, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_PHASE_TYPE: U16Register(rv.SmartGuardPhaseType, 1, 30057, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_FEATURE_MASK: U32Register(None, 1, 30059, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_VOLTAGE: U16Register("V", 10, 30500, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_A_VOLTAGE: U16Register("V", 10, 30501, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_B_VOLTAGE: U16Register("V", 10, 30502, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_C_VOLTAGE: U16Register("V", 10, 30503, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_STATUS: U16Register(rv.SmartGuardStatus, 1, 30509, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_VOLTAGE: U16Register("V", 10, 30522, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_A_VOLTAGE: U16Register("V", 10, 30523, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_B_VOLTAGE: U16Register("V", 10, 30524, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_C_VOLTAGE: U16Register("V", 10, 30525, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_INTERNAL_TEMPERATURE: I16Register("°C", 10, 30536, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_VOLTAGE: U16Register("V", 10, 30537, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_A_VOLTAGE: U16Register("V", 10, 30538, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_B_VOLTAGE: U16Register("V", 10, 30539, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_C_VOLTAGE: U16Register("V", 10, 30540, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_SWITCHOVER: U16Register(
+        rv.SmartGuardGridSwitchover,
+        1,
+        40021,
+        writeable=True,
+        readable=False,
+        target_device=TargetDevice.SMARTGUARD,
+    ),
+}
+REGISTERS.update(SMARTGUARD_REGISTERS)
 
 METER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.METER_STATUS: U16Register(rv.MeterStatus, 1, 37100),
@@ -1255,7 +1350,7 @@ SDONGLE_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
 REGISTERS.update(SDONGLE_REGISTERS)
 
 SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
-    rn.SMARTLOGGER_DATE_TIME: U32Register(None, 1, 40000, writeable=True, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_DATE_TIME: TimestampRegister(40000, writeable=True, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_CITY: U32Register(None, 1, 40002, writeable=True, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DAYLIGHT_SAVING_TIME_DST: U16Register(
         None,
@@ -1267,7 +1362,7 @@ SMARTLOGGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.SMARTLOGGER_TIME_ZONE: I32Register("s", 1, 40005, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DST_STATE: U16Register(None, 1, 40007, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_DST_OFFSET: U16Register("mins", 1, 40008, target_device=TargetDevice.SMARTLOGGER),
-    rn.SMARTLOGGER_LOCAL_TIME: U32Register(None, 1, 40009, target_device=TargetDevice.SMARTLOGGER),
+    rn.SMARTLOGGER_LOCAL_TIME: TimestampRegister(40009, target_device=TargetDevice.SMARTLOGGER),
     rn.SMARTLOGGER_PV_INVERTER_SHUTDOWN: U16Register(
         None,
         1,

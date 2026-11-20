@@ -2,8 +2,10 @@
 
 import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
-from datetime import datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Self
 
 from huawei_solar import register_names as rn
@@ -32,6 +34,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+
 HEARTBEAT_INTERVAL = 15
 
 
@@ -45,6 +48,7 @@ class HuaweiSolarDevice(ABC):
     serial_number: str
     update_lock: asyncio.Lock
     primary_device: "HuaweiSolarDevice | None" = None
+    _use_host_timezone: bool = False
 
     def __init__(
         self,
@@ -111,6 +115,38 @@ class HuaweiSolarDevice(ABC):
         """
         return register_names
 
+    def _adopt_matching_host_timezone(
+        self,
+        device_offset: timedelta,
+        *,
+        device_dst: bool | None = None,
+    ) -> None:
+        """Adopt the host's local timezone if its current offset and DST state match the device."""
+        self._use_host_timezone = False
+        now_local = datetime.now().astimezone()
+        if now_local.utcoffset() != device_offset:
+            return
+        if device_dst is not None:
+            tm_isdst = time.localtime().tm_isdst
+            if tm_isdst >= 0 and bool(tm_isdst) != device_dst:
+                return
+
+        self._use_host_timezone = True
+
+    def _transform_datetime(self, value: datetime) -> datetime:
+        """Optionally transform a decoded UTC datetime before returning it."""
+        if self._use_host_timezone:
+            return value.replace(tzinfo=None).astimezone(tz=UTC)
+        return value
+
+    def _transform_register_values(
+        self,
+        register_name: rn.RegisterName,  # noqa: ARG002
+        result: "Result[Any]",
+    ) -> "Result[Any]":
+        """Optionally transform the value of a register before returning it."""
+        return result
+
     async def batch_update(self, register_names: list[rn.RegisterName]) -> "dict[rn.RegisterName, Result[Any]]":
         """Efficiently retrieve the values of all the registers passed in register_names.
 
@@ -174,6 +210,8 @@ class HuaweiSolarDevice(ABC):
                     values = {}
 
                 self._detect_state_changes(values)
+                for key, value in values.items():
+                    values[key] = self._transform_register_values(key, value)
                 result.update(values)
 
                 first_idx = last_idx + 1
@@ -183,7 +221,7 @@ class HuaweiSolarDevice(ABC):
 
     async def stop(self) -> bool:
         """Stop the device connection."""
-        if not self.primary_device: 
+        if not self.primary_device:
             # if primary_device is None, we are the primary device, so we should also stop the client
             await self.client.disconnect()
 
@@ -204,7 +242,7 @@ class HuaweiSolarDevice(ABC):
         Use this from internal code when `update_lock` is already held.
         """
         assert self.update_lock.locked(), "update_lock must be held when calling _raw_get"
-        return await self.client.get(name)
+        return self._transform_register_values(name, await self.client.get(name))
 
     async def read_file(self, file_type: int, customized_data: bytes | None = None) -> bytes:
         """Wrap `get_file` from `AsyncHuaweiSolarClient`."""
@@ -238,7 +276,9 @@ class HuaweiSolarDevice(ABC):
             ActiveAlarmsDataFile.query_active_alarms(equip_id),
         )
         active_alarms_file = ActiveAlarmsDataFile(file_data)
-        return active_alarms_file.alarms
+        return [
+            replace(alarm, occur_time=self._transform_datetime(alarm.occur_time)) for alarm in active_alarms_file.alarms
+        ]
 
     async def get_history_alarms(
         self,
@@ -257,7 +297,14 @@ class HuaweiSolarDevice(ABC):
             HistoryAlarmsDataFile.query_within_timespan(start_epoch, end_epoch),
         )
         history_alarms_file = HistoryAlarmsDataFile(file_data)
-        return history_alarms_file.alarms
+        return [
+            replace(
+                alarm,
+                occur_time=self._transform_datetime(alarm.occur_time),
+                recover_time=self._transform_datetime(alarm.recover_time),
+            )
+            for alarm in history_alarms_file.alarms
+        ]
 
     async def get_performance_data(
         self,
@@ -279,7 +326,7 @@ class HuaweiSolarDevice(ABC):
             InverterPerformanceDataFile.query_within_timespan(request_type, start_epoch, end_epoch),
         )
         performance_file = InverterPerformanceDataFile(file_data, request_type=request_type, cycle=cycle)
-        return performance_file.data_points
+        return [replace(point, time=self._transform_datetime(point.time)) for point in performance_file.data_points]
 
 
 class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):

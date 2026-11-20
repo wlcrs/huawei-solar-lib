@@ -1456,6 +1456,55 @@ class FeatureMask30342(IntFlag):
     """
 
 
+class FeatureMask30283(IntFlag):
+    """Third-party dispatch and grid-connection feature mask flags (Register 30283).
+
+    When a bit is 0, the gated registers or options are unsupported by the inverter.
+    """
+
+    THIRD_PARTY_CONTROL = 1 << 8
+    """Third-party control / dispatch working mode.
+
+    Gates option 6 (THIRD_PARTY_CONTROL) on register 47086 (rn.STORAGE_WORKING_MODE_SETTINGS)
+    and working mode 12 on register 37006 (rn.STORAGE_UNIT_1_WORKING_MODE_B).
+    """
+    CURRENT_LIMITING_GRID_CONNECTION = 1 << 12
+    """Current-limiting grid connection control.
+
+    Gates support for register 45230.
+    """
+    THREE_PHASE_UNBALANCE_CONTROL = 1 << 20
+    """Three-phase unbalance control.
+
+    Gates support for register 45238.
+    """
+
+
+class FeatureMask30306(IntFlag):
+    """Battery maintenance and discharge adjustment feature mask flags (Register 30306).
+
+    When a bit is 0, the gated registers or options are unsupported by the inverter.
+    """
+
+    BATTERY_RECHARGE = 1 << 9
+    """Maintenance battery recharge mode.
+
+    Together with a HUAWEI_LUNA2000 battery, gates support for registers 47780
+    (rn.STORAGE_RECHARGE_SIGNAL) and 47783 (rn.STORAGE_RECHARGE_TARGET_SOC).
+    """
+    BATTERY_SAFETY_SELF_CHECK = 1 << 10
+    """Battery safety self-check.
+
+    Gates support for registers 37832, 37900, and 47782.
+    """
+    DISCHARGE_POWER_ADJUSTMENT = 1 << 15
+    """Discharge power adjustment parameters.
+
+    Together with FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS, gates support for registers
+    47592 (rn.STORAGE_MAXIMUM_GRID_POWER_DURING_DISCHARGE) and 47593 (rn.STORAGE_ADJUSTMENT_DEADBAND).
+    """
+
+
 class FeatureMask30308(IntFlag):
     """Inverter operational capabilities and grid code feature mask flags (Register 30308).
 
@@ -1513,6 +1562,7 @@ class FeatureMask30308(IntFlag):
     Gates support for registers 42044 (grid-tied/off-grid mode switching), 42045 (off-grid mode),
     45250 (parallel off-grid switchover), 47102 (rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE),
     47604 (rn.BACKUP_SWITCH_TO_OFF_GRID), and 47605 (rn.BACKUP_VOLTAGE_INDEPENDENT_OPERATION).
+    42044 and 47604 also need FeatureMask30316.GRID_TIED_OFF_GRID_SWITCHING.
     """
     PQ_MODE = 1 << 11
     """PQ mode scheduling.
@@ -1621,6 +1671,21 @@ class FeatureMask30315(IntFlag):
     """
 
 
+class FeatureMask30316(IntFlag):
+    """Off-grid switching feature mask flags (Register 30316).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    Only bit 1 is known, from the display conditions of the FusionSolar app.
+    """
+
+    GRID_TIED_OFF_GRID_SWITCHING = 1 << 1
+    """Grid-tied / off-grid switching by the inverter.
+
+    Together with FeatureMask30308.BACKUP_OFF_GRID_SWITCHING, gates support for registers 42044
+    (grid-tied/off-grid mode switching) and 47604 (rn.BACKUP_SWITCH_TO_OFF_GRID).
+    """
+
+
 class FeatureMask30320(IntFlag):
     """Grid protection and off-grid independent operation feature mask flags (Register 30320).
 
@@ -1704,6 +1769,131 @@ class FeatureMask30350(IntFlag):
     """Daytime voltage rise suppression P-U curve.
 
     Gates support for register 42184.
+    """
+
+
+class EmmaFeatureMask30122(IntFlag):
+    """EMMA feature mask flags (Register 30122).
+
+    When a bit is 1, the gated feature/registers are supported by the EMMA.
+    """
+
+    BAUD_RATE_NEGOTIATION = 1 << 1
+    """Baud rate negotiation (Register 41210)."""
+    BACKUP_SEAMLESS_SWITCH = 1 << 6
+    """Seamless backup switching (Group 70054; registers 41213, 41215, 41216)."""
+    GENERATOR_AND_MAINS_ANOMALY_DETECTION = 1 << 12
+    """Generator parameters and mains anomaly detection (Registers 41215, 40345, 40347, 40348)."""
+    MANAGEMENT_SYSTEM_AND_MODBUS_TCP = 1 << 14
+    """Management system and Modbus TCP settings (Groups 70072, 70081)."""
+    RESTORE_DEFAULTS = 1 << 16
+    """Restore defaults option (Register 40512)."""
+    FEED_THRESHOLD_CROSSING_PROTECTION = 1 << 19
+    """Feed threshold crossing protection (Group 70074; registers 40111-40114)."""
+    THREE_PHASE_UNBALANCE_CONTROL = 1 << 20
+    """Three-phase unbalance / split-phase power control (Group 70199; register 40110)."""
+    CURRENT_LIMITING_GRID_CONNECTION = 1 << 26
+    """Current-limiting grid connection (Group 70073; registers 40116-40119)."""
+    NTP_CLOCK_SOURCE = 1 << 28
+    """NTP clock source and server settings (Registers 40489, 40550, 40580-40582, 31008, 31010)."""
+    ACTIVE_POWER_REMOTE_OUTPUT_CONTROL = 1 << 29
+    """Active power remote output control (Group 70156; registers 41500-41552)."""
+    MASTER_SLAVE_MODE = 1 << 30
+    """Master/slave running mode (Register 40343)."""
+
+
+class EmmaFeatureMask30124(IntFlag):
+    """EMMA feature mask flags (Register 30124).
+
+    When a bit is 1, the gated feature/registers are supported by the EMMA.
+    """
+
+    CT_ABNORMAL_WIRING_DETECTION = 1 << 0
+    """CT abnormal wiring detection (Register 41008)."""
+    DRM_CONTROL = 1 << 1
+    """DRM switch and dry contact DRM function (Registers 40184, 40191)."""
+    ECHONET = 1 << 3
+    """ECHONET Lite configuration (Group 70204; register 40971)."""
+    MANUAL_PARALLEL_OFF_GRID_SWITCHOVER = 1 << 9
+    """Manual parallel/off-grid switchover (Register 40267)."""
+    CHARGE_FROM_AC = 1 << 15
+    """Charge from AC / grid charge controls (Registers 40051, 40052, and 40002 gating)."""
+    POWER_GRID_SYSTEM = 1 << 18
+    """Power grid system configuration (Register 41217)."""
+    DEVICE_LOG = 1 << 22
+    """Device log export (Group 70240)."""
+    COM2_PORT_MODE = 1 << 24
+    """COM2 port mode and communication status (Registers 40840, 40841, 32400)."""
+    MANAGEMENT_SYSTEM_UNBINDING = 1 << 29
+    """Management system unbinding (Group 70071)."""
+    EXTERNAL_CT_AND_METER_APPLICATIONS = 1 << 30
+    """External CT and power meter application settings (Registers 41006, 41012-41014)."""
+
+
+class EmmaFeatureMask30126(IntFlag):
+    """EMMA feature mask flags (Register 30126).
+
+    When a bit is 1, the gated feature/registers are supported by the EMMA.
+    """
+
+    THIRD_PARTY_EMS_INTERCONNECTION = 1 << 0
+    """Third-party EMS interconnection (Group 70318; register 31143)."""
+    INNER_CT_APPLICATIONS = 1 << 9
+    """Inner CT application settings (Register 41013)."""
+    UPGRADE_DELAY = 1 << 17
+    """Upgrade delay setting (Register 40613)."""
+    DRY_CONTACT_LIMITATION_MODE = 1 << 19
+    """Dry contact limitation mode (Registers 40191, 40101)."""
+
+
+class EmmaFeatureMask30172(IntFlag):
+    """EMMA feature mask flags (Register 30172).
+
+    When a bit is 1, the gated feature/registers are supported by the EMMA.
+    """
+
+    STRING_VOLTAGE_LEVEL = 1 << 1
+    """String voltage level (Register 41009)."""
+    VOLTAGE_IN_INDEPENDENT_OPERATION = 1 << 2
+    """Voltage in independent operation (Register 41010)."""
+    OFF_GRID_BACKUP_POWER_SOC = 1 << 4
+    """Off-grid backup power SOC (Register 40266)."""
+    INSUFFICIENT_BACKUP_TIME_REMINDER = 1 << 5
+    """Insufficient backup time reminder (Register 41216)."""
+    BATTERY_EOD_EOC_SOC = 1 << 7
+    """Battery end-of-discharge and end-of-charge SOC (Registers 40053, 40054)."""
+    OFF_GRID_MODE = 1 << 11
+    """Off-grid mode setting (Register 40268)."""
+
+
+class EmmaFeatureMask30164(IntFlag):
+    """EMMA feature hide/disable bitmask flags (Register 30164).
+
+    Unlike standard FeatureMask registers, this register is an inverted
+    (disable/hide) bitmask: when a bit is 1, the feature is disabled/hidden;
+    when a bit is 0, the feature is allowed.
+    """
+
+    COM2_SERIAL_PARAMETERS = 1 << 2
+    """COM2 serial communication parameters hidden/disabled.
+
+    Gates support for registers 40836, 40837, and 40838.
+    """
+    POWER_LIMITED_GRID_CONNECTION = 1 << 3
+    """Power-limited grid connection hidden/disabled.
+
+    Gates support for group 70059 and register 40100 (rn.EMMA_POWER_CONTROL_MODE_AT_GRID_CONNECTION_POINT).
+    """
+    DI_SCHEDULING = 1 << 4
+    """DI active power scheduling hidden/disabled.
+
+    Gates support for group 70047 and register 40150.
+    """
+    CAPACITY_CONTROL = 1 << 5
+    """Peak shaving / capacity control hidden/disabled.
+
+    Gates support for group 70057 and registers 40200 (rn.EMMA_CAPACITY_CONTROL_MODE),
+    40201 (rn.EMMA_CAPACITY_CONTROL_SOC_PEAK_SHAVING), and 40202 (rn.EMMA_CAPACITY_CONTROL_PERIODS).
     """
 
 
@@ -1911,3 +2101,39 @@ class ChargerGunLockPresence(IntEnum):
     """Motorized connector lock hardware present"""
     NOT_PRESENT = 1
     """Motorized connector lock hardware not present"""
+
+
+class SmartGuardPhaseType(IntEnum):
+    """SmartGuard phase type (register 30057)."""
+
+    SINGLE_PHASE = 0
+    THREE_PHASE = 1
+
+
+class SmartGuardStatus(IntEnum):
+    """SmartGuard running status (register 30509)."""
+
+    STANDBY = 0
+    ON_GRID = 1
+    OFF_GRID_GENERATOR = 2
+    OFF_GRID_INVERTER = 3
+    OFF_GRID_GENERATOR_AND_INVERTER = 4
+    BYPASSED = 5
+    UNEXPECTED_SHUTDOWN = 6
+    UNEXPECTED_SHUTDOWN_GRID_SUPPLY = 7
+
+
+SMARTGUARD_OFF_GRID_STATUSES = frozenset(
+    {
+        SmartGuardStatus.OFF_GRID_GENERATOR,
+        SmartGuardStatus.OFF_GRID_INVERTER,
+        SmartGuardStatus.OFF_GRID_GENERATOR_AND_INVERTER,
+    }
+)
+
+
+class SmartGuardGridSwitchover(IntEnum):
+    """SmartGuard manual switchover command (register 40021)."""
+
+    OFF_GRID = 0
+    ON_GRID = 1

@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import suppress
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from huawei_solar import register_names as rn
@@ -16,8 +17,8 @@ from huawei_solar.files import (
     OptimizerSystemInformation,
     OptimizerSystemInformationDataFile,
 )
-from huawei_solar.register_definitions import Result
-from huawei_solar.registers import METER_REGISTERS
+from huawei_solar.register_definitions import Result, TimestampRegister
+from huawei_solar.registers import METER_REGISTERS, REGISTERS
 
 from .base import HuaweiSolarDeviceWithLogin
 from .emma import EMMADevice
@@ -48,8 +49,10 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     supports_active_power_fail_safe: bool = False
     supports_active_power_limitation_mode: bool = False
     supports_dongle_charge_power_limit: bool = False
+    supports_charge_from_grid_power: bool = False
     supports_discharge_power_adjustment: bool = False
     supports_recharge: bool = False
+    supports_third_party_control: bool = False
     """Whether the inverter supports the maintenance storage recharge feature.
 
     In FusionSolar app: Maintenance > Battery maintenance > Forced charge and discharge.
@@ -61,6 +64,9 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     power_meter_type: rv.MeterType | None = None
 
     _pv_registers: list[str]
+
+    _time_zone: int | None = None
+    _dst: bool | None = None
 
     _previous_device_status: str | None = None
 
@@ -133,46 +139,9 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             self.supports_active_power_fail_safe = False
             self.supports_active_power_limitation_mode = False
 
-        try:
-            feature_mask_30308 = (await self.client.get(rn.FEATURE_MASK_30308)).value
-            self.supports_off_grid_switch = bool(feature_mask_30308 & rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING)
-        except ReadException:
-            _LOGGER.debug("Feature mask 30308 not supported by device %d", self.client.unit_id)
-            self.supports_off_grid_switch = False
+        await self._populate_backup_support()
 
-        try:
-            feature_mask_30320 = (await self.client.get(rn.FEATURE_MASK_30320)).value
-            self.supports_backup_voltage = self.supports_off_grid_switch and bool(
-                feature_mask_30320 & rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION
-            )
-        except ReadException:
-            _LOGGER.debug("Feature mask 30320 not supported by device %d", self.client.unit_id)
-            self.supports_backup_voltage = False
-
-        if self.battery_type != rv.StorageProductModel.NONE:
-            if self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice)):
-                self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
-                self.supports_dongle_charge_power_limit = bool(
-                    feature_mask_3 & rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT
-                )
-
-                try:
-                    feature_mask_2 = (await self.client.get(rn.FEATURE_MASK_2)).value
-                    self.supports_discharge_power_adjustment = bool(
-                        feature_mask_2 & rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS
-                    )
-                    self.supports_recharge = self.supports_discharge_power_adjustment
-                except ReadException:
-                    _LOGGER.debug("Feature mask 2 not supported by device %d", self.client.unit_id)
-                    self.supports_discharge_power_adjustment = False
-                    self.supports_recharge = False
-
-            try:
-                feature_mask = (await self.client.get(rn.FEATURE_MASK_30342)).value
-                self.supports_ess_low_power = bool(feature_mask & rv.FeatureMask30342.ESS_LOW_POWER)
-            except ReadException:
-                _LOGGER.debug("ESS low power as it is not supported by device %d", self.client.unit_id)
-                self.supports_ess_low_power = False
+        await self._populate_battery_feature_support(feature_mask_3)
 
         with suppress(ReadException):
             self.power_meter_online = (await self.client.get(rn.METER_STATUS)).value == rv.MeterStatus.NORMAL
@@ -181,6 +150,93 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         # we will incorrectly detect that no power meter is present.
         if self.power_meter_online:
             self.power_meter_type = (await self.client.get(rn.METER_TYPE)).value
+
+        # reading these registers fails on some firmware versions (cfr. https://github.com/wlcrs/huawei_solar/issues/1264)
+        with suppress(ReadException):
+            self._dst = (await self.client.get(rn.DAYLIGHT_SAVING_TIME)).value
+        with suppress(ReadException):
+            self._time_zone = (await self.client.get(rn.TIME_ZONE)).value
+        self._update_matched_timezone()
+
+    async def _read_feature_mask(self, register_name: rn.RegisterName) -> int | None:
+        """Read a feature mask register, returning None if unsupported or invalid."""
+        try:
+            result = await self.client.get(register_name)
+        except ReadException:
+            _LOGGER.debug("Feature mask %s not supported by device %d", register_name, self.client.unit_id)
+            return None
+        return result.value if isinstance(result.value, int) else None
+
+    async def _populate_battery_feature_support(self, feature_mask_3: rv.FeatureMask3) -> None:
+        """Check battery-related feature masks to determine supported capabilities."""
+        if self.battery_type == rv.StorageProductModel.NONE:
+            return
+
+        has_luna2000 = rv.StorageProductModel.HUAWEI_LUNA2000 in (
+            self.battery_1_type,
+            self.battery_2_type,
+        )
+
+        if self.primary_device is None or not isinstance(self.primary_device, (EMMADevice, SmartLoggerDevice)):
+            self.supports_capacity_control = bool(feature_mask_3 & rv.FeatureMask3.CAPACITY_CONTROL)
+            self.supports_dongle_charge_power_limit = bool(
+                feature_mask_3 & rv.FeatureMask3.SECONDARY_GRID_TIED_CHARGE_POWER_LIMIT
+            )
+
+            feature_mask_2 = await self._read_feature_mask(rn.FEATURE_MASK_2)
+            feature_mask_30306 = await self._read_feature_mask(rn.FEATURE_MASK_30306)
+
+            self.supports_charge_from_grid_power = feature_mask_2 is not None and bool(
+                feature_mask_2 & rv.FeatureMask2.BATTERY_CHARGE_DISCHARGE_LIMITS
+            )
+            self.supports_discharge_power_adjustment = (
+                self.supports_charge_from_grid_power
+                and feature_mask_30306 is not None
+                and bool(feature_mask_30306 & rv.FeatureMask30306.DISCHARGE_POWER_ADJUSTMENT)
+            )
+            self.supports_recharge = (
+                has_luna2000
+                and feature_mask_30306 is not None
+                and bool(feature_mask_30306 & rv.FeatureMask30306.BATTERY_RECHARGE)
+            )
+
+        feature_mask_30283 = await self._read_feature_mask(rn.FEATURE_MASK_30283)
+        self.supports_third_party_control = feature_mask_30283 is not None and bool(
+            feature_mask_30283 & rv.FeatureMask30283.THIRD_PARTY_CONTROL
+        )
+
+        feature_mask_30342 = await self._read_feature_mask(rn.FEATURE_MASK_30342)
+        self.supports_ess_low_power = feature_mask_30342 is not None and bool(
+            feature_mask_30342 & rv.FeatureMask30342.ESS_LOW_POWER
+        )
+
+    async def _populate_backup_support(self) -> None:
+        """Check the feature masks that gate the off-grid switch and the backup voltage."""
+        feature_mask_30308 = await self._read_feature_mask(rn.FEATURE_MASK_30308)
+        supports_backup_off_grid = feature_mask_30308 is not None and bool(
+            feature_mask_30308 & rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING
+        )
+
+        # The FusionSolar app only offers "Switch to off-grid" (47604) when bit 1 of 30316 is set as well. An inverter
+        # behind an EMMA with a SmartGuard has it cleared, and writing 47604 there has no effect: the SmartGuard
+        # switches the backup loads.
+        feature_mask_30316 = await self._read_feature_mask(rn.FEATURE_MASK_30316) if supports_backup_off_grid else None
+        self.supports_off_grid_switch = feature_mask_30316 is not None and bool(
+            feature_mask_30316 & rv.FeatureMask30316.GRID_TIED_OFF_GRID_SWITCHING
+        )
+
+        feature_mask_30320 = await self._read_feature_mask(rn.FEATURE_MASK_30320)
+        self.supports_backup_voltage = (
+            supports_backup_off_grid
+            and feature_mask_30320 is not None
+            and bool(feature_mask_30320 & rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION)
+        )
+
+    def _update_matched_timezone(self) -> None:
+        if self._time_zone is None:
+            return
+        offset = timedelta(minutes=self._time_zone) + (timedelta(hours=1) if self._dst else timedelta(0))
+        self._adopt_matching_host_timezone(offset, device_dst=self._dst)
 
     def _handle_batch_read_error(
         self,
@@ -222,6 +278,31 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
 
             self._previous_device_status = new_device_status
 
+        if rn.TIME_ZONE in new_values or rn.DAYLIGHT_SAVING_TIME in new_values:
+            if rn.TIME_ZONE in new_values:
+                self._time_zone = new_values[rn.TIME_ZONE].value
+            if rn.DAYLIGHT_SAVING_TIME in new_values:
+                self._dst = new_values[rn.DAYLIGHT_SAVING_TIME].value
+            self._update_matched_timezone()
+
+    def _transform_datetime(self, value: datetime) -> datetime:
+        if self._use_host_timezone:
+            return super()._transform_datetime(value)
+        if self._time_zone:
+            value -= timedelta(minutes=self._time_zone)
+        # if DST is in effect, we need to shift another hour.
+        if self._dst:
+            value -= timedelta(hours=1)
+
+        return value.astimezone(tz=UTC)
+
+    def _transform_register_values(self, register_name: rn.RegisterName, result: Result[Any]) -> Result[Any]:
+        if isinstance(REGISTERS[register_name], TimestampRegister) and result.value is not None:
+            assert isinstance(result.value, datetime)
+            return Result(self._transform_datetime(result.value), result.unit)
+
+        return result
+
     async def _filter_registers(self, register_names: list[rn.RegisterName]) -> list[rn.RegisterName]:
         result = register_names
 
@@ -254,8 +335,8 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         if self.primary_device and isinstance(self.primary_device, EMMADevice):
             # Inverters don't return their own system time when connected via EMMA.
             # Instead, we need to read the local time from the EMMA device.
-
-            return (await self.primary_device.get(rn.EMMA_LOCAL_TIME)).value  # type: ignore[no-any-return]
+            emma_local_time = (await self.primary_device.client.get(rn.EMMA_LOCAL_TIME)).value
+            return int(emma_local_time.timestamp()) if emma_local_time is not None else None
 
         return (await self.get(rn.SYSTEM_TIME_RAW)).value  # type: ignore[no-any-return]
 

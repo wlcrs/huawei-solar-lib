@@ -2,6 +2,7 @@
 
 import logging
 
+import huawei_solar.register_values as rv
 import pytest
 from huawei_solar.registers import REGISTERS
 
@@ -49,3 +50,30 @@ def test_all_register_names_have_a_register() -> None:
             register_names_without_register.append(register_name)
 
     assert not register_names_without_register, f"Register names without a register: {register_names_without_register}"
+
+
+def test_storage_unit_1_state_of_health_register() -> None:
+    """Verify STORAGE_UNIT_1_STATE_OF_HEALTH (37005) decoding."""
+    register = REGISTERS[rn.STORAGE_UNIT_1_STATE_OF_HEALTH]
+    decoded = register.decode((985,))
+    assert decoded.value == 98.5
+    assert decoded.unit == "%"
+    assert register.decode((0xFFFF,)).value is None
+
+
+def test_feature_mask_30283_register() -> None:
+    """Verify FEATURE_MASK_30283 (30283) decoding."""
+    register = REGISTERS[rn.FEATURE_MASK_30283]
+    assert register.decode((1 << 8,)).value == rv.FeatureMask30283.THIRD_PARTY_CONTROL
+    assert register.decode((1 << 12,)).value == rv.FeatureMask30283.CURRENT_LIMITING_GRID_CONNECTION
+    assert register.decode((1 << 20,)).value == rv.FeatureMask30283.THREE_PHASE_UNBALANCE_CONTROL
+    assert register.decode((0xFFFFFFFF,)).value is None
+
+
+def test_feature_mask_30306_register() -> None:
+    """Verify FEATURE_MASK_30306 (30306) decoding."""
+    register = REGISTERS[rn.FEATURE_MASK_30306]
+    assert register.decode((1 << 9,)).value == rv.FeatureMask30306.BATTERY_RECHARGE
+    assert register.decode((1 << 10,)).value == rv.FeatureMask30306.BATTERY_SAFETY_SELF_CHECK
+    assert register.decode((1 << 15,)).value == rv.FeatureMask30306.DISCHARGE_POWER_ADJUSTMENT
+    assert register.decode((0xFFFF,)).value is None
