@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from huawei_solar.device.emma import EMMADevice
 from huawei_solar.device.smartguard import SmartGuardDevice
-from huawei_solar.exceptions import ConnectionInterruptedException, ReadException
+from huawei_solar.exceptions import ConnectionInterruptedException, DecodeError, ReadException
 from huawei_solar.modbus_client import AsyncHuaweiSolarClient
 from huawei_solar.registers import REGISTERS
 
@@ -142,12 +142,17 @@ async def test_smartguard_creation_fails_when_the_connection_drops(monkeypatch: 
     [
         (1, rv.SmartGuardStatus.ON_GRID),
         (3, rv.SmartGuardStatus.OFF_GRID_INVERTER),
-        (8, None),
     ],
 )
-def test_status_decoder_tolerates_unknown_values(raw: int, expected: rv.SmartGuardStatus | None) -> None:
-    """An unknown status must not fail the batch read of every SmartGuard register."""
+def test_status_decodes_known_values(raw: int, expected: rv.SmartGuardStatus) -> None:
+    """The status decodes like the library's other enum registers."""
     assert REGISTERS[rn.SMARTGUARD_STATUS].decode((raw,)).value == expected
+
+
+def test_status_unknown_value_fails() -> None:
+    """The register is undocumented: a value this library does not know fails the read instead of being dropped."""
+    with pytest.raises(DecodeError, match="not a valid SmartGuardStatus"):
+        REGISTERS[rn.SMARTGUARD_STATUS].decode((8,))
 
 
 def test_status_invalid_value_decodes_to_none() -> None:

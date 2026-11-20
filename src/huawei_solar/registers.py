@@ -1,6 +1,5 @@
 """Register definitions from the Huawei inverter."""
 
-from enum import IntEnum
 from functools import partial
 from typing import Any, TypeVar
 
@@ -38,18 +37,6 @@ def bitfield_decoder[T](definition: dict[int, T], bitfield: int) -> list[Any]:
             result.append(value)
 
     return result
-
-
-def tolerant_enum_decoder[E: IntEnum](enum_class: type[E], value: int) -> E | None:
-    """Decode an enum register, mapping values unknown to this library to None.
-
-    Used for registers taken from the FusionSolar app: newer firmware may report other values, and a strict IntEnum
-    would fail the whole batch read.
-    """
-    try:
-        return enum_class(value)
-    except ValueError:
-        return None
 
 
 REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
@@ -1170,9 +1157,7 @@ SMARTGUARD_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.SMARTGUARD_GRID_PHASE_A_VOLTAGE: U16Register("V", 10, 30501, target_device=TargetDevice.SMARTGUARD),
     rn.SMARTGUARD_GRID_PHASE_B_VOLTAGE: U16Register("V", 10, 30502, target_device=TargetDevice.SMARTGUARD),
     rn.SMARTGUARD_GRID_PHASE_C_VOLTAGE: U16Register("V", 10, 30503, target_device=TargetDevice.SMARTGUARD),
-    rn.SMARTGUARD_STATUS: U16Register(
-        partial(tolerant_enum_decoder, rv.SmartGuardStatus), 1, 30509, target_device=TargetDevice.SMARTGUARD
-    ),
+    rn.SMARTGUARD_STATUS: U16Register(rv.SmartGuardStatus, 1, 30509, target_device=TargetDevice.SMARTGUARD),
     rn.SMARTGUARD_GENERATOR_VOLTAGE: U16Register("V", 10, 30522, target_device=TargetDevice.SMARTGUARD),
     rn.SMARTGUARD_GENERATOR_PHASE_A_VOLTAGE: U16Register("V", 10, 30523, target_device=TargetDevice.SMARTGUARD),
     rn.SMARTGUARD_GENERATOR_PHASE_B_VOLTAGE: U16Register("V", 10, 30524, target_device=TargetDevice.SMARTGUARD),
