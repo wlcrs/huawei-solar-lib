@@ -993,13 +993,18 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
+    rn.EMMA_BACKUP_TIME_WARNING_THRESHOLD: U16Register(
+        "min", 1, 41216, writeable=True, target_device=TargetDevice.EMMA
+    ),
     rn.EMMA_DST_STATE: U16Register(None, 1, 31002, target_device=TargetDevice.EMMA),
     rn.EMMA_LOCAL_TIME: TimestampRegister(31003, target_device=TargetDevice.EMMA),
+    rn.EMMA_LAST_NTP_SYNC_TIME: TimestampRegister(31008, target_device=TargetDevice.EMMA),
     rn.EMMA_SYSTEM_TIME: TimestampRegister(
         40470,
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),
+    rn.EMMA_CLOCK_SOURCE: U16Register(rv.EmmaClockSource, 1, 40489, target_device=TargetDevice.EMMA),
     rn.LOCAL_TIME_YEAR: U16Register(
         None,
         1,

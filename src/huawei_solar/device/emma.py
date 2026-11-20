@@ -29,6 +29,10 @@ class EMMADevice(HuaweiSolarDevice):
     supports_di_scheduling: bool = True
     supports_system_state: bool = False
     supports_active_alarm_counts: bool = False
+    supports_backup_settings: bool = False
+    supports_power_supply_configuration: bool = False
+    supports_time_settings: bool = False
+    supports_estimated_backup_time: bool = False
     _utc_offset: timedelta | None = None
 
     @classmethod
@@ -139,7 +143,7 @@ class EMMADevice(HuaweiSolarDevice):
             self.supports_capacity_control = False
 
     async def _populate_app_feature_support(self) -> None:
-        """Probe registers taken from the FusionSolar app: the system state and the active alarm counts.
+        """Probe registers taken from the FusionSolar app: system state, alarm counts, backup and time settings.
 
         They are not in the public interface definitions, so entities are only created when this EMMA answers them.
         An exception reply or a timeout means "not supported"; a dropped connection still fails the setup so it is
@@ -163,6 +167,19 @@ class EMMADevice(HuaweiSolarDevice):
         except (ReadException, TimeoutError) as err:
             _LOGGER.debug("EMMA active alarm counts not available on device %d: %s", self.client.unit_id, err)
 
+        # Feature mask 30122 tells which backup and time settings the FusionSolar app shows for this EMMA.
+        feature_mask_30122 = rv.EmmaFeatureMask30122(0)
+        try:
+            feature_mask_30122 = (await self.client.get(rn.EMMA_FEATURE_MASK_30122)).value or feature_mask_30122
+        except (ReadException, TimeoutError) as err:
+            _LOGGER.debug("EMMA feature mask 30122 not available on device %d: %s", self.client.unit_id, err)
+        self.supports_backup_settings = bool(feature_mask_30122 & rv.EmmaFeatureMask30122.BACKUP_SEAMLESS_SWITCH)
+        self.supports_power_supply_configuration = bool(
+            feature_mask_30122 & rv.EmmaFeatureMask30122.GENERATOR_AND_MAINS_ANOMALY_DETECTION
+        )
+        self.supports_time_settings = bool(feature_mask_30122 & rv.EmmaFeatureMask30122.NTP_CLOCK_SOURCE)
+        self.supports_estimated_backup_time = bool(feature_mask_30122 & rv.EmmaFeatureMask30122.OFF_GRID_BACKUP_TIME)
+
     def _transform_datetime(self, value: datetime) -> datetime:
         if self._use_host_timezone:
             return super()._transform_datetime(value)
@@ -172,8 +189,9 @@ class EMMADevice(HuaweiSolarDevice):
         return value.astimezone(tz=UTC)
 
     def _transform_register_values(self, register_name: rn.RegisterName, result: Result[Any]) -> Result[Any]:
-        # EMMA_SYSTEM_TIME (40470) is already in true UTC; only EMMA_LOCAL_TIME (31003) holds local wall-clock time.
-        if register_name == rn.EMMA_LOCAL_TIME and result.value is not None:
+        # EMMA_SYSTEM_TIME (40470) is already in true UTC; EMMA_LOCAL_TIME (31003) and EMMA_LAST_NTP_SYNC_TIME (31008)
+        # hold local wall-clock time.
+        if register_name in (rn.EMMA_LOCAL_TIME, rn.EMMA_LAST_NTP_SYNC_TIME) and result.value is not None:
             assert isinstance(result.value, datetime)
             return Result(self._transform_datetime(result.value), result.unit)
 

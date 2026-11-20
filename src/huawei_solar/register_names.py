@@ -509,6 +509,12 @@ YEARLY_FEED_IN_TO_GRID = RegisterName("yearly_feed_in_to_grid")
 MONTHLY_SUPPLY_FROM_GRID = RegisterName("monthly_supply_from_grid")
 YEARLY_SUPPLY_FROM_GRID = RegisterName("yearly_supply_from_grid")
 BACKUP_TIME_NOTIFICATION_THRESHOLD = RegisterName("backup_time_notification_threshold")
+"""Estimated remaining off-grid backup time (min), despite the name.
+
+The public interface definitions label 30406 like the neighbouring setting. The FusionSolar app shows 30406 as the
+remaining backup time (it reads 1107 and 513 min on an EMMA-A02, outside the threshold's 5-60 range); the warning
+threshold is EMMA_BACKUP_TIME_WARNING_THRESHOLD (41216).
+"""
 ENERGY_CHARGED_THIS_MONTH = RegisterName("energy_charged_this_month")
 ENERGY_DISCHARGED_THIS_MONTH = RegisterName("energy_discharged_this_month")
 EMMA_EXTERNAL_METER_RUNNING_STATUS = RegisterName("emma_external_meter_running_status")
@@ -1386,3 +1392,11 @@ If disabled, the load is supplied until the battery is empty.
 """
 SMARTLOAD_SERIAL_NUMBER = RegisterName("smartload_serial_number")
 """Serial number of the SmartLoad (derived from the EMMA serial number)."""
+
+# EMMA backup and time settings, from the "Backup power settings" and "Time setting" pages of the FusionSolar app.
+EMMA_BACKUP_TIME_WARNING_THRESHOLD = RegisterName("emma_backup_time_warning_threshold")
+"""Backup time below which the EMMA warns (min, 5-60)."""
+EMMA_LAST_NTP_SYNC_TIME = RegisterName("emma_last_ntp_sync_time")
+"""Time of the last successful NTP synchronisation of the EMMA (local wall-clock time, transformed to UTC)."""
+EMMA_CLOCK_SOURCE = RegisterName("emma_clock_source")
+"""Where the EMMA takes its time from (see EmmaClockSource)."""
