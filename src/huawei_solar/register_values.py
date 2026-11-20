@@ -1562,6 +1562,7 @@ class FeatureMask30308(IntFlag):
     Gates support for registers 42044 (grid-tied/off-grid mode switching), 42045 (off-grid mode),
     45250 (parallel off-grid switchover), 47102 (rn.STORAGE_BACKUP_POWER_STATE_OF_CHARGE),
     47604 (rn.BACKUP_SWITCH_TO_OFF_GRID), and 47605 (rn.BACKUP_VOLTAGE_INDEPENDENT_OPERATION).
+    42044 and 47604 also need FeatureMask30316.GRID_TIED_OFF_GRID_SWITCHING.
     """
     PQ_MODE = 1 << 11
     """PQ mode scheduling.
@@ -1667,6 +1668,21 @@ class FeatureMask30315(IntFlag):
     """Demand Response Enabling Device (DRM).
 
     Gates support for register 42013.
+    """
+
+
+class FeatureMask30316(IntFlag):
+    """Off-grid switching feature mask flags (Register 30316).
+
+    When a bit is 0, the gated registers are unsupported by the inverter and should not be queried.
+    Only bit 1 is known, from the display conditions of the FusionSolar app.
+    """
+
+    GRID_TIED_OFF_GRID_SWITCHING = 1 << 1
+    """Grid-tied / off-grid switching by the inverter.
+
+    Together with FeatureMask30308.BACKUP_OFF_GRID_SWITCHING, gates support for registers 42044
+    (grid-tied/off-grid mode switching) and 47604 (rn.BACKUP_SWITCH_TO_OFF_GRID).
     """
 
 
@@ -2085,3 +2101,39 @@ class ChargerGunLockPresence(IntEnum):
     """Motorized connector lock hardware present"""
     NOT_PRESENT = 1
     """Motorized connector lock hardware not present"""
+
+
+class SmartGuardPhaseType(IntEnum):
+    """SmartGuard phase type (register 30057)."""
+
+    SINGLE_PHASE = 0
+    THREE_PHASE = 1
+
+
+class SmartGuardStatus(IntEnum):
+    """SmartGuard running status (register 30509)."""
+
+    STANDBY = 0
+    ON_GRID = 1
+    OFF_GRID_GENERATOR = 2
+    OFF_GRID_INVERTER = 3
+    OFF_GRID_GENERATOR_AND_INVERTER = 4
+    BYPASSED = 5
+    UNEXPECTED_SHUTDOWN = 6
+    UNEXPECTED_SHUTDOWN_GRID_SUPPLY = 7
+
+
+SMARTGUARD_OFF_GRID_STATUSES = frozenset(
+    {
+        SmartGuardStatus.OFF_GRID_GENERATOR,
+        SmartGuardStatus.OFF_GRID_INVERTER,
+        SmartGuardStatus.OFF_GRID_GENERATOR_AND_INVERTER,
+    }
+)
+
+
+class SmartGuardGridSwitchover(IntEnum):
+    """SmartGuard manual switchover command (register 40021)."""
+
+    OFF_GRID = 0
+    ON_GRID = 1

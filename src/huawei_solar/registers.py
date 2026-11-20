@@ -90,6 +90,9 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.FEATURE_MASK_30306: U16Register(rv.FeatureMask30306, 1, 30306, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30308: U16Register(rv.FeatureMask30308, 1, 30308, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30315: U16Register(rv.FeatureMask30315, 1, 30315, target_device=TargetDevice.SUN2000),
+    rn.FEATURE_MASK_30316: U16Register(
+        rv.FeatureMask30316, 1, 30316, ignore_invalid=True, target_device=TargetDevice.SUN2000
+    ),
     rn.FEATURE_MASK_30320: U16Register(rv.FeatureMask30320, 1, 30320, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30342: U16Register(rv.FeatureMask30342, 1, 30342, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30350: U16Register(rv.FeatureMask30350, 1, 30350, target_device=TargetDevice.SUN2000),
@@ -1145,6 +1148,35 @@ SMART_AC_GUN_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
 
 REGISTERS.update(SCHARGER_REGISTERS)
 REGISTERS.update(SMART_AC_GUN_REGISTERS)
+
+SMARTGUARD_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
+    rn.SMARTGUARD_SOFTWARE_VERSION: StringRegister(30035, 10, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_PHASE_TYPE: U16Register(rv.SmartGuardPhaseType, 1, 30057, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_FEATURE_MASK: U32Register(None, 1, 30059, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_VOLTAGE: U16Register("V", 10, 30500, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_A_VOLTAGE: U16Register("V", 10, 30501, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_B_VOLTAGE: U16Register("V", 10, 30502, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_PHASE_C_VOLTAGE: U16Register("V", 10, 30503, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_STATUS: U16Register(rv.SmartGuardStatus, 1, 30509, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_VOLTAGE: U16Register("V", 10, 30522, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_A_VOLTAGE: U16Register("V", 10, 30523, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_B_VOLTAGE: U16Register("V", 10, 30524, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GENERATOR_PHASE_C_VOLTAGE: U16Register("V", 10, 30525, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_INTERNAL_TEMPERATURE: I16Register("°C", 10, 30536, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_VOLTAGE: U16Register("V", 10, 30537, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_A_VOLTAGE: U16Register("V", 10, 30538, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_B_VOLTAGE: U16Register("V", 10, 30539, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_BACKUP_LOAD_PHASE_C_VOLTAGE: U16Register("V", 10, 30540, target_device=TargetDevice.SMARTGUARD),
+    rn.SMARTGUARD_GRID_SWITCHOVER: U16Register(
+        rv.SmartGuardGridSwitchover,
+        1,
+        40021,
+        writeable=True,
+        readable=False,
+        target_device=TargetDevice.SMARTGUARD,
+    ),
+}
+REGISTERS.update(SMARTGUARD_REGISTERS)
 
 METER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.METER_STATUS: U16Register(rv.MeterStatus, 1, 37100),
