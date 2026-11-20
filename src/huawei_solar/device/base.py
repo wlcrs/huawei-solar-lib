@@ -451,7 +451,10 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
         try:
             async with self.update_lock:
                 return await self.client.get_file(file_type, customized_data)
-        except PermissionDeniedError:
+        except ReadException as err:
+            # get_file reports "permission denied" as a ReadException carrying the device's exception code.
+            if err.modbus_exception_code != PermissionDeniedError.error_code:
+                raise
             if self.__username:
                 logged_in = await self.ensure_logged_in(force=True)
 

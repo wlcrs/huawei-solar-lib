@@ -3,7 +3,7 @@
 import struct
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import huawei_solar.register_values as rv
 import pytest
@@ -69,6 +69,59 @@ async def test_has_write_permission_with_invalid_login(
     monkeypatch.setattr(sun2000_device.client, "login", mock_login)
 
     assert await sun2000_device.has_write_permission() is False
+
+
+_PERMISSION_DENIED = ReadException(
+    "Failed to read file 0x45: received PermissionDeniedError", modbus_exception_code=0x80
+)
+
+
+async def test_read_file_logs_in_again_on_permission_denied(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A "permission denied" answer to a file read triggers a forced login and one more attempt."""
+    sun2000_device._HuaweiSolarDeviceWithLogin__username = "installer"  # type: ignore[attr-defined]
+    ensure_logged_in = AsyncMock(return_value=True)
+    get_file = AsyncMock(side_effect=[_PERMISSION_DENIED, b"file data"])
+    monkeypatch.setattr(sun2000_device, "ensure_logged_in", ensure_logged_in)
+    monkeypatch.setattr(sun2000_device.client, "get_file", get_file)
+
+    assert await sun2000_device.read_file(0x45) == b"file data"
+    assert get_file.await_count == 2
+    assert ensure_logged_in.await_args_list[-1].kwargs == {"force": True}
+
+
+async def test_read_file_passes_on_other_read_errors(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Other read errors are not retried with a new login."""
+    sun2000_device._HuaweiSolarDeviceWithLogin__username = "installer"  # type: ignore[attr-defined]
+    ensure_logged_in = AsyncMock(return_value=True)
+    get_file = AsyncMock(side_effect=ReadException("illegal address", modbus_exception_code=0x02))
+    monkeypatch.setattr(sun2000_device, "ensure_logged_in", ensure_logged_in)
+    monkeypatch.setattr(sun2000_device.client, "get_file", get_file)
+
+    with pytest.raises(ReadException, match="illegal address"):
+        await sun2000_device.read_file(0x45)
+    assert get_file.await_count == 1
+    assert ensure_logged_in.await_count == 1  # only the initial check, no forced login
+
+
+async def test_read_file_without_credentials_passes_on_permission_denied(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without credentials there is nothing to retry with: the error is passed on."""
+    monkeypatch.setattr(sun2000_device, "ensure_logged_in", AsyncMock(return_value=False))
+    get_file = AsyncMock(side_effect=_PERMISSION_DENIED)
+    monkeypatch.setattr(sun2000_device.client, "get_file", get_file)
+
+    with pytest.raises(ReadException) as exc_info:
+        await sun2000_device.read_file(0x45)
+    assert exc_info.value.modbus_exception_code == 0x80
+    assert get_file.await_count == 1
 
 
 async def test_has_write_permission_unauthenticated_success(
