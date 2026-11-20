@@ -38,15 +38,16 @@ async def test_emma_populates_offset_and_transforms_only_local_time(
     utc_time = datetime(2026, 8, 21, 10, 0, 0, tzinfo=UTC)
     local_time = datetime(2026, 8, 21, 12, 0, 2, tzinfo=UTC)  # +2h with 2s read skew
 
+    local_time_calls = 0
+
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
         if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
             return [Result("EMMA123", None), Result("V100", None)]
-        if names == [rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME]:
-            return [Result(local_time, None), Result(utc_time, None)]
         msg = f"Unexpected get_multiple: {names}"
         raise AssertionError(msg)
 
     async def mock_client_get(name: rn.RegisterName) -> Result[Any]:
+        nonlocal local_time_calls
         if name == rn.EMMA_MODEL:
             return Result("EMMA-A02", None)
         if name == rn.EMMA_BATTERY_PRODUCT_MODEL:
@@ -54,7 +55,8 @@ async def test_emma_populates_offset_and_transforms_only_local_time(
         if name == rn.EMMA_FEATURE_MASK_30164:
             return Result(rv.EmmaFeatureMask30164(0), None)
         if name == rn.EMMA_LOCAL_TIME:
-            return Result(datetime(2026, 8, 21, 12, 0, 0, tzinfo=UTC), None)
+            local_time_calls += 1
+            return Result(local_time if local_time_calls == 1 else datetime(2026, 8, 21, 12, 0, 0, tzinfo=UTC), None)
         if name == rn.EMMA_SYSTEM_TIME:
             return Result(utc_time, None)
         msg = f"Unexpected get: {name}"
@@ -157,8 +159,6 @@ async def test_emma_adopts_matching_host_timezone_across_dst(
         async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
             if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
                 return [Result("EMMA123", None), Result("V100", None)]
-            if names == [rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME]:
-                return [Result(local_now, None), Result(utc_now, None)]
             msg = f"Unexpected get_multiple: {names}"
             raise AssertionError(msg)
 
@@ -169,6 +169,10 @@ async def test_emma_adopts_matching_host_timezone_across_dst(
                 return Result(rv.StorageProductModel.NONE, None)
             if name == rn.EMMA_FEATURE_MASK_30164:
                 return Result(rv.EmmaFeatureMask30164(0), None)
+            if name == rn.EMMA_LOCAL_TIME:
+                return Result(local_now, None)
+            if name == rn.EMMA_SYSTEM_TIME:
+                return Result(utc_now, None)
             msg = f"Unexpected get: {name}"
             raise AssertionError(msg)
 
@@ -204,8 +208,6 @@ async def test_emma_falls_back_to_fixed_offset_when_host_timezone_mismatches(
         async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
             if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
                 return [Result("EMMA123", None), Result("V100", None)]
-            if names == [rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME]:
-                return [Result(local_now, None), Result(utc_now, None)]
             msg = f"Unexpected get_multiple: {names}"
             raise AssertionError(msg)
 
@@ -216,6 +218,10 @@ async def test_emma_falls_back_to_fixed_offset_when_host_timezone_mismatches(
                 return Result(rv.StorageProductModel.NONE, None)
             if name == rn.EMMA_FEATURE_MASK_30164:
                 return Result(rv.EmmaFeatureMask30164(0), None)
+            if name == rn.EMMA_LOCAL_TIME:
+                return Result(local_now, None)
+            if name == rn.EMMA_SYSTEM_TIME:
+                return Result(utc_now, None)
             msg = f"Unexpected get: {name}"
             raise AssertionError(msg)
 

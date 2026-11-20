@@ -38,8 +38,6 @@ def _setup_emma_client_mocks(
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
         if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
             return [Result("EMMA123", None), Result("V100", None)]
-        if names == [rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME]:
-            return [Result(utc_time, None), Result(utc_time, None)]
         msg = f"Unexpected get_multiple: {names}"
         raise AssertionError(msg)
 
@@ -52,6 +50,8 @@ def _setup_emma_client_mocks(
             if isinstance(val, Exception):
                 raise val
             return val
+        if name in (rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME):
+            return Result(utc_time, None)
         msg = f"Unexpected get: {name}"
         raise AssertionError(msg)
 

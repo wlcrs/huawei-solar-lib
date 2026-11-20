@@ -53,9 +53,8 @@ class EMMADevice(HuaweiSolarDevice):
         self.model_name = (await self.get(rn.EMMA_MODEL)).value
 
         with suppress(ReadException):
-            local_time_result, system_time_result = await self.client.get_multiple(
-                [rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME],
-            )
+            local_time_result = await self.client.get(rn.EMMA_LOCAL_TIME)
+            system_time_result = await self.client.get(rn.EMMA_SYSTEM_TIME)
             if local_time_result.value is not None and system_time_result.value is not None:
                 diff_minutes = round((local_time_result.value - system_time_result.value).total_seconds() / 60)
                 self._utc_offset = timedelta(minutes=diff_minutes)
