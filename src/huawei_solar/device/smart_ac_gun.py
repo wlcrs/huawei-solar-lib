@@ -25,4 +25,4 @@ class SmartAcGunDevice(HuaweiSolarDevice):
             self.serial_number = f"{parent_sn}_gun_{self.client.unit_id}"
 
         with suppress(HuaweiSolarException, ReadException):
-            self.software_version = (await self.get(rn.CHARGER_SOFTWARE_VERSION)).value
+            self.software_version = (await self.client.get(rn.CHARGER_SOFTWARE_VERSION)).value

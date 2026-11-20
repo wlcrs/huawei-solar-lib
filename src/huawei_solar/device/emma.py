@@ -50,7 +50,7 @@ class EMMADevice(HuaweiSolarDevice):
         self.serial_number = serial_number_result.value
         self.software_version = software_version_result.value
 
-        self.model_name = (await self.get(rn.EMMA_MODEL)).value
+        self.model_name = (await self.client.get(rn.EMMA_MODEL)).value
 
         with suppress(ReadException):
             local_time_result = await self.client.get(rn.EMMA_LOCAL_TIME)

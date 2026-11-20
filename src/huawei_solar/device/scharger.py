@@ -28,4 +28,4 @@ class SChargerDevice(HuaweiSolarDevice):
         self.serial_number = serial_number_result.value
         self.software_version = software_version_result.value
 
-        self.model_name = (await self.get(rn.CHARGER_MODEL)).value
+        self.model_name = (await self.client.get(rn.CHARGER_MODEL)).value
