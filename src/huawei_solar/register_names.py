@@ -39,8 +39,16 @@ FEATURE_MASK_30308 = RegisterName("feature_mask_30308")
 FEATURE_MASK_30315 = RegisterName("feature_mask_30315")
 FEATURE_MASK_30316 = RegisterName("feature_mask_30316")
 FEATURE_MASK_30320 = RegisterName("feature_mask_30320")
+FEATURE_MASK_30341 = RegisterName("feature_mask_30341")
+"""Feature mask 30341; bit 12 (FeatureMask30341.PARAMETER_LOCK) puts PARAMETER_LOCK_FLAGS in force."""
 FEATURE_MASK_30342 = RegisterName("feature_mask_30342")
 FEATURE_MASK_30350 = RegisterName("feature_mask_30350")
+PARAMETER_LOCK_FLAGS = RegisterName("parameter_lock_flags")
+"""Inverter settings that an energy manager (EMMA) holds (see ParameterLockFlags).
+
+They only apply while FeatureMask30341.PARAMETER_LOCK is set in FEATURE_MASK_30341: the FusionSolar app then shows
+these settings read-only and points to the energy manager. Read-only: the energy manager writes it.
+"""
 REALTIME_MAX_ACTIVE_CAPABILITY = RegisterName("realtime_max_active_capability")
 REALTIME_MAX_INDUCTIVE_REACTIVE_CAPACITY = RegisterName("realtime_max_inductive_reactive_capacity")
 OFFERING_NAME_OF_SOUTHBOUND_DEVICE_1 = RegisterName("offering_name_of_southbound_device_1")
