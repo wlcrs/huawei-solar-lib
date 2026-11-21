@@ -26,6 +26,8 @@ class EMMADevice(HuaweiSolarDevice):
     supports_capacity_control: bool = False
     supports_power_limited_grid_connection: bool = True
     supports_di_scheduling: bool = True
+    supports_system_state: bool = False
+    supports_active_alarm_counts: bool = False
     _utc_offset: timedelta | None = None
 
     @classmethod
@@ -61,6 +63,7 @@ class EMMADevice(HuaweiSolarDevice):
                 self._adopt_matching_host_timezone(self._utc_offset)
 
         await self._populate_feature_support()
+        await self._populate_app_feature_support()
 
     async def _populate_feature_support(self) -> None:
         """Check site battery model and feature flags to determine supported capabilities."""
@@ -103,6 +106,31 @@ class EMMADevice(HuaweiSolarDevice):
         except ReadException:
             _LOGGER.debug("EMMA capacity control not supported by device %d", self.client.unit_id)
             self.supports_capacity_control = False
+
+    async def _populate_app_feature_support(self) -> None:
+        """Probe registers taken from the FusionSolar app: the system state and the active alarm counts.
+
+        They are not in the public interface definitions, so entities are only created when this EMMA answers them.
+        An exception reply or a timeout means "not supported"; a dropped connection still fails the setup so it is
+        retried.
+        """
+        try:
+            await self.client.get(rn.EMMA_SYSTEM_STATE)
+            self.supports_system_state = True
+        except (ReadException, TimeoutError) as err:
+            _LOGGER.debug("EMMA system state not available on device %d: %s", self.client.unit_id, err)
+        try:
+            await self.client.get_multiple(
+                [
+                    rn.EMMA_ACTIVE_ALARMS_CRITICAL,
+                    rn.EMMA_ACTIVE_ALARMS_MAJOR,
+                    rn.EMMA_ACTIVE_ALARMS_MINOR,
+                    rn.EMMA_ACTIVE_ALARMS_WARNING,
+                ],
+            )
+            self.supports_active_alarm_counts = True
+        except (ReadException, TimeoutError) as err:
+            _LOGGER.debug("EMMA active alarm counts not available on device %d: %s", self.client.unit_id, err)
 
     def _transform_datetime(self, value: datetime) -> datetime:
         if self._use_host_timezone:
