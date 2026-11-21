@@ -102,6 +102,8 @@ class StorageWorkingModesB(_IntEnumWithPrettyString):
     REMOTE_SCHEDULING_TOU = 9
     AI_ENERGY_MANAGEMENT_AND_SCHEDULING = 10
     REMOTE_SCHEDULING_AI_CONTROL = 11
+    THIRD_PARTY_DISPATCH = 12
+    """Shown as "Third-party dispatch" by the FusionSolar app."""
 
 
 class StorageWorkingModesC(_IntEnumWithPrettyString):
@@ -154,6 +156,8 @@ class ActivePowerControlMode(_IntEnumWithPrettyString):
     ZERO_POWER_GRID_CONNECTION = 5
     POWER_LIMITED_GRID_CONNECTION_WATT = 6
     POWER_LIMITED_GRID_CONNECTION_PERCENT = 7
+    REMOTE_OUTPUT_CONTROL = 200
+    """Shown as "Remote output control" by the FusionSolar app, which offers it when bit 11 of 30215 is set."""
 
 
 class MeterStatus(_IntEnumWithPrettyString):
