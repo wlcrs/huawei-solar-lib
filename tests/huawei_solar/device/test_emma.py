@@ -94,26 +94,30 @@ async def test_supports_capacity_control_with_feature_mask_30164(
 
 
 @pytest.mark.parametrize(
-    ("battery_response", "expected_battery_type"),
+    ("battery_response", "expected_battery_type", "expected_has_battery"),
     [
-        (Result(rv.StorageProductModel.NONE, None), rv.StorageProductModel.NONE),
-        (Result(rv.StorageProductModel.LG_RESU, None), rv.StorageProductModel.LG_RESU),
-        (Result(None, None), rv.StorageProductModel.NONE),
-        (ReadException(_READ_FAILED_MSG), rv.StorageProductModel.NONE),
+        (Result(rv.StorageProductModel.NONE, None), rv.StorageProductModel.NONE, False),
+        (Result(rv.StorageProductModel.LG_RESU, None), rv.StorageProductModel.LG_RESU, True),
+        (Result(None, None), rv.StorageProductModel.NONE, False),
+        (ReadException(_READ_FAILED_MSG), rv.StorageProductModel.NONE, False),
     ],
 )
-async def test_supports_capacity_control_requires_luna2000_battery(
+async def test_supports_capacity_control_disabled_without_luna2000_battery(
     emma_device: EMMADevice,
     monkeypatch: pytest.MonkeyPatch,
     battery_response: Result[Any] | Exception,
     expected_battery_type: rv.StorageProductModel,
+    *,
+    expected_has_battery: bool,
 ) -> None:
-    """Capacity control is disabled without probing 40200 if no LUNA2000 battery is reported."""
+    """Capacity control is disabled without probing 40200 if no battery is present or battery is LG RESU."""
     queried = _setup_emma_client_mocks(
         emma_device,
         monkeypatch,
         {
             rn.EMMA_BATTERY_PRODUCT_MODEL: battery_response,
+            rn.RATED_ESS_CAPACITY: Result(0, "kWh"),
+            rn.STATE_OF_CAPACITY: Result(None, None),
             rn.EMMA_FEATURE_MASK_30164: Result(rv.EmmaFeatureMask30164(0), None),
         },
     )
@@ -121,10 +125,94 @@ async def test_supports_capacity_control_requires_luna2000_battery(
     await emma_device._populate_additional_fields()
 
     assert emma_device.battery_type == expected_battery_type
+    assert emma_device.has_battery is expected_has_battery
     assert emma_device.supports_capacity_control is False
     assert emma_device.supports_power_limited_grid_connection is True
     assert rn.EMMA_FEATURE_MASK_30164 in queried
     assert rn.EMMA_CAPACITY_CONTROL_MODE not in queried
+
+
+@pytest.mark.parametrize(
+    ("responses", "expected_capacity_control"),
+    [
+        (
+            {
+                rn.EMMA_BATTERY_PRODUCT_MODEL: Result(rv.StorageProductModel.NONE, None),
+                rn.RATED_ESS_CAPACITY: Result(15.0, "kWh"),
+                rn.STATE_OF_CAPACITY: Result(23.0, "%"),
+                rn.EMMA_FEATURE_MASK_30164: Result(rv.EmmaFeatureMask30164(0), None),
+            },
+            True,
+        ),
+        (
+            {
+                rn.EMMA_BATTERY_PRODUCT_MODEL: Result(rv.StorageProductModel.NONE, None),
+                rn.RATED_ESS_CAPACITY: Result(0, "kWh"),
+                rn.STATE_OF_CAPACITY: Result(23.0, "%"),
+                rn.EMMA_FEATURE_MASK_30164: Result(rv.EmmaFeatureMask30164.CAPACITY_CONTROL, None),
+            },
+            False,
+        ),
+        (
+            {
+                rn.EMMA_BATTERY_PRODUCT_MODEL: ReadException(_READ_FAILED_MSG),
+                rn.RATED_ESS_CAPACITY: ReadException(_READ_FAILED_MSG),
+                rn.STATE_OF_CAPACITY: Result(50.0, "%"),
+                rn.EMMA_FEATURE_MASK_30164: Result(rv.EmmaFeatureMask30164(0), None),
+            },
+            True,
+        ),
+        (
+            {
+                rn.EMMA_BATTERY_PRODUCT_MODEL: Result(None, None),
+                rn.RATED_ESS_CAPACITY: Result(10.0, "kWh"),
+                rn.STATE_OF_CAPACITY: Result(None, None),
+                rn.EMMA_FEATURE_MASK_30164: Result(rv.EmmaFeatureMask30164(0), None),
+            },
+            True,
+        ),
+    ],
+)
+async def test_battery_presence_fallback_via_ess_telemetry(
+    emma_device: EMMADevice,
+    monkeypatch: pytest.MonkeyPatch,
+    responses: dict[rn.RegisterName, Result[Any] | Exception],
+    *,
+    expected_capacity_control: bool,
+) -> None:
+    """When 30706 returns NONE/None or is unsupported, ESS telemetry detects the battery and gates capacity control."""
+    _setup_emma_client_mocks(emma_device, monkeypatch, responses)
+
+    await emma_device._populate_additional_fields()
+
+    assert emma_device.battery_type == rv.StorageProductModel.NONE
+    assert emma_device.has_battery is True
+    assert emma_device.supports_capacity_control is expected_capacity_control
+
+
+async def test_battery_presence_legacy_firmware_when_30706_and_ess_unsupported(
+    emma_device: EMMADevice,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When 30706 and ESS telemetry registers are all unsupported, preserve 2.2.0 behavior (has_battery=True)."""
+    queried = _setup_emma_client_mocks(
+        emma_device,
+        monkeypatch,
+        {
+            rn.EMMA_BATTERY_PRODUCT_MODEL: ReadException(_READ_FAILED_MSG),
+            rn.RATED_ESS_CAPACITY: ReadException(_READ_FAILED_MSG),
+            rn.STATE_OF_CAPACITY: ReadException(_READ_FAILED_MSG),
+            rn.EMMA_FEATURE_MASK_30164: ReadException(_READ_FAILED_MSG),
+            rn.EMMA_CAPACITY_CONTROL_MODE: ReadException(_READ_FAILED_MSG),
+        },
+    )
+
+    await emma_device._populate_additional_fields()
+
+    assert emma_device.battery_type == rv.StorageProductModel.NONE
+    assert emma_device.has_battery is True
+    assert emma_device.supports_capacity_control is False
+    assert rn.EMMA_CAPACITY_CONTROL_MODE in queried
 
 
 @pytest.mark.parametrize(
@@ -159,6 +247,8 @@ async def test_feature_mask_30164_gating_without_battery(
         monkeypatch,
         {
             rn.EMMA_BATTERY_PRODUCT_MODEL: Result(rv.StorageProductModel.NONE, None),
+            rn.RATED_ESS_CAPACITY: Result(0, "kWh"),
+            rn.STATE_OF_CAPACITY: Result(None, None),
             rn.EMMA_FEATURE_MASK_30164: mask_response,
         },
     )
