@@ -2137,3 +2137,38 @@ class SmartGuardGridSwitchover(IntEnum):
 
     OFF_GRID = 0
     ON_GRID = 1
+
+
+class FeatureMask30341(IntFlag):
+    """Feature mask flags (register 30341), from the FusionSolar app. Only the bits used here are named."""
+
+    PARAMETER_LOCK = 1 << 12
+    """The settings in ParameterLockFlags (register 30298) are held by the energy manager."""
+
+
+class ParameterLockFlags(IntFlag):
+    """Inverter settings held by the energy manager (register 30298), from the FusionSolar app.
+
+    Only in force while FeatureMask30341.PARAMETER_LOCK is set. The register is written by the energy manager.
+    """
+
+    ACTIVE_POWER_PERCENTAGE_DERATING = 1 << 0
+    """Derating by active power percentage (40125)."""
+    ACTIVE_POWER_DERATING_KW = 1 << 1
+    """Active power derating in kW (40120)."""
+    ACTIVE_POWER_FIXED_VALUE_DERATING = 1 << 2
+    """Active power derating by a fixed value in W (40126)."""
+    REACTIVE_POWER_COMPENSATION = 1 << 3
+    """Reactive power compensation Q/S (40123)."""
+    POWER_FACTOR = 1 << 4
+    """Power factor (40122)."""
+    CHARGE_FROM_GRID = 1 << 5
+    """Charge from grid (47087)."""
+    GRID_CHARGE_MAXIMUM_POWER = 1 << 6
+    """Maximum power for charging from the grid (47242)."""
+    GRID_CHARGE_CUTOFF_SOC = 1 << 7
+    """Grid charge cutoff SOC (47088)."""
+    END_OF_CHARGE_SOC = 1 << 8
+    """End-of-charge SOC (47081)."""
+    END_OF_DISCHARGE_SOC = 1 << 9
+    """End-of-discharge SOC (47082)."""

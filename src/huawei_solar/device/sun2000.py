@@ -60,6 +60,11 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     Combine registers: set STORAGE_RECHARGE_TARGET_SOC (47783) between 40% - 60%,
     then write 1 to STORAGE_RECHARGE_SIGNAL (47780) to start charging.
     """
+    parameters_held_by_energy_manager: rv.ParameterLockFlags = rv.ParameterLockFlags(0)
+    """Inverter settings an energy manager (EMMA) holds. The FusionSolar app shows them read-only.
+
+    Read once during setup (30341 bit 12, then 30298); reload the device to pick up a change.
+    """
     power_meter_online = False
     power_meter_type: rv.MeterType | None = None
 
@@ -140,6 +145,8 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             self.supports_active_power_limitation_mode = False
 
         await self._populate_backup_support()
+
+        await self._populate_parameters_held_by_energy_manager()
 
         await self._populate_battery_feature_support(feature_mask_3)
 
@@ -231,6 +238,16 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             and feature_mask_30320 is not None
             and bool(feature_mask_30320 & rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION)
         )
+
+    async def _populate_parameters_held_by_energy_manager(self) -> None:
+        """Read which settings an energy manager holds (30298), only in force while bit 12 of 30341 is set."""
+        feature_mask_30341 = await self._read_feature_mask(rn.FEATURE_MASK_30341)
+        if feature_mask_30341 is None or not feature_mask_30341 & rv.FeatureMask30341.PARAMETER_LOCK:
+            return
+
+        parameter_lock_flags = await self._read_feature_mask(rn.PARAMETER_LOCK_FLAGS)
+        if parameter_lock_flags is not None:
+            self.parameters_held_by_energy_manager = rv.ParameterLockFlags(parameter_lock_flags)
 
     def _update_matched_timezone(self) -> None:
         if self._time_zone is None:

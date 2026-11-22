@@ -444,6 +444,7 @@ async def test_create_sub_device_instance_sun2000_does_not_deadlock(
         rn.FEATURE_MASK_3: ReadException(_READ_FAILED_MSG),
         rn.FEATURE_MASK_30308: ReadException(_READ_FAILED_MSG),
         rn.FEATURE_MASK_30320: ReadException(_READ_FAILED_MSG),
+        rn.FEATURE_MASK_30341: ReadException(_READ_FAILED_MSG),
         rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
         rn.DAYLIGHT_SAVING_TIME: ReadException(_READ_FAILED_MSG),
         rn.TIME_ZONE: ReadException(_READ_FAILED_MSG),
