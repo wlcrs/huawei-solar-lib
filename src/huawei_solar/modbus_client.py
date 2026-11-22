@@ -25,6 +25,7 @@ from .modbus_pdu import (
     HuaweiReadDeviceIdentificationPDU,
     LoginPDU,
     LoginRequestChallengePDU,
+    PermissionDeniedError,
     StartFileUploadPDU,
     UploadFileFramePDU,
 )
@@ -252,6 +253,8 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
                 CompleteUploadPDU(file_type=file_type),
             )
 
+        except PermissionDeniedError:
+            raise
         except ModbusResponseError as err:
             msg = f"Failed to read file {file_type:#x}: received {type(err).__name__}"
             raise ReadException(msg, modbus_exception_code=err.error_code) from err

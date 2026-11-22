@@ -440,33 +440,32 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
 
         This method adds a retry-logic for when the login-sequence needs to be repeated.
         """
-        logged_in = await self.ensure_logged_in()
+        async with self.update_lock:
+            logged_in = await self.ensure_logged_in()
 
-        if not logged_in:
-            _LOGGER.warning(
-                "Could not login, reading file %x will probably fail",
-                file_type,
-            )
+            if not logged_in:
+                _LOGGER.warning(
+                    "Could not login, reading file %x will probably fail",
+                    file_type,
+                )
 
-        try:
-            async with self.update_lock:
+            try:
                 return await self.client.get_file(file_type, customized_data)
-        except PermissionDeniedError:
-            if self.__username:
-                logged_in = await self.ensure_logged_in(force=True)
+            except PermissionDeniedError:
+                if self.__username:
+                    logged_in = await self.ensure_logged_in(force=True)
 
-                if not logged_in:
-                    _LOGGER.exception("Could not login to read file %x", file_type)
-                    raise
+                    if not logged_in:
+                        _LOGGER.exception("Could not login to read file %x", file_type)
+                        raise
 
-                async with self.update_lock:
                     return await self.client.get_file(
                         file_type,
                         customized_data,
                     )
 
-            # we have no login-credentials available, pass on permission error
-            raise
+                # we have no login-credentials available, pass on permission error
+                raise
 
     ############################
     # Everything write-related #

@@ -23,6 +23,7 @@ class EMMADevice(HuaweiSolarDevice):
 
     software_version: str
     battery_type: rv.StorageProductModel = rv.StorageProductModel.NONE
+    has_battery: bool = False
     supports_capacity_control: bool = False
     supports_power_limited_grid_connection: bool = True
     supports_di_scheduling: bool = True
@@ -62,14 +63,44 @@ class EMMADevice(HuaweiSolarDevice):
 
         await self._populate_feature_support()
 
+    async def _probe_battery_presence(self, *, model_supported: bool) -> bool:
+        """Fall back to EMMA ESS telemetry registers when 30706 reports NONE or is unsupported."""
+        ess_supported = False
+        try:
+            rated_capacity = (await self.client.get(rn.RATED_ESS_CAPACITY)).value
+            ess_supported = True
+            if rated_capacity is not None and rated_capacity > 0:
+                return True
+        except ReadException:
+            _LOGGER.debug("EMMA rated ESS capacity not supported by device %d", self.client.unit_id)
+
+        try:
+            soc = (await self.client.get(rn.STATE_OF_CAPACITY)).value
+            ess_supported = True
+            if soc is not None:
+                return True
+        except ReadException:
+            _LOGGER.debug("EMMA state of capacity not supported by device %d", self.client.unit_id)
+
+        # If neither 30706 nor the ESS telemetry registers are supported, assume a battery may be present
+        # to preserve backwards compatibility with older firmware.
+        return not model_supported and not ess_supported
+
     async def _populate_feature_support(self) -> None:
         """Check site battery model and feature flags to determine supported capabilities."""
+        model_supported = True
         try:
             battery_type = (await self.client.get(rn.EMMA_BATTERY_PRODUCT_MODEL)).value
             self.battery_type = battery_type if battery_type is not None else rv.StorageProductModel.NONE
         except ReadException:
             _LOGGER.debug("EMMA battery product model not supported by device %d", self.client.unit_id)
             self.battery_type = rv.StorageProductModel.NONE
+            model_supported = False
+
+        if self.battery_type != rv.StorageProductModel.NONE:
+            self.has_battery = True
+        else:
+            self.has_battery = await self._probe_battery_presence(model_supported=model_supported)
 
         feature_mask_30164: rv.EmmaFeatureMask30164 | None = None
         try:
@@ -87,7 +118,7 @@ class EMMADevice(HuaweiSolarDevice):
             self.supports_power_limited_grid_connection = True
             self.supports_di_scheduling = True
 
-        if self.battery_type != rv.StorageProductModel.HUAWEI_LUNA2000:
+        if not self.has_battery or self.battery_type == rv.StorageProductModel.LG_RESU:
             self.supports_capacity_control = False
             return
 
