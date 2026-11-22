@@ -568,6 +568,7 @@ async def test_create_sub_device_instance_emma_does_not_deadlock(
     monkeypatch.setattr("huawei_solar.device.detect_device_type", mock_detect)
 
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[str]]:
+        assert names == [rn.SERIAL_NUMBER, rn.EMMA_SOFTWARE_VERSION]
         return [Result("EMMA_SN", None), Result("V100R024", None)]
 
     sub_client.get_multiple = mock_get_multiple

@@ -45,7 +45,7 @@ class EMMADevice(HuaweiSolarDevice):
         ) = await self.client.get_multiple(
             [
                 rn.SERIAL_NUMBER,
-                rn.SOFTWARE_VERSION,
+                rn.EMMA_SOFTWARE_VERSION,
             ],
         )
         self.serial_number = serial_number_result.value

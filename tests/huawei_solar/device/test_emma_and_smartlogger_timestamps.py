@@ -41,7 +41,7 @@ async def test_emma_populates_offset_and_transforms_only_local_time(
     local_time_calls = 0
 
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
-        if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
+        if names == [rn.SERIAL_NUMBER, rn.EMMA_SOFTWARE_VERSION]:
             return [Result("EMMA123", None), Result("V100", None)]
         msg = f"Unexpected get_multiple: {names}"
         raise AssertionError(msg)
@@ -159,7 +159,7 @@ async def test_emma_adopts_matching_host_timezone_across_dst(
         local_now = utc_now + current_offset
 
         async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
-            if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
+            if names == [rn.SERIAL_NUMBER, rn.EMMA_SOFTWARE_VERSION]:
                 return [Result("EMMA123", None), Result("V100", None)]
             msg = f"Unexpected get_multiple: {names}"
             raise AssertionError(msg)
@@ -210,7 +210,7 @@ async def test_emma_falls_back_to_fixed_offset_when_host_timezone_mismatches(
         local_now = datetime(2026, 8, 21, 12, 0, 0, tzinfo=UTC)  # +2h, never matches New York (-4h/-5h)
 
         async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
-            if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
+            if names == [rn.SERIAL_NUMBER, rn.EMMA_SOFTWARE_VERSION]:
                 return [Result("EMMA123", None), Result("V100", None)]
             msg = f"Unexpected get_multiple: {names}"
             raise AssertionError(msg)

@@ -36,7 +36,7 @@ def _setup_emma_client_mocks(
     utc_time = datetime(2026, 8, 21, 10, 0, 0, tzinfo=UTC)
 
     async def mock_get_multiple(names: list[rn.RegisterName]) -> list[Result[Any]]:
-        if names == [rn.SERIAL_NUMBER, rn.SOFTWARE_VERSION]:
+        if names == [rn.SERIAL_NUMBER, rn.EMMA_SOFTWARE_VERSION]:
             return [Result("EMMA123", None), Result("V100", None)]
         msg = f"Unexpected get_multiple: {names}"
         raise AssertionError(msg)
@@ -88,6 +88,8 @@ async def test_supports_capacity_control_with_feature_mask_30164(
 
     await emma_device._populate_additional_fields()
 
+    assert emma_device.serial_number == "EMMA123"
+    assert emma_device.software_version == "V100"
     assert emma_device.battery_type == rv.StorageProductModel.HUAWEI_LUNA2000
     assert emma_device.supports_capacity_control is expected
     assert rn.EMMA_CAPACITY_CONTROL_MODE not in queried
