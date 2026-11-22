@@ -8,6 +8,7 @@ import huawei_solar.register_values as rv
 import pytest
 from huawei_solar.exceptions import ConnectionInterruptedException, DecodeError, ReadException
 from huawei_solar.modbus_client import AsyncHuaweiSolarClient, TimeoutAwareSmartTransport
+from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar.register_values import GridCode
 from tmodbus.exceptions import IllegalDataValueError, ModbusConnectionError
 from tmodbus.transport.async_smart import AsyncSmartTransport
@@ -358,6 +359,21 @@ async def test_get_file_wraps_modbus_response_error(
         await huawei_solar.get_file(0x44)
 
     assert err.value.modbus_exception_code == IllegalDataValueError.error_code
+
+
+async def test_get_file_reraises_permission_denied_error(
+    huawei_solar: AsyncHuaweiSolarClient,
+) -> None:
+    """PermissionDeniedError is re-raised directly so device-level login retry can handle it."""
+    with (
+        patch.object(
+            huawei_solar,
+            "execute",
+            side_effect=PermissionDeniedError(0x41),
+        ),
+        pytest.raises(PermissionDeniedError),
+    ):
+        await huawei_solar.get_file(0x44)
 
 
 async def test_get_file_wraps_connection_error(

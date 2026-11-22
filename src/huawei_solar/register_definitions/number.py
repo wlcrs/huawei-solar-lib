@@ -215,7 +215,7 @@ class TimestampRegister(NumberRegister[datetime | None]):
         value = values[0]
 
         timestamp_value = None
-        if value != self.invalid_value:
+        if value not in (0, self.invalid_value):
             timestamp_value = datetime.fromtimestamp(value, tz=UTC)
 
         return Result(timestamp_value, None)

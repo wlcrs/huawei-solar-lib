@@ -23,3 +23,12 @@ def test_timestamp_register_decode_invalid() -> None:
     # Invalid value is U32 max (0xFFFFFFFF = 4294967295)
     result = reg.decode((reg.invalid_value,))
     assert result.value is None
+
+
+def test_timestamp_register_decode_zero() -> None:
+    """Test decoding a zero timestamp returns None."""
+    reg = TimestampRegister(40000)
+
+    result = reg.decode((0,))
+    assert result.value is None
+    assert result.unit is None
