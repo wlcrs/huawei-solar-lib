@@ -28,6 +28,9 @@ def _emma_client(*, system_state: Any, alarm_counts: Any) -> Mock:  # noqa: ANN4
         rn.EMMA_LOCAL_TIME: not_supported,
         rn.EMMA_SYSTEM_TIME: not_supported,
         rn.EMMA_BATTERY_PRODUCT_MODEL: not_supported,
+        rn.RATED_ESS_CAPACITY: not_supported,
+        rn.STATE_OF_CAPACITY: not_supported,
+        rn.EMMA_CAPACITY_CONTROL_MODE: not_supported,
         rn.EMMA_FEATURE_MASK_30164: not_supported,
         rn.EMMA_SYSTEM_STATE: system_state if isinstance(system_state, Exception) else Result(system_state, None),
     }
