@@ -216,6 +216,14 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         self.supports_ess_low_power = feature_mask_30342 is not None and bool(
             feature_mask_30342 & rv.FeatureMask30342.ESS_LOW_POWER
         )
+        if self.supports_ess_low_power:
+            # Some inverters set the bit but reject 47842 (cfr. https://github.com/wlcrs/huawei_solar/issues/1493),
+            # which makes every read of the configuration registers fail.
+            try:
+                await self.client.get(rn.STORAGE_ESS_LOW_POWER)
+            except ReadException:
+                _LOGGER.debug("ESS low power is advertised but not readable on device %d", self.client.unit_id)
+                self.supports_ess_low_power = False
 
     async def _populate_backup_support(self) -> None:
         """Check the feature masks that gate the off-grid switch and the backup voltage."""
