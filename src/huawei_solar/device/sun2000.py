@@ -167,6 +167,20 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             return None
         return result.value if isinstance(result.value, int) else None
 
+    async def _is_register_readable(self, register_name: rn.RegisterName) -> bool:
+        """Probe whether a register can be read and returns a valid value."""
+        try:
+            result = await self.client.get(register_name)
+        except ReadException as err:
+            _LOGGER.debug(
+                "Register %s not readable on device %d: %s",
+                register_name,
+                self.client.unit_id,
+                err,
+            )
+            return False
+        return result.value is not None
+
     async def _populate_battery_feature_support(self, feature_mask_3: rv.FeatureMask3) -> None:
         """Check battery-related feature masks to determine supported capabilities."""
         if self.battery_type == rv.StorageProductModel.NONE:
@@ -205,9 +219,12 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             feature_mask_30283 & rv.FeatureMask30283.THIRD_PARTY_CONTROL
         )
 
+        # Some setups advertise 30342 bit 4 yet reject 47842 reads (e.g. IllegalDataValueError).
         feature_mask_30342 = await self._read_feature_mask(rn.FEATURE_MASK_30342)
-        self.supports_ess_low_power = feature_mask_30342 is not None and bool(
-            feature_mask_30342 & rv.FeatureMask30342.ESS_LOW_POWER
+        self.supports_ess_low_power = (
+            feature_mask_30342 is not None
+            and bool(feature_mask_30342 & rv.FeatureMask30342.ESS_LOW_POWER)
+            and await self._is_register_readable(rn.STORAGE_ESS_LOW_POWER)
         )
 
     async def _populate_backup_support(self) -> None:

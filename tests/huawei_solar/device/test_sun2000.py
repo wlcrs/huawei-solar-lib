@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import huawei_solar.register_values as rv
 import pytest
-from huawei_solar.exceptions import ReadException, WriteException
+from huawei_solar.exceptions import ConnectionInterruptedException, ReadException, WriteException
 from huawei_solar.files import ActiveAlarmsDataFile, HistoryAlarmsDataFile, PerformanceRequestType
 from huawei_solar.register_values import StorageProductModel
 from huawei_solar.registers import REGISTERS
@@ -140,6 +140,7 @@ async def test_supports_ess_low_power_when_bit_set(
         rn.FEATURE_MASK_30316: Result(rv.FeatureMask30316.GRID_TIED_OFF_GRID_SWITCHING, None),
         rn.FEATURE_MASK_30320: Result(rv.FeatureMask30320.VOLTAGE_IN_INDEPENDENT_OPERATION, None),
         rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342.ESS_LOW_POWER, None),
+        rn.STORAGE_ESS_LOW_POWER: Result(value=False, unit=None),
         rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
         rn.DAYLIGHT_SAVING_TIME: Result(value=False, unit=None),
         rn.TIME_ZONE: Result(60, "min"),
@@ -246,6 +247,7 @@ async def test_supports_ess_low_power_when_connected_through_emma(
         rn.FEATURE_MASK_30308: ReadException(_READ_FAILED_MSG),
         rn.FEATURE_MASK_30320: ReadException(_READ_FAILED_MSG),
         rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342.ESS_LOW_POWER, None),
+        rn.STORAGE_ESS_LOW_POWER: Result(value=False, unit=None),
         rn.METER_STATUS: ReadException(_READ_FAILED_MSG),
         rn.DAYLIGHT_SAVING_TIME: Result(value=False, unit=None),
         rn.TIME_ZONE: Result(60, "min"),
@@ -718,3 +720,65 @@ async def test_file_timestamps_adjusted_for_inverter_timezone(
 def test_feature_mask_30316_all_ones_decodes_as_a_mask() -> None:
     """0xFFFF must not decode to None: every bit is set."""
     assert REGISTERS[rn.FEATURE_MASK_30316].decode((0xFFFF,)).value == rv.FeatureMask30316(0xFFFF)
+
+
+@pytest.mark.parametrize(
+    ("register_response", "expected"),
+    [
+        pytest.param(Result(value=False, unit=None), True, id="readable_false"),
+        pytest.param(Result(value=True, unit=None), True, id="readable_true"),
+        pytest.param(Result(value=None, unit=None), False, id="invalid_value_none"),
+        pytest.param(
+            ReadException(_READ_FAILED_MSG, modbus_exception_code=0x03),
+            False,
+            id="illegal_data_value",
+        ),
+        pytest.param(
+            ReadException(_READ_FAILED_MSG, modbus_exception_code=0x02),
+            False,
+            id="illegal_data_address",
+        ),
+    ],
+)
+async def test_supports_ess_low_power_register_probe(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+    register_response: Result[Any] | Exception,
+    *,
+    expected: bool,
+) -> None:
+    """When FEATURE_MASK_30342 bit 4 is set, STORAGE_ESS_LOW_POWER must be readable with a non-None value."""
+    await _populate_with_mocked_responses(
+        sun2000_device,
+        monkeypatch,
+        {
+            rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342.ESS_LOW_POWER, None),
+            rn.STORAGE_ESS_LOW_POWER: register_response,
+        },
+    )
+
+    assert sun2000_device.supports_ess_low_power is expected
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(ConnectionInterruptedException("disconnected"), id="connection_interrupted"),
+        pytest.param(TimeoutError(), id="timeout"),
+    ],
+)
+async def test_supports_ess_low_power_probe_propagates_transient_errors(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+) -> None:
+    """Transient communication errors when probing STORAGE_ESS_LOW_POWER must propagate."""
+    with pytest.raises(type(error)):
+        await _populate_with_mocked_responses(
+            sun2000_device,
+            monkeypatch,
+            {
+                rn.FEATURE_MASK_30342: Result(rv.FeatureMask30342.ESS_LOW_POWER, None),
+                rn.STORAGE_ESS_LOW_POWER: error,
+            },
+        )
