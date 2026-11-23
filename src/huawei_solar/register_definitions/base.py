@@ -24,6 +24,7 @@ class TargetDevice(Flag):
     SMARTLOGGER = auto()
     SMART_AC_GUN = auto()
     SMARTGUARD = auto()
+    SMARTLOAD = auto()
 
 
 @dataclass(frozen=True, slots=True)

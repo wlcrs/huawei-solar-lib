@@ -2198,3 +2198,12 @@ class ParameterLockFlags(IntFlag):
     """End-of-charge SOC (47081)."""
     END_OF_DISCHARGE_SOC = 1 << 9
     """End-of-discharge SOC (47082)."""
+
+
+class SmartLoadOffGridMode(IntEnum):
+    """SmartLoad supply mode while off-grid (register 40201)."""
+
+    BASIC = 0
+    """The load is not supplied while off-grid."""
+    BATTERY = 1
+    """The load is supplied by the battery between the stop and resume SOC."""

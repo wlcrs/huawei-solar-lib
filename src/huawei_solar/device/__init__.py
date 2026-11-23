@@ -6,6 +6,7 @@ from typing import Any
 from tmodbus.exceptions import IllegalDataAddressError, IllegalDataValueError
 
 from huawei_solar import register_names as rn
+from huawei_solar.device_discovery import get_device_infos
 from huawei_solar.exceptions import DeviceDetectionError, ReadException
 from huawei_solar.modbus_client import AsyncHuaweiSolarClient
 
@@ -15,6 +16,7 @@ from .meter import MeterDevice
 from .scharger import SChargerDevice
 from .sdongle import SDongleDevice
 from .smart_ac_gun import SmartAcGunDevice
+from .smart_load import SmartLoadDevice
 from .smartguard import SmartGuardDevice
 from .smartlogger import SmartLoggerDevice
 from .sun2000 import SUN2000Device
@@ -52,6 +54,7 @@ def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
         SDongleDevice,
         SmartLoggerDevice,
         SmartGuardDevice,
+        SmartLoadDevice,
         MeterDevice,
     ]:
         if candidate_bridge_class.supports_device(model_name):
@@ -140,6 +143,32 @@ async def create_device_instance(client: AsyncHuaweiSolarClient) -> HuaweiSolarD
     )
 
 
+# Product types in the EMMA device list whose devices cannot be detected via their own registers: register 30000 of a
+# SmartLoad holds the user-given name instead of a model name.
+DEVICE_LIST_ONLY_PRODUCT_TYPES: dict[str, type[HuaweiSolarDevice]] = {
+    "SmartLoad": SmartLoadDevice,
+}
+
+
+async def _device_type_from_device_list(
+    primary_device: HuaweiSolarDevice,
+    unit_id: int,
+) -> tuple[type[HuaweiSolarDevice], str] | None:
+    """Look up devices that can only be recognised by the product type in the EMMA device list."""
+    if not isinstance(primary_device, EMMADevice):
+        return None
+    try:
+        device_infos = await get_device_infos(primary_device.client)
+    except (ReadException, TimeoutError):
+        _LOGGER.debug("Could not read the device list of the EMMA while creating unit ID %d.", unit_id)
+        return None
+    for device_info in device_infos:
+        if device_info.device_id == unit_id and device_info.product_type in DEVICE_LIST_ONLY_PRODUCT_TYPES:
+            _LOGGER.info("Detected %s via the EMMA device list for unit ID %d.", device_info.product_type, unit_id)
+            return DEVICE_LIST_ONLY_PRODUCT_TYPES[device_info.product_type], device_info.product_type
+    return None
+
+
 async def create_sub_device_instance(
     primary_device: HuaweiSolarDevice,
     unit_id: int,
@@ -153,7 +182,11 @@ async def create_sub_device_instance(
 
     async with primary_device.update_lock:
         sub_client = primary_device.client.for_unit_id(unit_id)
-        device_type, model_name = await detect_device_type(sub_client)
+        device_type_from_list = await _device_type_from_device_list(primary_device, unit_id)
+        if device_type_from_list is not None:
+            device_type, model_name = device_type_from_list
+        else:
+            device_type, model_name = await detect_device_type(sub_client)
         return await device_type.create(
             sub_client,
             model_name=model_name,
@@ -172,6 +205,7 @@ __all__ = [
     "SUN2000Device",
     "SmartAcGunDevice",
     "SmartGuardDevice",
+    "SmartLoadDevice",
     "SmartLoggerDevice",
     "create_device_instance",
     "create_sub_device_instance",
