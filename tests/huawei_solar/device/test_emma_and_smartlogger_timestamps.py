@@ -66,6 +66,7 @@ async def test_emma_populates_offset_and_transforms_only_local_time(
 
     monkeypatch.setattr(emma_device.client, "get_multiple", mock_get_multiple)
     monkeypatch.setattr(emma_device.client, "get", mock_client_get)
+    monkeypatch.setattr(emma_device, "_populate_app_feature_support", AsyncMock())
 
     await emma_device._populate_additional_fields()
     assert emma_device._utc_offset == timedelta(hours=2)
@@ -182,6 +183,7 @@ async def test_emma_adopts_matching_host_timezone_across_dst(
 
         monkeypatch.setattr(emma_device.client, "get_multiple", mock_get_multiple)
         monkeypatch.setattr(emma_device.client, "get", mock_client_get)
+        monkeypatch.setattr(emma_device, "_populate_app_feature_support", AsyncMock())
 
         await emma_device._populate_additional_fields()
         assert emma_device._use_host_timezone is True
@@ -233,6 +235,7 @@ async def test_emma_falls_back_to_fixed_offset_when_host_timezone_mismatches(
 
         monkeypatch.setattr(emma_device.client, "get_multiple", mock_get_multiple)
         monkeypatch.setattr(emma_device.client, "get", mock_client_get)
+        monkeypatch.setattr(emma_device, "_populate_app_feature_support", AsyncMock())
 
         await emma_device._populate_additional_fields()
         assert emma_device._use_host_timezone is False

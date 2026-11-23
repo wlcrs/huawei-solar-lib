@@ -580,6 +580,7 @@ async def test_create_sub_device_instance_emma_does_not_deadlock(
         rn.RATED_ESS_CAPACITY: ReadException(_READ_FAILED_MSG),
         rn.STATE_OF_CAPACITY: ReadException(_READ_FAILED_MSG),
         rn.EMMA_FEATURE_MASK_30164: ReadException(_READ_FAILED_MSG),
+        rn.EMMA_SYSTEM_STATE: ReadException(_READ_FAILED_MSG),
         rn.EMMA_CAPACITY_CONTROL_MODE: ReadException(_READ_FAILED_MSG),
     }
 

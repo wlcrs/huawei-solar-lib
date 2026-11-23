@@ -1325,3 +1325,34 @@ the result with SMARTGUARD_STATUS: the FusionSolar app polls it every second for
 switching off-grid and 1 after switching back. The app only offers OFF_GRID when the status is ON_GRID, and ON_GRID
 when the status is one of the off-grid states.
 """
+
+
+# LUNA2000 battery pack health. From the battery module page of the FusionSolar app; verified on a LUNA2000-S1 behind a
+# SUN2000-12K-MAP0.
+STORAGE_UNIT_1_BATTERY_PACK_1_STATE_OF_HEALTH = RegisterName("storage_unit_1_battery_pack_1_state_of_health")
+"""State of health of battery unit 1, pack 1 (%)."""
+STORAGE_UNIT_1_BATTERY_PACK_2_STATE_OF_HEALTH = RegisterName("storage_unit_1_battery_pack_2_state_of_health")
+"""State of health of battery unit 1, pack 2 (%)."""
+STORAGE_UNIT_1_BATTERY_PACK_3_STATE_OF_HEALTH = RegisterName("storage_unit_1_battery_pack_3_state_of_health")
+"""State of health of battery unit 1, pack 3 (%)."""
+STORAGE_UNIT_1_BATTERY_PACK_1_HEATING_STATUS = RegisterName("storage_unit_1_battery_pack_1_heating_status")
+"""Heating status of battery unit 1, pack 1 (see BatteryPackHeatingStatus)."""
+STORAGE_UNIT_1_BATTERY_PACK_2_HEATING_STATUS = RegisterName("storage_unit_1_battery_pack_2_heating_status")
+"""Heating status of battery unit 1, pack 2 (see BatteryPackHeatingStatus)."""
+STORAGE_UNIT_1_BATTERY_PACK_3_HEATING_STATUS = RegisterName("storage_unit_1_battery_pack_3_heating_status")
+"""Heating status of battery unit 1, pack 3 (see BatteryPackHeatingStatus)."""
+STORAGE_ESTIMATED_BACKUP_TIME = RegisterName("storage_estimated_backup_time")
+"""Estimated backup time on battery (min). Unknown (None) when the inverter cannot estimate it."""
+
+# EMMA status and alarm counts. Not part of the public SmartHEMS Modbus interface definitions; taken from the EMMA home
+# page of the FusionSolar app and verified on an EMMA-A02 (SmartHEMS V100R025C00SPC142).
+EMMA_SYSTEM_STATE = RegisterName("emma_system_state")
+"""Grid state of the EMMA system (see EmmaSystemState): on-grid, off-grid, or standby/exception."""
+EMMA_ACTIVE_ALARMS_CRITICAL = RegisterName("emma_active_alarms_critical")
+"""Number of active critical alarms in the EMMA system (all devices it manages)."""
+EMMA_ACTIVE_ALARMS_MAJOR = RegisterName("emma_active_alarms_major")
+"""Number of active major alarms in the EMMA system."""
+EMMA_ACTIVE_ALARMS_MINOR = RegisterName("emma_active_alarms_minor")
+"""Number of active minor alarms in the EMMA system."""
+EMMA_ACTIVE_ALARMS_WARNING = RegisterName("emma_active_alarms_warning")
+"""Number of active warnings in the EMMA system."""
