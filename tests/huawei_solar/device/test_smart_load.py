@@ -8,8 +8,10 @@ import pytest
 from huawei_solar.device.emma import EMMADevice
 from huawei_solar.device.smart_load import SmartLoadDevice
 from huawei_solar.exceptions import ReadException
+from huawei_solar.registers import REGISTERS
 
 from huawei_solar import register_names as rn
+from huawei_solar import register_values as rv
 from huawei_solar.device import create_sub_device_instance
 from huawei_solar.register_definitions import Result
 
@@ -89,3 +91,30 @@ async def test_other_unit_ids_use_register_detection(monkeypatch: pytest.MonkeyP
 def test_smart_load_supports_device() -> None:
     assert SmartLoadDevice.supports_device("SmartLoad")
     assert not SmartLoadDevice.supports_device("SmartGuard-63A-T0")
+
+
+@pytest.mark.parametrize(
+    ("register_name", "raw", "expected"),
+    [
+        (rn.SMARTLOAD_SWITCH_STATUS, 0, False),
+        (rn.SMARTLOAD_SWITCH_STATUS, 1, True),
+        (rn.SMARTLOAD_SWITCH_STATUS, 0xFFFF, None),
+        (rn.SMARTLOAD_OFF_GRID_AUTO_CONTROL, 0, False),
+        (rn.SMARTLOAD_OFF_GRID_AUTO_CONTROL, 1, True),
+        (rn.SMARTLOAD_OFF_GRID_AUTO_CONTROL, 0xFFFF, None),
+        (rn.SMARTLOAD_OFF_GRID_MODE, 0, rv.SmartLoadOffGridMode.BASIC),
+        (rn.SMARTLOAD_OFF_GRID_MODE, 1, rv.SmartLoadOffGridMode.BATTERY),
+        (rn.SMARTLOAD_OFF_GRID_MODE, 0xFFFF, None),
+        (rn.SMARTLOAD_RATED_POWER, 3000, 3000),
+        (rn.SMARTLOAD_RATED_POWER, 0xFFFF, None),
+        (rn.SMARTLOAD_OFF_GRID_RESUME_SOC, 80, 80),
+        (rn.SMARTLOAD_OFF_GRID_STOP_SOC, 0xFFFF, None),
+    ],
+)
+def test_smart_load_register_decoding(register_name: rn.RegisterName, raw: int, expected: object) -> None:
+    """Valid 0/1 values keep their meaning, the invalid marker 65535 decodes to None."""
+    result = REGISTERS[register_name].decode((raw,))
+
+    assert result.value == expected
+    if expected is None:
+        assert result.value is None
