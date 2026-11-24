@@ -221,7 +221,7 @@ class HuaweiSolarDevice(ABC):
 
     async def stop(self) -> bool:
         """Stop the device connection."""
-        if self.primary_device:
+        if not self.primary_device:
             # we are the primary device, so we should also stop the client
             await self.client.disconnect()
 
