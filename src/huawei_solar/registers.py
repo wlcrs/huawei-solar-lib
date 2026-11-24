@@ -1196,6 +1196,12 @@ SMARTLOAD_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.SMARTLOAD_NAME: StringRegister(30000, 20, target_device=TargetDevice.SMARTLOAD),
     rn.SMARTLOAD_SWITCH_STATUS: U16Register(bool, 1, 30020, target_device=TargetDevice.SMARTLOAD),
     rn.SMARTLOAD_RATED_POWER: U16Register("W", 1, 40001, writeable=True, target_device=TargetDevice.SMARTLOAD),
+    rn.SMARTLOAD_CONTROL_MODE: U16Register(
+        rv.SmartLoadControlMode, 1, 40006, writeable=True, target_device=TargetDevice.SMARTLOAD
+    ),
+    rn.SMARTLOAD_SWITCH: U16Register(
+        rv.SmartLoadSwitch, 1, 40007, writeable=True, target_device=TargetDevice.SMARTLOAD
+    ),
     rn.SMARTLOAD_MIN_SWITCHING_INTERVAL: U16Register(
         "min", 1, 40008, writeable=True, target_device=TargetDevice.SMARTLOAD
     ),

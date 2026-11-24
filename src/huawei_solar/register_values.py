@@ -2200,6 +2200,22 @@ class ParameterLockFlags(IntFlag):
     """End-of-discharge SOC (47082)."""
 
 
+class SmartLoadControlMode(IntEnum):
+    """SmartLoad control mode (register 40006)."""
+
+    MANUAL = 0
+    """The load was switched by hand, e.g. in the FusionSolar app."""
+    AUTOMATIC = 1
+    """The EMMA switches the load, e.g. by schedule or PV surplus."""
+
+
+class SmartLoadSwitch(IntEnum):
+    """SmartLoad switch command and state (register 40007)."""
+
+    ON = 1
+    OFF = 2
+
+
 class SmartLoadOffGridMode(IntEnum):
     """SmartLoad supply mode while off-grid (register 40201)."""
 

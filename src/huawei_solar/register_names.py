@@ -1367,6 +1367,10 @@ SMARTLOAD_SWITCH_STATUS = RegisterName("smartload_switch_status")
 """Whether the load is currently switched on."""
 SMARTLOAD_RATED_POWER = RegisterName("smartload_rated_power")
 """Rated power of the load as set in the FusionSolar app."""
+SMARTLOAD_CONTROL_MODE = RegisterName("smartload_control_mode")
+"""Whether the EMMA switches the load automatically or it was switched by hand (see SmartLoadControlMode)."""
+SMARTLOAD_SWITCH = RegisterName("smartload_switch")
+"""Switch the load on or off (see SmartLoadSwitch). The resulting state is reported in SMARTLOAD_SWITCH_STATUS."""
 SMARTLOAD_MIN_SWITCHING_INTERVAL = RegisterName("smartload_min_switching_interval")
 """Minimum interval between switching the load on and off."""
 SMARTLOAD_OFF_GRID_MODE = RegisterName("smartload_off_grid_mode")
