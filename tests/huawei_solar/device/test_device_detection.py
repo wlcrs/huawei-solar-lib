@@ -473,6 +473,7 @@ async def test_create_sub_device_instance_scharger_does_not_deadlock(
 ) -> None:
     """create_sub_device_instance creating an SChargerDevice sub-device does not deadlock on update_lock."""
     primary_client = Mock()
+    primary_client.read_device_identification = AsyncMock(return_value={})
     primary_client.unit_id = 0
     sub_client = Mock()
     sub_client.unit_id = 2
@@ -515,6 +516,7 @@ async def test_create_sub_device_instance_smart_ac_gun_does_not_deadlock(
 ) -> None:
     """create_sub_device_instance creating a SmartAcGunDevice sub-device does not deadlock on update_lock."""
     primary_client = Mock()
+    primary_client.read_device_identification = AsyncMock(return_value={})
     primary_client.unit_id = 0
     sub_client = Mock()
     sub_client.unit_id = 3

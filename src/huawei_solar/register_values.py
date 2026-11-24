@@ -2137,3 +2137,12 @@ class SmartGuardGridSwitchover(IntEnum):
 
     OFF_GRID = 0
     ON_GRID = 1
+
+
+class SmartLoadOffGridMode(IntEnum):
+    """SmartLoad supply mode while off-grid (register 40201)."""
+
+    BASIC = 0
+    """The load is not supplied while off-grid."""
+    BATTERY = 1
+    """The load is supplied by the battery between the stop and resume SOC."""

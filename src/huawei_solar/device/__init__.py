@@ -15,6 +15,7 @@ from .meter import MeterDevice
 from .scharger import SChargerDevice
 from .sdongle import SDongleDevice
 from .smart_ac_gun import SmartAcGunDevice
+from .smart_load import SmartLoadDevice
 from .smartguard import SmartGuardDevice
 from .smartlogger import SmartLoggerDevice
 from .sun2000 import SUN2000Device
@@ -42,8 +43,19 @@ async def _try_read_register(client: AsyncHuaweiSolarClient, register: rn.Regist
         raise
 
 
-def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
-    """Get the device class for the given model name."""
+async def _supports_register(client: AsyncHuaweiSolarClient, register: rn.RegisterName) -> bool:
+    """Return True if the device responds to reading the given register (even if decoded to None)."""
+    try:
+        await client.get(register)
+    except ReadException as err:
+        if err.modbus_exception_code in {IllegalDataValueError.error_code, IllegalDataAddressError.error_code}:
+            return False
+        raise
+    return True
+
+
+def _find_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice] | None:
+    """Return the matching device class for the given model name, or None if unknown."""
     for candidate_bridge_class in [
         SUN2000Device,
         EMMADevice,
@@ -52,15 +64,39 @@ def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
         SDongleDevice,
         SmartLoggerDevice,
         SmartGuardDevice,
+        SmartLoadDevice,
         MeterDevice,
     ]:
         if candidate_bridge_class.supports_device(model_name):
             return candidate_bridge_class
 
+    return None
+
+
+def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
+    """Get the device class for the given model name."""
+    if (device_class := _find_device_class_for_model(model_name)) is not None:
+        return device_class
+
     _LOGGER.warning("Unknown product model '%s'. Defaulting to a SUN2000 device.", model_name)
 
     # Default to SUN2000Bridge if no specific match is found
     return SUN2000Device
+
+
+async def _detect_by_model_name(
+    client: AsyncHuaweiSolarClient,
+    model_name: str,
+) -> tuple[type[HuaweiSolarDevice], str]:
+    """Resolve a device class from register 30000, probing SmartLoad before falling back to SUN2000."""
+    if (device_class := _find_device_class_for_model(model_name)) is not None:
+        return device_class, model_name
+    # Register 30000 of a SmartLoad holds the user-given name instead of a model name,
+    # so probe its switch status register (30020) before defaulting to SUN2000Device.
+    if await _supports_register(client, rn.SMARTLOAD_SWITCH_STATUS):
+        _LOGGER.info("Detected SmartLoad via switch status probe for unit ID %d.", client.unit_id)
+        return SmartLoadDevice, "SmartLoad"
+    return get_device_class_for_model(model_name), model_name
 
 
 async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[HuaweiSolarDevice], str]:
@@ -84,7 +120,7 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
 
     model_name = await _try_read_register(client, rn.MODEL_NAME)
     if model_name is not None:
-        return get_device_class_for_model(model_name), model_name
+        return await _detect_by_model_name(client, model_name)
     _LOGGER.info("MODEL_NAME is an illegal data address for unit ID %d.", client.unit_id)
 
     # The SmartLogger does not have a MODEL_NAME register, so we need to detect it differently.
@@ -172,6 +208,7 @@ __all__ = [
     "SUN2000Device",
     "SmartAcGunDevice",
     "SmartGuardDevice",
+    "SmartLoadDevice",
     "SmartLoggerDevice",
     "create_device_instance",
     "create_sub_device_instance",

@@ -1317,3 +1317,28 @@ the result with SMARTGUARD_STATUS: the FusionSolar app polls it every second for
 switching off-grid and 1 after switching back. The app only offers OFF_GRID when the status is ON_GRID, and ON_GRID
 when the status is one of the off-grid states.
 """
+# SmartLoad
+# A load switched by the EMMA (e.g. its DO port or a smart switch), configured in the FusionSolar app. The EMMA lists it
+# in its device list with product type "SmartLoad" and an own Modbus unit ID (38 on the tested EMMA-A02). Not part of
+# the public Modbus interface definitions; values compared with the FusionSolar app on an EMMA-A02 V100R025C00SPC142.
+SMARTLOAD_NAME = RegisterName("smartload_name")
+"""Device name as set in the FusionSolar app (UTF-8)."""
+SMARTLOAD_SWITCH_STATUS = RegisterName("smartload_switch_status")
+"""Whether the load is currently switched on."""
+SMARTLOAD_RATED_POWER = RegisterName("smartload_rated_power")
+"""Rated power of the load as set in the FusionSolar app."""
+SMARTLOAD_MIN_SWITCHING_INTERVAL = RegisterName("smartload_min_switching_interval")
+"""Minimum interval between switching the load on and off."""
+SMARTLOAD_OFF_GRID_MODE = RegisterName("smartload_off_grid_mode")
+"""How the load is supplied while off-grid (see SmartLoadOffGridMode)."""
+SMARTLOAD_OFF_GRID_RESUME_SOC = RegisterName("smartload_off_grid_resume_soc")
+"""Battery mode: SOC at which the battery resumes supplying the load."""
+SMARTLOAD_OFF_GRID_STOP_SOC = RegisterName("smartload_off_grid_stop_soc")
+"""Battery mode: SOC below which the battery stops supplying the load."""
+SMARTLOAD_OFF_GRID_AUTO_CONTROL = RegisterName("smartload_off_grid_auto_control")
+"""Whether the load is controlled automatically while off-grid.
+
+If disabled, the load is supplied until the battery is empty.
+"""
+SMARTLOAD_SERIAL_NUMBER = RegisterName("smartload_serial_number")
+"""Serial number of the SmartLoad (derived from the EMMA serial number)."""
