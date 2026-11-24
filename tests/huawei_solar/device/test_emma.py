@@ -52,6 +52,8 @@ def _setup_emma_client_mocks(
             return val
         if name in (rn.EMMA_LOCAL_TIME, rn.EMMA_SYSTEM_TIME):
             return Result(utc_time, None)
+        if name in (rn.EMMA_FEATURE_MASK_30122, rn.EMMA_FEATURE_MASK_30124, rn.EMMA_FEATURE_MASK_30172):
+            raise ReadException(_READ_FAILED_MSG)
         msg = f"Unexpected get: {name}"
         raise AssertionError(msg)
 
@@ -328,3 +330,64 @@ def test_emma_capacity_control_register_codecs() -> None:
     )
     encoded = periods_reg.encode([period])
     assert periods_reg.decode(encoded).value == [period]
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected"),
+    [
+        ("SmartHEMS", True),
+        ("SmartHEMS-A02", True),
+        ("SmartAssistant", True),
+        ("SmartAssistant SA4H", True),
+        ("SA4H", True),
+        ("SUN2000-10KTL-M1", False),
+    ],
+)
+def test_emma_supports_device(model_name: str, *, expected: bool) -> None:
+    """EMMADevice matches SmartHEMS, SmartAssistant, and SA4H model names."""
+    assert EMMADevice.supports_device(model_name) is expected
+
+
+async def test_emma_additional_feature_masks(
+    emma_device: EMMADevice,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify 30122, 30124, and 30172 feature masks populate HEMS capability flags."""
+    _setup_emma_client_mocks(
+        emma_device,
+        monkeypatch,
+        {
+            rn.EMMA_BATTERY_PRODUCT_MODEL: Result(rv.StorageProductModel.HUAWEI_LUNA2000, None),
+            rn.EMMA_FEATURE_MASK_30122: Result(rv.EmmaFeatureMask30122.BACKUP_SEAMLESS_SWITCH, None),
+            rn.EMMA_FEATURE_MASK_30124: Result(rv.EmmaFeatureMask30124.CHARGE_FROM_AC, None),
+            rn.EMMA_FEATURE_MASK_30164: Result(rv.EmmaFeatureMask30164(0), None),
+            rn.EMMA_FEATURE_MASK_30172: Result(rv.EmmaFeatureMask30172.OFF_GRID_BACKUP_POWER_SOC, None),
+        },
+    )
+
+    await emma_device._populate_additional_fields()
+
+    assert emma_device.supports_charge_from_ac is True
+    assert emma_device.supports_off_grid_backup_power_soc is True
+    assert emma_device.supports_seamless_switch is True
+    assert emma_device.supports_insufficient_backup_time_reminder is True
+
+
+def test_hems_additional_register_codecs() -> None:
+    """Verify additional HEMS registers encode/decode expected values."""
+    assert REGISTERS[rn.HEMS_BACKUP_TIME].decode((120,)) == Result(120, "min")
+
+    charge_from_ac = REGISTERS[rn.HEMS_CHARGE_FROM_AC]
+    assert charge_from_ac.writeable is True
+    assert charge_from_ac.encode(True) == (1,)  # noqa: FBT003
+    assert charge_from_ac.decode((1,)) == Result(value=True, unit=None)
+
+    off_grid_soc = REGISTERS[rn.HEMS_OFF_GRID_BACKUP_POWER_SOC]
+    assert off_grid_soc.writeable is True
+    assert off_grid_soc.encode(20.5) == (205,)
+    assert off_grid_soc.decode((205,)) == Result(20.5, "%")
+
+    ess_grid_power = REGISTERS[rn.HEMS_ESS_GRID_CHARGING_POWER]
+    assert ess_grid_power.writeable is True
+    assert ess_grid_power.encode(5000) == (5000,)
+    assert ess_grid_power.decode((5000,)) == Result(5000, "W")

@@ -12,7 +12,6 @@ from huawei_solar.device.meter import MeterDevice
 from huawei_solar.device.scharger import SChargerDevice
 from huawei_solar.device.sdongle import SDongleDevice
 from huawei_solar.device.smart_ac_gun import SmartAcGunDevice
-from huawei_solar.device.smart_assistant import SmartAssistantDevice
 from huawei_solar.device.smartguard import SmartGuardDevice
 from huawei_solar.device.smartlogger import SmartLoggerDevice
 from huawei_solar.device.sun2000 import SUN2000Device
@@ -51,11 +50,6 @@ def patched_supports_device(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(SmartLoggerDevice, "supports_device", staticmethod(lambda model: model == "smartlogger-model"))
     monkeypatch.setattr(MeterDevice, "supports_device", staticmethod(lambda model: model == "meter-model"))
     monkeypatch.setattr(SmartAcGunDevice, "supports_device", staticmethod(lambda model: model == "smartacgun-model"))
-    monkeypatch.setattr(
-        SmartAssistantDevice,
-        "supports_device",
-        staticmethod(lambda model: model == "smartassistant-model"),
-    )
     monkeypatch.setattr(SmartGuardDevice, "supports_device", staticmethod(lambda model: model == "smartguard-model"))
 
 
@@ -69,7 +63,6 @@ def patched_supports_device(monkeypatch: pytest.MonkeyPatch) -> None:
         ("smartlogger-model", SmartLoggerDevice),
         ("meter-model", MeterDevice),
         ("smartacgun-model", SmartAcGunDevice),
-        ("smartassistant-model", SmartAssistantDevice),
         ("smartguard-model", SmartGuardDevice),
     ],
 )
@@ -586,7 +579,10 @@ async def test_create_sub_device_instance_emma_does_not_deadlock(
         rn.EMMA_BATTERY_PRODUCT_MODEL: ReadException(_READ_FAILED_MSG),
         rn.RATED_ESS_CAPACITY: ReadException(_READ_FAILED_MSG),
         rn.STATE_OF_CAPACITY: ReadException(_READ_FAILED_MSG),
+        rn.EMMA_FEATURE_MASK_30122: ReadException(_READ_FAILED_MSG),
+        rn.EMMA_FEATURE_MASK_30124: ReadException(_READ_FAILED_MSG),
         rn.EMMA_FEATURE_MASK_30164: ReadException(_READ_FAILED_MSG),
+        rn.EMMA_FEATURE_MASK_30172: ReadException(_READ_FAILED_MSG),
         rn.EMMA_CAPACITY_CONTROL_MODE: ReadException(_READ_FAILED_MSG),
     }
 

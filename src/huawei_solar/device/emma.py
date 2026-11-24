@@ -27,12 +27,16 @@ class EMMADevice(HuaweiSolarDevice):
     supports_capacity_control: bool = False
     supports_power_limited_grid_connection: bool = True
     supports_di_scheduling: bool = True
+    supports_charge_from_ac: bool = False
+    supports_off_grid_backup_power_soc: bool = False
+    supports_seamless_switch: bool = False
+    supports_insufficient_backup_time_reminder: bool = False
     _utc_offset: timedelta | None = None
 
     @classmethod
     def supports_device(cls, model_name: str) -> bool:
         """Check if this class support the given device."""
-        return model_name.startswith("SmartHEMS")
+        return model_name.startswith(("SmartHEMS", "SmartAssistant", "SA4H"))
 
     async def has_write_permission(self) -> bool:
         """EMMA always gives write access."""
@@ -86,6 +90,14 @@ class EMMADevice(HuaweiSolarDevice):
         # to preserve backwards compatibility with older firmware.
         return not model_supported and not ess_supported
 
+    async def _read_feature_mask[T](self, register: rn.RegisterName) -> T | None:
+        """Read an optional EMMA feature mask register, returning None if unsupported."""
+        try:
+            return (await self.client.get(register)).value  # type: ignore[no-any-return]
+        except ReadException:
+            _LOGGER.debug("EMMA feature mask %s not supported by device %d", register, self.client.unit_id)
+            return None
+
     async def _populate_feature_support(self) -> None:
         """Check site battery model and feature flags to determine supported capabilities."""
         model_supported = True
@@ -102,11 +114,26 @@ class EMMADevice(HuaweiSolarDevice):
         else:
             self.has_battery = await self._probe_battery_presence(model_supported=model_supported)
 
-        feature_mask_30164: rv.EmmaFeatureMask30164 | None = None
-        try:
-            feature_mask_30164 = (await self.client.get(rn.EMMA_FEATURE_MASK_30164)).value
-        except ReadException:
-            _LOGGER.debug("EMMA feature mask 30164 not supported by device %d", self.client.unit_id)
+        feature_mask_30122: rv.EmmaFeatureMask30122 | None = await self._read_feature_mask(rn.EMMA_FEATURE_MASK_30122)
+        feature_mask_30124: rv.EmmaFeatureMask30124 | None = await self._read_feature_mask(rn.EMMA_FEATURE_MASK_30124)
+        feature_mask_30164: rv.EmmaFeatureMask30164 | None = await self._read_feature_mask(rn.EMMA_FEATURE_MASK_30164)
+        feature_mask_30172: rv.EmmaFeatureMask30172 | None = await self._read_feature_mask(rn.EMMA_FEATURE_MASK_30172)
+
+        self.supports_charge_from_ac = (
+            self.has_battery
+            and feature_mask_30124 is not None
+            and bool(feature_mask_30124 & rv.EmmaFeatureMask30124.CHARGE_FROM_AC)
+        )
+        self.supports_off_grid_backup_power_soc = feature_mask_30172 is not None and bool(
+            feature_mask_30172 & rv.EmmaFeatureMask30172.OFF_GRID_BACKUP_POWER_SOC
+        )
+        self.supports_seamless_switch = feature_mask_30122 is not None and bool(
+            feature_mask_30122 & rv.EmmaFeatureMask30122.BACKUP_SEAMLESS_SWITCH
+        )
+        self.supports_insufficient_backup_time_reminder = self.supports_seamless_switch or (
+            feature_mask_30172 is not None
+            and bool(feature_mask_30172 & rv.EmmaFeatureMask30172.INSUFFICIENT_BACKUP_TIME_REMINDER)
+        )
 
         if feature_mask_30164 is not None:
             # Register 30164 is an inverted (hide/disable) bitmask: bit == 1 disables the feature.
