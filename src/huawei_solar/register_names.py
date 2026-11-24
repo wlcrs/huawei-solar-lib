@@ -1317,3 +1317,22 @@ the result with SMARTGUARD_STATUS: the FusionSolar app polls it every second for
 switching off-grid and 1 after switching back. The app only offers OFF_GRID when the status is ON_GRID, and ON_GRID
 when the status is one of the off-grid states.
 """
+
+HEMS_BACKUP_TIME = RegisterName("hems_backup_time")
+"""Estimated remaining backup time on HEMS/SmartAssistant (min)."""
+HEMS_CHARGE_FROM_AC = RegisterName("hems_charge_from_ac")
+"""Enable/disable charging the battery from AC/grid on HEMS/SmartAssistant."""
+HEMS_DI_SCHEDULING_SWITCH = RegisterName("hems_di_scheduling_switch")
+"""Enable/disable DI (dry contact) scheduling on HEMS/SmartAssistant."""
+HEMS_GRID_PURCHASE_POWER_LIMIT = RegisterName("hems_grid_purchase_power_limit")
+"""Enable/disable grid purchase power limit on HEMS/SmartAssistant."""
+HEMS_ESS_GRID_CHARGING_POWER = RegisterName("hems_ess_grid_charging_power")
+"""Maximum ESS grid charging power limit on HEMS/SmartAssistant (W)."""
+HEMS_EV_CHARGER_CHARGE_POWER = RegisterName("hems_ev_charger_charge_power")
+"""EV charger pile charging power limit on HEMS/SmartAssistant (W)."""
+HEMS_OFF_GRID_BACKUP_POWER_SOC = RegisterName("hems_off_grid_backup_power_soc")
+"""Off-grid backup power reserve SOC on HEMS/SmartAssistant (%)."""
+HEMS_SEAMLESS_SWITCH = RegisterName("hems_seamless_switch")
+"""Enable/disable seamless on-grid/off-grid switchover on HEMS/SmartAssistant."""
+HEMS_INSUFFICIENT_BACKUP_TIME_REMINDER = RegisterName("hems_insufficient_backup_time_reminder")
+"""Threshold for insufficient backup time reminder on HEMS/SmartAssistant (min)."""
