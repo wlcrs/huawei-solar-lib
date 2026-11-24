@@ -285,6 +285,7 @@ async def test_detect_device_type_raises_when_no_detection_path_matches() -> Non
             rn.SMARTLOGGER_EXTERNAL_METER_ACTIVE_POWER,
             rn.CHARGER_GUN_WORK_STATUS,
             rn.SDONGLE_DEVICE_SEARCH_STATUS,
+            rn.SMARTLOAD_SERIAL_NUMBER,
         ):
             raise ReadException(
                 _READ_FAILED_MSG,

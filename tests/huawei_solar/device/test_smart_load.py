@@ -43,11 +43,10 @@ def _emma_with_sub_client(responses: dict[rn.RegisterName, Any], unit_id: int = 
     return primary_device
 
 
-async def test_smart_load_detected_via_switch_status_probe() -> None:
-    """Register 30000 holds the user-given name, so SmartLoad is detected by probing register 30020."""
+async def test_smart_load_detected_when_model_name_is_unreadable() -> None:
+    """The EMMA rejects reading MODEL_NAME (15 registers) on a SmartLoad, the serial number identifies it."""
     primary_device = _emma_with_sub_client(
         {
-            rn.MODEL_NAME: "DO load1",
             rn.SMARTLOAD_NAME: "DO load1",
             rn.SMARTLOAD_SWITCH_STATUS: True,
             rn.SMARTLOAD_SERIAL_NUMBER: "LD26EMMA_SN",
@@ -62,13 +61,14 @@ async def test_smart_load_detected_via_switch_status_probe() -> None:
     assert device.serial_number == "LD26EMMA_SN"
 
 
-async def test_smart_load_detected_when_switch_status_is_invalid() -> None:
-    """Even when 30020 decodes to None (raw 0xFFFF), a successful read still identifies SmartLoad."""
+async def test_smart_load_detected_via_serial_number_with_name_in_model_name() -> None:
+    """If MODEL_NAME returns the user-given name, the serial number still identifies the SmartLoad."""
     primary_device = _emma_with_sub_client(
         {
             rn.MODEL_NAME: "DO load1",
             rn.SMARTLOAD_NAME: "DO load1",
             rn.SMARTLOAD_SWITCH_STATUS: None,
+            rn.SMARTLOAD_SERIAL_NUMBER: "LD26EMMA_SN",
         },
     )
 
@@ -78,24 +78,38 @@ async def test_smart_load_detected_when_switch_status_is_invalid() -> None:
     assert model_name == "SmartLoad"
 
 
-async def test_smart_load_serial_number_fallback() -> None:
-    """Without a readable serial number the SmartLoad gets one derived from the EMMA."""
+async def test_unknown_inverter_model_is_not_detected_as_smart_load() -> None:
+    """A SUN2000 answers 65510 and 30020 (inside its serial number), but its serial number lacks the LD prefix."""
     primary_device = _emma_with_sub_client(
         {
-            rn.MODEL_NAME: "DO load1",
-            rn.SMARTLOAD_NAME: "DO load1",
-            rn.SMARTLOAD_SWITCH_STATUS: False,
+            rn.MODEL_NAME: "UnknownModel",
+            rn.SMARTLOAD_SWITCH_STATUS: True,
+            rn.SMARTLOAD_SERIAL_NUMBER: "HV2480076397",
         },
+        unit_id=6,
     )
 
-    device = await asyncio.wait_for(create_sub_device_instance(primary_device, 38), timeout=1)
+    device_type, model_name = await detect_device_type(primary_device.client.for_unit_id(6))
 
-    assert isinstance(device, SmartLoadDevice)
+    assert device_type is SUN2000Device
+    assert model_name == "UnknownModel"
+
+
+async def test_smart_load_serial_number_fallback() -> None:
+    """Without a readable serial number the SmartLoad gets one derived from the EMMA."""
+    primary_device = _emma_with_sub_client({rn.SMARTLOAD_NAME: "DO load1"})
+
+    device = await SmartLoadDevice.create(
+        primary_device.client.for_unit_id(38),
+        model_name="SmartLoad",
+        primary_device=primary_device,
+    )
+
     assert device.serial_number == "EMMA_SN_smartload_38"
 
 
-async def test_unknown_model_without_switch_status_falls_back_to_sun2000() -> None:
-    """An unknown register 30000 value without register 30020 falls back to SUN2000Device."""
+async def test_unknown_model_without_smart_load_serial_falls_back_to_sun2000() -> None:
+    """An unknown register 30000 value without a SmartLoad serial number falls back to SUN2000Device."""
     primary_device = _emma_with_sub_client({rn.MODEL_NAME: "UnknownModel"}, unit_id=33)
 
     device_type, model_name = await detect_device_type(primary_device.client.for_unit_id(33))
