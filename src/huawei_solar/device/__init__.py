@@ -15,6 +15,7 @@ from .meter import MeterDevice
 from .scharger import SChargerDevice
 from .sdongle import SDongleDevice
 from .smart_ac_gun import SmartAcGunDevice
+from .smart_load import SmartLoadDevice
 from .smartguard import SmartGuardDevice
 from .smartlogger import SmartLoggerDevice
 from .sun2000 import SUN2000Device
@@ -42,8 +43,22 @@ async def _try_read_register(client: AsyncHuaweiSolarClient, register: rn.Regist
         raise
 
 
-def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
-    """Get the device class for the given model name."""
+async def _detect_smartload(client: AsyncHuaweiSolarClient) -> bool:
+    """Return True if the device is a SmartLoad.
+
+    The EMMA derives the serial number of a SmartLoad (65510) from its own serial number, prefixed by "LD".
+    Other devices answer this register as well (a SUN2000 with its own serial number), so the prefix is checked.
+    """
+    try:
+        serial_number = await _try_read_register(client, rn.SMARTLOAD_SERIAL_NUMBER)
+    except (ReadException, TimeoutError):
+        _LOGGER.debug("SmartLoad serial number probe failed for unit ID %d.", client.unit_id, exc_info=True)
+        return False
+    return isinstance(serial_number, str) and serial_number.startswith("LD")
+
+
+def _find_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice] | None:
+    """Return the matching device class for the given model name, or None if unknown."""
     for candidate_bridge_class in [
         SUN2000Device,
         EMMADevice,
@@ -52,10 +67,19 @@ def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
         SDongleDevice,
         SmartLoggerDevice,
         SmartGuardDevice,
+        SmartLoadDevice,
         MeterDevice,
     ]:
         if candidate_bridge_class.supports_device(model_name):
             return candidate_bridge_class
+
+    return None
+
+
+def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
+    """Get the device class for the given model name."""
+    if (device_class := _find_device_class_for_model(model_name)) is not None:
+        return device_class
 
     _LOGGER.warning("Unknown product model '%s'. Defaulting to a SUN2000 device.", model_name)
 
@@ -63,7 +87,22 @@ def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
     return SUN2000Device
 
 
-async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[HuaweiSolarDevice], str]:
+async def _detect_by_model_name(
+    client: AsyncHuaweiSolarClient,
+    model_name: str,
+) -> tuple[type[HuaweiSolarDevice], str]:
+    """Resolve a device class from register 30000, probing SmartLoad before falling back to SUN2000."""
+    if (device_class := _find_device_class_for_model(model_name)) is not None:
+        return device_class, model_name
+    # Register 30000 of a SmartLoad holds the user-given name instead of a model name,
+    # so probe its serial number before defaulting to SUN2000Device.
+    if await _detect_smartload(client):
+        _LOGGER.info("Detected SmartLoad via serial number probe for unit ID %d.", client.unit_id)
+        return SmartLoadDevice, "SmartLoad"
+    return get_device_class_for_model(model_name), model_name
+
+
+async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[HuaweiSolarDevice], str]:  # noqa: PLR0911
     """Detect the type of the connected device."""
 
     async def _detect_sdongle() -> bool:
@@ -84,7 +123,7 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
 
     model_name = await _try_read_register(client, rn.MODEL_NAME)
     if model_name is not None:
-        return get_device_class_for_model(model_name), model_name
+        return await _detect_by_model_name(client, model_name)
     _LOGGER.info("MODEL_NAME is an illegal data address for unit ID %d.", client.unit_id)
 
     # The SmartLogger does not have a MODEL_NAME register, so we need to detect it differently.
@@ -120,6 +159,12 @@ async def detect_device_type(client: AsyncHuaweiSolarClient) -> tuple[type[Huawe
 
     if await _detect_sdongle():
         return SDongleDevice, "SDongle"
+
+    # The EMMA only allows reading the name of a SmartLoad as a whole (20 registers),
+    # so reading MODEL_NAME (15 registers) fails on a SmartLoad.
+    if await _detect_smartload(client):
+        _LOGGER.info("Detected SmartLoad via serial number probe for unit ID %d.", client.unit_id)
+        return SmartLoadDevice, "SmartLoad"
 
     # If we reach here, we couldn't detect the device type
     _LOGGER.warning("Failed to detect device type for unit ID %d.", client.unit_id)
@@ -172,6 +217,7 @@ __all__ = [
     "SUN2000Device",
     "SmartAcGunDevice",
     "SmartGuardDevice",
+    "SmartLoadDevice",
     "SmartLoggerDevice",
     "create_device_instance",
     "create_sub_device_instance",
