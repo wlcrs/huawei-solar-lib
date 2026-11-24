@@ -15,6 +15,7 @@ from .meter import MeterDevice
 from .scharger import SChargerDevice
 from .sdongle import SDongleDevice
 from .smart_ac_gun import SmartAcGunDevice
+from .smart_assistant import SmartAssistantDevice
 from .smartguard import SmartGuardDevice
 from .smartlogger import SmartLoggerDevice
 from .sun2000 import SUN2000Device
@@ -47,6 +48,7 @@ def get_device_class_for_model(model_name: str) -> type[HuaweiSolarDevice]:
     for candidate_bridge_class in [
         SUN2000Device,
         EMMADevice,
+        SmartAssistantDevice,
         SChargerDevice,
         SmartAcGunDevice,
         SDongleDevice,
@@ -171,6 +173,7 @@ __all__ = [
     "SDongleDevice",
     "SUN2000Device",
     "SmartAcGunDevice",
+    "SmartAssistantDevice",
     "SmartGuardDevice",
     "SmartLoggerDevice",
     "create_device_instance",
