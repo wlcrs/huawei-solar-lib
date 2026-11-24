@@ -361,7 +361,6 @@ def test_real_model_names_map_to_expected_classes(model_name: str, expected_clas
 async def test_create_sub_device_instance_same_unit_id_raises() -> None:
     """create_sub_device_instance raises ValueError when unit_id matches primary_device unit_id."""
     primary_client = Mock()
-    primary_client.read_device_identification = AsyncMock(return_value={})
     primary_client.unit_id = 1
     primary_device = Mock(spec=SUN2000Device)
     primary_device.client = primary_client
@@ -375,7 +374,6 @@ async def test_create_sub_device_instance_holds_lock_during_detection_and_creati
 ) -> None:
     """primary_device.update_lock must be held during detect_device_type and device.create."""
     primary_client = Mock()
-    primary_client.read_device_identification = AsyncMock(return_value={})
     primary_client.unit_id = 1
     sub_client = Mock()
     sub_client.unit_id = 2
@@ -418,7 +416,6 @@ async def test_create_sub_device_instance_sun2000_does_not_deadlock(
 ) -> None:
     """create_sub_device_instance creating a SUN2000Device sub-device does not deadlock on update_lock."""
     primary_client = Mock()
-    primary_client.read_device_identification = AsyncMock(return_value={})
     primary_client.unit_id = 1
     sub_client = Mock()
     sub_client.unit_id = 2
@@ -558,7 +555,6 @@ async def test_create_sub_device_instance_emma_does_not_deadlock(
 ) -> None:
     """create_sub_device_instance creating an EMMADevice sub-device does not deadlock on update_lock."""
     primary_client = Mock()
-    primary_client.read_device_identification = AsyncMock(return_value={})
     primary_client.unit_id = 1
     sub_client = Mock()
     sub_client.unit_id = 0

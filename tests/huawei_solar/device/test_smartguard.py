@@ -2,7 +2,7 @@
 
 import asyncio
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from huawei_solar.device.emma import EMMADevice
@@ -19,7 +19,6 @@ from huawei_solar.register_definitions import Result
 
 def _emma_with_sub_client(responses: dict[rn.RegisterName, Any]) -> tuple[Mock, Mock]:
     primary_client = Mock()
-    primary_client.read_device_identification = AsyncMock(return_value={})
     primary_client.unit_id = 0
     sub_client = Mock()
     sub_client.unit_id = 2
