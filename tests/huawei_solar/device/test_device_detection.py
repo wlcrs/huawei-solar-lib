@@ -499,6 +499,8 @@ async def test_create_sub_device_instance_scharger_does_not_deadlock(
     async def mock_get(name: rn.RegisterName) -> Result[Any]:
         if name == rn.CHARGER_MODEL:
             return Result("SCharger-22KT-S0", None)
+        if name == rn.CHARGER_FEATURE_MASK_4:
+            raise ReadException(_READ_FAILED_MSG)
         msg = f"Unexpected get: {name}"
         raise AssertionError(msg)
 

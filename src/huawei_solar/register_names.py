@@ -794,7 +794,10 @@ CHARGER_GUN_LOCK_PRESENT = RegisterName("charger_gun_lock_present")
 CHARGER_METER_DERATING_CHARGE_CURRENT = RegisterName("charger_meter_derating_charge_current")
 """Fallback derated charging current applied if external power meter communication is lost (6 ~ 32 A)."""
 CHARGER_MIN_START_POWER = RegisterName("charger_min_start_power")
-"""Minimum start power boundary setting (1.4 ~ 22.0 kW)."""
+"""Lower bound for the charger's surplus power start threshold (CHARGER_SURPLUS_POWER_START_THRESHOLD, 41010).
+
+Firmware-dependent: 0.5 kW on an SCharger-22KT-S0.
+"""
 CHARGER_ELECTRICITY_PRIORITY = RegisterName("charger_electricity_priority")
 """Household energy consumption priority level (integer ranking 1 to 100, where 1 is highest priority)."""
 CHARGER_DYNAMIC_POWER_CONTROL = RegisterName("charger_dynamic_power_control")

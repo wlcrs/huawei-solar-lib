@@ -2223,3 +2223,10 @@ class SmartLoadOffGridMode(IntEnum):
     """The load is not supplied while off-grid."""
     BATTERY = 1
     """The load is supplied by the battery between the stop and resume SOC."""
+
+
+class ChargerFeatureMask4(IntFlag):
+    """Charger feature mask 4 (register 40104), from the FusionSolar app. Only the bits used here are named."""
+
+    RANDOM_DELAY_AND_UNDERVOLTAGE = 1 << 2
+    """Random-delay charging (40200 / 40202) and the input undervoltage settings (40204 / 40206)."""

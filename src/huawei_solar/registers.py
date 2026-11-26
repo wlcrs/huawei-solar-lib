@@ -1085,7 +1085,7 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.CHARGER_ALLOW_VERSION_ROLLBACK: U32Register(
         rv.ChargerVersionRollback, 1, 40056, writeable=True, target_device=TargetDevice.SCHARGER
     ),
-    rn.CHARGER_FEATURE_MASK_4: U32Register(None, 1, 40104, target_device=TargetDevice.SCHARGER),
+    rn.CHARGER_FEATURE_MASK_4: U32Register(rv.ChargerFeatureMask4, 1, 40104, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_RANDOM_DELAY_CHARGING: U32Register(bool, 1, 40200, writeable=True, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_MAX_DELAY_TIME: U32Register("s", 1, 40202, writeable=True, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_INPUT_UNDERVOLTAGE_ALARM_THRESHOLD: U32Register(
