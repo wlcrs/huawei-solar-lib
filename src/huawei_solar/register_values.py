@@ -2223,3 +2223,17 @@ class SmartLoadOffGridMode(IntEnum):
     """The load is not supplied while off-grid."""
     BATTERY = 1
     """The load is supplied by the battery between the stop and resume SOC."""
+
+
+class FeatureMask30309(IntFlag):
+    """Feature mask flags (register 30309), from the FusionSolar app. Only the bits used here are named."""
+
+    AFCI = 1 << 7
+    """Arc-fault detection enable (42073)."""
+
+
+class FeatureMask30310(IntFlag):
+    """Feature mask flags (register 30310), from the FusionSolar app. Only the bits used here are named."""
+
+    INSULATION_RESISTANCE_THRESHOLD = 1 << 0
+    """Insulation resistance protection threshold (42097)."""

@@ -36,6 +36,8 @@ FEATURE_MASK_4 = RegisterName("feature_mask_4")
 FEATURE_MASK_30283 = RegisterName("feature_mask_30283")
 FEATURE_MASK_30306 = RegisterName("feature_mask_30306")
 FEATURE_MASK_30308 = RegisterName("feature_mask_30308")
+FEATURE_MASK_30309 = RegisterName("feature_mask_30309")
+FEATURE_MASK_30310 = RegisterName("feature_mask_30310")
 FEATURE_MASK_30315 = RegisterName("feature_mask_30315")
 FEATURE_MASK_30316 = RegisterName("feature_mask_30316")
 FEATURE_MASK_30320 = RegisterName("feature_mask_30320")
@@ -1200,7 +1202,11 @@ GRID_OUTPUT_MODE = RegisterName("grid_output_mode")
 ISLANDING_PROTECTION = RegisterName("islanding_protection")
 """Active islanding protection enable / disable."""
 INSULATION_RESISTANCE_PROTECTION_THRESHOLD = RegisterName("insulation_resistance_protection_threshold")
-"""Insulation resistance protection threshold (0.01 MOhm)."""
+"""Insulation resistance protection threshold (0.01 MOhm), older protocol versions.
+
+On V3 inverters 42003 is the frequency level: do not write it there. INSULATION_RESISTANCE_PROTECTION_THRESHOLD_V3
+(42097) reads the threshold.
+"""
 COMMUNICATION_INTERRUPT_SHUTDOWN = RegisterName("communication_interrupt_shutdown")
 """Automatic inverter shutdown upon communication disconnection."""
 COMMUNICATION_RESUME_STARTUP = RegisterName("communication_resume_startup")
@@ -1212,7 +1218,20 @@ INNER_PID_COMPENSATION_DIRECTION = RegisterName("inner_pid_compensation_directio
 AUTO_START_RECOVERY = RegisterName("auto_start_recovery")
 """Automatic restart on fault recovery."""
 AFCI_MODE = RegisterName("afci_mode")
-"""AFCI (Arc Fault Circuit Interrupter) operation mode."""
+"""AFCI (Arc Fault Circuit Interrupter) operation mode, older protocol versions.
+
+On V3 inverters 42730 starts an AFCI inspection: do not write it there. AFCI_ENABLED (42073) reads whether AFCI is
+enabled.
+"""
+OFF_GRID_MODE = RegisterName("off_grid_mode")
+"""Whether the inverter's off-grid (backup) mode is enabled (42045).
+
+Gated by FeatureMask30308.BACKUP_OFF_GRID_SWITCHING.
+"""
+AFCI_ENABLED = RegisterName("afci_enabled")
+"""Whether arc-fault detection (AFCI) is enabled (V3, register 42073). Gated by FeatureMask30309.AFCI."""
+INSULATION_RESISTANCE_PROTECTION_THRESHOLD_V3 = RegisterName("insulation_resistance_protection_threshold_v3")
+"""Insulation resistance protection threshold (V3, register 42097, MOhm). Gated by FeatureMask30310."""
 
 # Energy Storage (ESS)
 STORAGE_HEATING_STATUS = RegisterName("storage_heating_status")

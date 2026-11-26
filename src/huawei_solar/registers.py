@@ -90,6 +90,8 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.PARAMETER_LOCK_FLAGS: U16Register(rv.ParameterLockFlags, 1, 30298, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30306: U16Register(rv.FeatureMask30306, 1, 30306, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30308: U16Register(rv.FeatureMask30308, 1, 30308, target_device=TargetDevice.SUN2000),
+    rn.FEATURE_MASK_30309: U16Register(rv.FeatureMask30309, 1, 30309, target_device=TargetDevice.SUN2000),
+    rn.FEATURE_MASK_30310: U16Register(rv.FeatureMask30310, 1, 30310, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30315: U16Register(rv.FeatureMask30315, 1, 30315, target_device=TargetDevice.SUN2000),
     rn.FEATURE_MASK_30316: U16Register(
         rv.FeatureMask30316, 1, 30316, ignore_invalid=True, target_device=TargetDevice.SUN2000
@@ -292,9 +294,14 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.INVERTER_ACTIVATION_STATUS: U16Register(None, 1, 32377),
     rn.DONGLE_SCENARIO_STATUS: U16Register(rv.DongleScenarioStatus, 1, 35312),
     rn.GRID_CODE: U16Register(rv.GRID_CODES, 1, 42000),
+    rn.OFF_GRID_MODE: U16Register(bool, 1, 42045, target_device=TargetDevice.SUN2000),
     rn.MPPT_MULTIMODAL_SCANNING: U16Register(bool, 1, 42054, writeable=True),
     rn.MPPT_SCANNING_INTERVAL: U16Register("minutes", 1, 42055, writeable=True),
     rn.MPPT_PREDICTED_POWER: U32Register("W", 1, 42056),
+    rn.AFCI_ENABLED: U16Register(bool, 1, 42073, target_device=TargetDevice.SUN2000),
+    rn.INSULATION_RESISTANCE_PROTECTION_THRESHOLD_V3: U16Register(
+        "MOhm", 1000, 42097, target_device=TargetDevice.SUN2000
+    ),
     rn.MAXIMUM_ACTIVE_POWER: U32Register("W", 1, 42178),
     rn.DAYLIGHT_SAVING_TIME: U16Register(
         bool,

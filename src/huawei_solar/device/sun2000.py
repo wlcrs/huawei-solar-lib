@@ -45,7 +45,10 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
     supports_capacity_control: bool = False
     supports_ess_low_power: bool = False
     supports_off_grid_switch: bool = False
+    supports_off_grid_mode: bool = False
     supports_backup_voltage: bool = False
+    supports_afci: bool = False
+    supports_insulation_threshold: bool = False
     supports_active_power_fail_safe: bool = False
     supports_active_power_limitation_mode: bool = False
     supports_dongle_charge_power_limit: bool = False
@@ -145,6 +148,7 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             self.supports_active_power_limitation_mode = False
 
         await self._populate_backup_support()
+        await self._populate_protection_support()
 
         await self._populate_parameters_held_by_energy_manager()
 
@@ -224,6 +228,9 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             feature_mask_30308 & rv.FeatureMask30308.BACKUP_OFF_GRID_SWITCHING
         )
 
+        # Off-grid mode (42045) is gated by 30308 bit 10 alone, like in the app; the off-grid switch also needs 30316.
+        self.supports_off_grid_mode = supports_backup_off_grid
+
         # The FusionSolar app only offers "Switch to off-grid" (47604) when bit 1 of 30316 is set as well. An inverter
         # behind an EMMA with a SmartGuard has it cleared, and writing 47604 there has no effect: the SmartGuard
         # switches the backup loads.
@@ -248,6 +255,16 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
         parameter_lock_flags = await self._read_feature_mask(rn.PARAMETER_LOCK_FLAGS)
         if parameter_lock_flags is not None:
             self.parameters_held_by_energy_manager = rv.ParameterLockFlags(parameter_lock_flags)
+
+    async def _populate_protection_support(self) -> None:
+        """Check the feature masks that gate the AFCI and insulation resistance settings, like the FusionSolar app."""
+        feature_mask_30309 = await self._read_feature_mask(rn.FEATURE_MASK_30309)
+        self.supports_afci = feature_mask_30309 is not None and bool(feature_mask_30309 & rv.FeatureMask30309.AFCI)
+
+        feature_mask_30310 = await self._read_feature_mask(rn.FEATURE_MASK_30310)
+        self.supports_insulation_threshold = feature_mask_30310 is not None and bool(
+            feature_mask_30310 & rv.FeatureMask30310.INSULATION_RESISTANCE_THRESHOLD
+        )
 
     def _update_matched_timezone(self) -> None:
         if self._time_zone is None:
