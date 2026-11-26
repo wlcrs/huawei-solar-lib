@@ -1792,6 +1792,8 @@ class EmmaFeatureMask30122(IntFlag):
     """Management system and Modbus TCP settings (Groups 70072, 70081)."""
     RESTORE_DEFAULTS = 1 << 16
     """Restore defaults option (Register 40512)."""
+    OFF_GRID_BACKUP_TIME = 1 << 17
+    """Estimated off-grid backup time (Register 30406)."""
     FEED_THRESHOLD_CROSSING_PROTECTION = 1 << 19
     """Feed threshold crossing protection (Group 70074; registers 40111-40114)."""
     THREE_PHASE_UNBALANCE_CONTROL = 1 << 20
@@ -2223,3 +2225,10 @@ class SmartLoadOffGridMode(IntEnum):
     """The load is not supplied while off-grid."""
     BATTERY = 1
     """The load is supplied by the battery between the stop and resume SOC."""
+
+
+class EmmaClockSource(_IntEnumWithPrettyString):
+    """Where the EMMA takes its time from (register 40489)."""
+
+    NTP = 0
+    MANAGEMENT_SYSTEM = 1

@@ -72,6 +72,10 @@ async def test_emma_populates_offset_and_transforms_only_local_time(
     assert emma_device._utc_offset == timedelta(hours=2)
 
     assert (await emma_device.get(rn.EMMA_LOCAL_TIME)).value == utc_time
+    # The last NTP synchronisation (31008) is local wall-clock time as well.
+    last_sync_local = Result(datetime(2026, 8, 21, 7, 45, 48, tzinfo=UTC), None)
+    last_sync = emma_device._transform_register_values(rn.EMMA_LAST_NTP_SYNC_TIME, last_sync_local)
+    assert last_sync.value == datetime(2026, 8, 21, 5, 45, 48, tzinfo=UTC)
     assert (await emma_device.get(rn.EMMA_SYSTEM_TIME)).value == utc_time
 
 
