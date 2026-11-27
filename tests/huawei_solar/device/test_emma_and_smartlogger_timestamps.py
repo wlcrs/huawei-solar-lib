@@ -8,11 +8,12 @@ from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 import pytest
+from huawei_solar.files import ActiveAlarmsDataFile
 
 from huawei_solar import AsyncHuaweiSolarClient
 from huawei_solar import register_names as rn
 from huawei_solar import register_values as rv
-from huawei_solar.device import EMMADevice, SmartLoggerDevice
+from huawei_solar.device import EMMADevice, SmartLoggerDevice, SUN2000Device
 from huawei_solar.register_definitions import Result
 
 
@@ -89,6 +90,59 @@ async def test_emma_active_alarms_adjusted_to_utc(
     alarms = await emma_device.get_active_alarms()
     assert len(alarms) == 1
     assert alarms[0].occur_time == datetime(2026, 8, 21, 10, 0, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("behind_emma", "emma_offset", "expected_hour"),
+    [
+        pytest.param(True, timedelta(hours=2), 10, id="emma-offset"),
+        pytest.param(True, timedelta(0), 12, id="emma-utc"),
+        pytest.param(True, None, 4, id="emma-fallback"),
+        pytest.param(False, None, 4, id="direct"),
+    ],
+)
+async def test_inverter_timestamps_use_emma_offset_when_available(
+    sun2000_device: SUN2000Device,
+    emma_device: EMMADevice,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    behind_emma: bool,
+    emma_offset: timedelta | None,
+    expected_hour: int,
+) -> None:
+    """Startup and alarm timestamps prefer EMMA's offset over the inverter's time zone."""
+    sun2000_device.primary_device = emma_device if behind_emma else None
+    sun2000_device._time_zone = 480
+    emma_device._utc_offset = emma_offset
+    local_time = datetime(2026, 11, 25, 12, 59, 57, tzinfo=UTC)
+    expected_utc = datetime(2026, 11, 25, expected_hour, 59, 57, tzinfo=UTC)
+    monkeypatch.setattr(sun2000_device.client, "get", AsyncMock(return_value=Result(local_time, None)))
+    file_data = struct.pack(ActiveAlarmsDataFile.RECORD_STRUCT, 1, 0, 2001, int(local_time.timestamp()), 0, 0, 1)
+    monkeypatch.setattr(sun2000_device, "read_file", AsyncMock(return_value=file_data))
+
+    assert (await sun2000_device.get(rn.STARTUP_TIME)).value == expected_utc
+    (alarm,) = await sun2000_device.get_active_alarms()
+    assert alarm.occur_time == expected_utc
+
+
+def test_inverter_uses_emma_adopted_host_timezone(
+    sun2000_device: SUN2000Device,
+    emma_device: EMMADevice,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An adopted host time zone is enough for the inverter to use EMMA's conversion."""
+    sun2000_device.primary_device = emma_device
+    sun2000_device._time_zone = 480
+    emma_device._use_host_timezone = True
+    local_time = datetime(2026, 11, 25, 12, 59, 57, tzinfo=UTC)
+
+    try:
+        with monkeypatch.context() as host_timezone:
+            host_timezone.setenv("TZ", "Europe/Bucharest")
+            time.tzset()
+            assert sun2000_device._transform_datetime(local_time) == datetime(2026, 11, 25, 10, 59, 57, tzinfo=UTC)
+    finally:
+        time.tzset()
 
 
 async def test_smartlogger_populates_tz_and_transforms_only_local_time(
