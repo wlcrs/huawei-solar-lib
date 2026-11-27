@@ -746,8 +746,10 @@ async def test_file_timestamps_adjusted_for_inverter_timezone(
     expected_occur = datetime(2026, 8, 21, 11, 0, 0, tzinfo=UTC)
     expected_recover = datetime(2026, 8, 21, 12, 0, 0, tzinfo=UTC)
 
-    active_payload = struct.pack(ActiveAlarmsDataFile.RECORD_STRUCT, 1, 0, 2001, raw_occur, 0, 0, 1)
-    history_payload = struct.pack(HistoryAlarmsDataFile.RECORD_STRUCT, 1, 0, 2001, raw_occur, raw_recover, 0, 0, 1)
+    active_payload = struct.pack(ActiveAlarmsDataFile.RECORD_STRUCT, 1, 0, 2001, raw_occur, 0, 0, b"\x00\x01")
+    history_payload = struct.pack(
+        HistoryAlarmsDataFile.RECORD_STRUCT, 1, 0, 2001, raw_occur, raw_recover, 0, 0, b"\x00\x01"
+    )
     performance_payload = struct.pack(">IBi", raw_occur, 4, 150)
 
     async def mock_read_file(file_type: int, customized_data: bytes | None = None) -> bytes:
@@ -762,6 +764,7 @@ async def test_file_timestamps_adjusted_for_inverter_timezone(
     active_alarms = await sun2000_device.get_active_alarms()
     assert len(active_alarms) == 1
     assert active_alarms[0].occur_time == expected_occur
+    assert active_alarms[0].reason_id == 1
 
     history_alarms = await sun2000_device.get_history_alarms(0, 1)
     assert len(history_alarms) == 1
