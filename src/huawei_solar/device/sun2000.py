@@ -303,6 +303,14 @@ class SUN2000Device(HuaweiSolarDeviceWithLogin):
             self._update_matched_timezone()
 
     def _transform_datetime(self, value: datetime) -> datetime:
+        """Convert a local wall-clock timestamp to UTC."""
+        # Inverter time zone and DST registers may be stale behind an EMMA.
+        primary_device = self.primary_device
+        if isinstance(primary_device, EMMADevice) and (
+            primary_device._utc_offset is not None or primary_device._use_host_timezone  # noqa: SLF001
+        ):
+            return primary_device._transform_datetime(value)  # noqa: SLF001
+
         if self._use_host_timezone:
             return super()._transform_datetime(value)
         if self._time_zone:
