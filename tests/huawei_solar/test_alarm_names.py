@@ -94,6 +94,15 @@ def test_inverter_alarm_falls_back_to_register_alarm_codes() -> None:
     assert alarm.effective_level is AlarmLevel.MAJOR
 
 
+def test_catalogue_level_overrides_register_table_level() -> None:
+    """PV String Loss is "Warning" in HUAWEI_ALARM_CODES but Major in the FusionSolar catalogue."""
+    alarm = _alarm(2015, control_word=0x0003)
+
+    assert HUAWEI_ALARM_CODES[2015].level == "Warning"
+    assert alarm.name == "PV String Loss"
+    assert alarm.effective_level is AlarmLevel.MAJOR
+
+
 def test_unknown_alarm_gets_generic_name_and_control_word_level() -> None:
     alarm = _alarm(4999, control_word=0x0002, reason_id=7)
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, ClassVar, NamedTuple
 
-from huawei_solar.alarm_names import HUAWEI_FILE_ALARM_CODES, is_manual_clear_alarm
+from huawei_solar.alarm_names import CATALOGUE_LEVEL_OVERRIDES, HUAWEI_FILE_ALARM_CODES, is_manual_clear_alarm
 from huawei_solar.exceptions import DecodeError
 from huawei_solar.register_definitions.string import bytes_to_string
 from huawei_solar.register_values import HUAWEI_ALARM_CODES, Alarm, _IntEnumWithPrettyString
@@ -514,10 +514,13 @@ class _AlarmRecordMixin:
 
         FusionSolar shows the catalogue level instead of the control word level when it knows the alarm.
         """
-        info = self.alarm_info
-        if info is None:
-            return self.level
-        return _LEVEL_BY_NAME.get(info.level.lower(), self.level)
+        level_name = CATALOGUE_LEVEL_OVERRIDES.get(self.alarm_id)
+        if level_name is None:
+            info = self.alarm_info
+            if info is None:
+                return self.level
+            level_name = info.level
+        return _LEVEL_BY_NAME.get(level_name.lower(), self.level)
 
     @property
     def manual_clear(self) -> bool:

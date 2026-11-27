@@ -106,6 +106,11 @@ HUAWEI_FILE_ALARM_CODES: dict[int, Alarm] = {
 }
 """Alarm ids that only appear in the alarm files. Look these up before `HUAWEI_ALARM_CODES`."""
 
+CATALOGUE_LEVEL_OVERRIDES: dict[int, str] = {
+    2015: "Major",  # PV String Loss: "Warning" in HUAWEI_ALARM_CODES, Major for every reason in the catalogue
+}
+"""FusionSolar catalogue levels of alarms whose level in `HUAWEI_ALARM_CODES` differs; used by `effective_level`."""
+
 MANUAL_CLEAR_ALARMS: dict[int, frozenset[int] | None] = {
     # SUN2000 / LUNA2000 (the app's default catalogue family)
     2002: None,  # DC arc fault
