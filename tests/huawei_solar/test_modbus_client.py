@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import huawei_solar.register_names as rn
 import huawei_solar.register_values as rv
 import pytest
-from huawei_solar.exceptions import ConnectionInterruptedException, DecodeError, ReadException
+from huawei_solar.exceptions import ConnectionInterruptedException, DecodeError, ReadException, WriteException
 from huawei_solar.modbus_client import AsyncHuaweiSolarClient, TimeoutAwareSmartTransport
 from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar.register_values import GridCode
@@ -343,6 +343,25 @@ async def test_set_negative_i16_register_writes_unsigned_payload(
     assert success is True
     # -100.0 is encoded as -100, which is 0xFF9C in unsigned 16-bit representation, which is 64536 in decimal
     write_single_register.assert_awaited_once_with(40125, 64536)
+
+
+@pytest.mark.parametrize(
+    ("register_name", "value"),
+    [
+        (rn.ISLANDING_PROTECTION, True),
+        (rn.COMMUNICATION_INTERRUPT_SHUTDOWN, True),
+        (rn.COMMUNICATION_RESUME_STARTUP, True),
+        (rn.INNER_PID_RUNNING_MODE, rv.InnerPidRunningMode.REPAIR),
+    ],
+)
+async def test_set_read_only_register_raises(
+    huawei_solar: AsyncHuaweiSolarClient,
+    register_name: rn.RegisterName,
+    *,
+    value: bool | rv.InnerPidRunningMode,
+) -> None:
+    with pytest.raises(WriteException, match="Register is not writable"):
+        await huawei_solar.set(register_name, value)
 
 
 async def test_get_file_wraps_modbus_response_error(

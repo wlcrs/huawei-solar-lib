@@ -372,6 +372,11 @@ ACTIVE_POWER_ADJUSTMENT_COMMAND = RegisterName("active_power_adjustment_command"
 ACTIVE_POWER_PERCENTAGE_DERATING = RegisterName("active_power_percentage_derating")
 ACTIVE_POWER_FIXED_VALUE_DERATING = RegisterName("active_power_fixed_value_derating")
 MAXIMUM_ACTIVE_POWER = RegisterName("maximum_active_power")
+"""Maximum active power in watts on V1/V2 SUN2000 inverters (read-only U32 at 42178).
+
+On V3, 42178 is the frequency-response trigger frequency (U16, gain 100).
+Maximum active power on V3 is at 42023 (U32, gain 1000).
+"""
 REACTIVE_POWER_COMPENSATION_AT_NIGHT = RegisterName("reactive_power_compensation_at_night")
 FIXED_REACTIVE_POWER_AT_NIGHT = RegisterName("fixed_reactive_power_at_night")
 CHARACTERISTIC_CURVE_REACTIVE_POWER_ADJUSTMENT_TIME = RegisterName(
@@ -1186,27 +1191,52 @@ AFCI_SELF_CHECK = RegisterName("afci_self_check")
 AFCI_SC_REGISTER_V3 = RegisterName("afci_sc_register_v3")
 """AFCI self-check control register for V3 hardware."""
 ALARM_CLEARANCE = RegisterName("alarm_clearance")
-"""Clear manual active alarms and reset AFCI lock (write 1)."""
+"""Clear alarms on V1/V2 SUN2000 inverters (write 1 to 42726).
+
+The V3 meaning of 42726 is unconfirmed. V3 clears alarms by writing 0 to 45005.
+"""
 HISTORICAL_GENERATION_CLEARANCE = RegisterName("historical_generation_clearance")
 """Clear historical energy yield data (write 1)."""
 CLEAR_PERFORMANCE_DATA = RegisterName("clear_performance_data")
-"""Clear logged performance statistics data (write 1)."""
+"""Clear logged performance statistics on a SmartLogger (43677).
+
+The V3 inverter meaning of 43677 is unconfirmed. The V3 inverter's clear-all-data command is at 45223.
+"""
 RESTORE_DEFAULT_SETTINGS = RegisterName("restore_default_settings")
-"""Restore device parameters to factory defaults (write 1)."""
+"""Restore SmartLogger settings to factory defaults (43676).
+
+The V3 inverter meaning of 43676 is unconfirmed. The V3 inverter's factory-reset command is at 45000.
+"""
 
 # Inverter Grid & Protection Parameters
 GRID_OUTPUT_MODE = RegisterName("grid_output_mode")
 """Grid output wiring topology (e.g. 3-phase 4-wire, single phase)."""
 ISLANDING_PROTECTION = RegisterName("islanding_protection")
-"""Active islanding protection enable / disable."""
+"""Active islanding protection enable/disable in the V1/V2 SUN2000 map.
+
+On V3, 42002 sets the voltage level for custom grid code 304.
+Not writable: V3 uses this address for a different setting, and the library cannot distinguish V1/V2 from V3.
+"""
 INSULATION_RESISTANCE_PROTECTION_THRESHOLD = RegisterName("insulation_resistance_protection_threshold")
 """Insulation resistance protection threshold (0.01 MOhm)."""
 COMMUNICATION_INTERRUPT_SHUTDOWN = RegisterName("communication_interrupt_shutdown")
-"""Automatic inverter shutdown upon communication disconnection."""
+"""Automatic inverter shutdown on communication loss in the V1/V2 SUN2000 map.
+
+On V3, 42114 is the fault ride-through gradient K1. Communication-loss shutdown is at 42063.
+Not writable: V3 uses this address for a different setting, and the library cannot distinguish V1/V2 from V3.
+"""
 COMMUNICATION_RESUME_STARTUP = RegisterName("communication_resume_startup")
-"""Automatic inverter startup upon communication resumption."""
+"""Automatic inverter startup when communication resumes in the V1/V2 SUN2000 map.
+
+On V3, 42115 is V-phase grounded detection. Communication-resume startup is at 42064.
+Not writable: V3 uses this address for a different setting, and the library cannot distinguish V1/V2 from V3.
+"""
 INNER_PID_RUNNING_MODE = RegisterName("inner_pid_running_mode")
-"""Built-in PID module operation mode (e.g. nighttime repair, suppression)."""
+"""Built-in PID module operation mode in the V1/V2 SUN2000 definition.
+
+On V3, 42181 is an unnamed voltage setting (I16, gain 10). The built-in PID mode is at 42180.
+Not writable: V3 uses this address for a different setting, and the library cannot distinguish V1/V2 from V3.
+"""
 INNER_PID_COMPENSATION_DIRECTION = RegisterName("inner_pid_compensation_direction")
 """Built-in PID voltage offset compensation direction (PV- or PV+)."""
 AUTO_START_RECOVERY = RegisterName("auto_start_recovery")

@@ -286,8 +286,12 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.HISTORICAL_GENERATION_CLEARANCE: U16Register(None, 1, 40239, writeable=True, readable=False),
     rn.ALARM_CLEARANCE: U16Register(None, 1, 42726, writeable=True, readable=False),
     rn.AFCI_SELF_CHECK: U16Register(None, 1, 42731, writeable=True, readable=False),
-    rn.CLEAR_PERFORMANCE_DATA: U16Register(None, 1, 43677, writeable=True, readable=False),
-    rn.RESTORE_DEFAULT_SETTINGS: U16Register(None, 1, 43676, writeable=True, readable=False),
+    rn.CLEAR_PERFORMANCE_DATA: U16Register(
+        None, 1, 43677, writeable=True, readable=False, target_device=TargetDevice.SMARTLOGGER
+    ),
+    rn.RESTORE_DEFAULT_SETTINGS: U16Register(
+        None, 1, 43676, writeable=True, readable=False, target_device=TargetDevice.SMARTLOGGER
+    ),
     rn.AFCI_SC_REGISTER_V3: U16Register(None, 1, 45007, writeable=True),
     rn.INVERTER_ACTIVATION_STATUS: U16Register(None, 1, 32377),
     rn.DONGLE_SCENARIO_STATUS: U16Register(rv.DongleScenarioStatus, 1, 35312),
@@ -314,11 +318,11 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.SUN2000_EMMA: U16Register(bool, 1, 48020, writeable=True),
     rn.INNER_PID_COMPENSATION_DIRECTION: U16Register(rv.InnerPidCompensationDirection, 1, 32192),
     rn.GRID_OUTPUT_MODE: U16Register(rv.GridOutputMode, 1, 42001, writeable=True),
-    rn.ISLANDING_PROTECTION: U16Register(bool, 1, 42002, writeable=True),
+    rn.ISLANDING_PROTECTION: U16Register(bool, 1, 42002),
     rn.INSULATION_RESISTANCE_PROTECTION_THRESHOLD: U16Register("MOhm", 100, 42003, writeable=True),
-    rn.COMMUNICATION_INTERRUPT_SHUTDOWN: U16Register(bool, 1, 42114, writeable=True),
-    rn.COMMUNICATION_RESUME_STARTUP: U16Register(bool, 1, 42115, writeable=True),
-    rn.INNER_PID_RUNNING_MODE: U16Register(rv.InnerPidRunningMode, 1, 42181, writeable=True),
+    rn.COMMUNICATION_INTERRUPT_SHUTDOWN: U16Register(bool, 1, 42114),
+    rn.COMMUNICATION_RESUME_STARTUP: U16Register(bool, 1, 42115),
+    rn.INNER_PID_RUNNING_MODE: U16Register(rv.InnerPidRunningMode, 1, 42181),
     rn.POWER_METER_POWER_DIRECTION: U16Register(rv.MeterPowerDirection, 1, 42213, writeable=True),
     rn.AFCI_MODE: U16Register(rv.AfciMode, 1, 42730, writeable=True),
     rn.AUTO_START_RECOVERY: U16Register(bool, 1, 42733, writeable=True),
