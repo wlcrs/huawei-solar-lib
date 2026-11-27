@@ -2,6 +2,7 @@
 
 import logging
 import struct
+import warnings
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -572,6 +573,8 @@ class ActiveAlarmsDataFile:
     FILE_TYPE = 0xA1
     # serial, equip id, alarm id, occur time, parameter (signed), control word, raw reason field
     RECORD_STRUCT = "<IHHIiH2s"
+    TAG_MOUNTED_DEVICE = 0xE0
+    MOUNT_MASTER_ADDRESS = 0xFF
 
     def __init__(self, file_data: bytes, *, hems_layout: bool = False) -> None:
         """Decode Active Alarms file.
@@ -614,9 +617,28 @@ class ActiveAlarmsDataFile:
 
     @staticmethod
     def query_active_alarms(equip_id: int = 0) -> bytes:
-        """Create query custom data for active alarms file download."""
-        # Tag 0x11, Length 4, equip_id uint32
-        return struct.pack(">BBI", 0x11, 4, equip_id)
+        """Create the custom data to read the active alarms of a directly connected inverter or SDongle.
+
+        FusionSolar sends tag 0x11, length 4, value 0 to the device's own unit. The value is not a device selector:
+        `equip_id` is deprecated and ignored (FutureWarning).
+        """
+        if equip_id:
+            warnings.warn(
+                "The equip_id argument of query_active_alarms is ignored: the 0x11 query value is always 0.",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return struct.pack(">BBI", 0x11, 4, 0)
+
+    @staticmethod
+    def query_mounted_active_alarms(logical_address: int | None = None) -> bytes:
+        """Create the custom data to read active alarms through an EMMA (or SmartLogger) on its own unit.
+
+        FusionSolar sends `E0 02 <address> 00`: the logical address (Modbus unit id) of the device behind the EMMA,
+        or 0xFF for the EMMA itself (`logical_address` None or 0).
+        """
+        address = logical_address or ActiveAlarmsDataFile.MOUNT_MASTER_ADDRESS
+        return bytes((ActiveAlarmsDataFile.TAG_MOUNTED_DEVICE, 2, address, 0))
 
 
 def _iter_alarm_records(record_struct: str, file_data: bytes, kind: str) -> Iterator[tuple[Any, ...]]:
@@ -680,6 +702,9 @@ class HistoryAlarmsDataFile:
     FILE_TYPE = 0xA2
     # serial, equip id, alarm id, occur time, recover time, parameter (signed), control word, raw reason field
     RECORD_STRUCT = "<IHHIIiH2s"
+    TAG_OCCUR_TIME = 0x20
+    TAG_RECOVER_TIME = 0x21
+    TAG_MOUNTED_RECOVER_TIME = 0x24
 
     def __init__(self, file_data: bytes) -> None:
         """Decode History Alarms file."""
@@ -719,11 +744,25 @@ class HistoryAlarmsDataFile:
             raise DecodeError(msg) from err
 
     @staticmethod
-    def query_within_timespan(start_time: int, end_time: int, tag: int = 0x24) -> bytes:
-        """Create query custom data for history alarms file download within given timeframe."""
-        if tag == 0x24:  # noqa: PLR2004
-            # Tag 0x24 (36), Length 10, start_time uint32, end_time uint32, -1 (signed byte), 0 (byte)
-            return struct.pack("<BBIIbb", tag, 10, start_time, end_time, -1, 0)
+    def query_within_timespan(
+        start_time: int,
+        end_time: int,
+        tag: int = 0x24,
+        *,
+        big_endian_times: bool = False,
+    ) -> bytes:
+        """Create query custom data for history alarms file download within given timeframe.
+
+        The times are device-local wall-clock epochs. Tag 0x24 is what FusionSolar sends to an EMMA or SmartLogger
+        and to the devices behind it, tag 0x20 what it sends to a directly connected inverter or SDongle.
+
+        Tag 0x24 carries little-endian times, except for a SmartLogger V5 (product model "Logger"), to which
+        FusionSolar sends them big-endian (`big_endian_times`). The library does not detect a SmartLogger V5.
+        """
+        if tag == HistoryAlarmsDataFile.TAG_MOUNTED_RECOVER_TIME:
+            # Tag 0x24 (36), Length 10, start_time uint32, end_time uint32, -1 (signed byte), order 0 (by recovery time)
+            # Little-endian times, unlike the other tags, except for a SmartLogger V5.
+            return struct.pack(">BBIIbb" if big_endian_times else "<BBIIbb", tag, 10, start_time, end_time, -1, 0)
         # Tag 0x20 / 0x21 (32 / 33), Length 9, start_time uint32, end_time uint32, -1 (signed byte)
         return struct.pack(">BBIIb", tag, 9, start_time, end_time, -1)
 

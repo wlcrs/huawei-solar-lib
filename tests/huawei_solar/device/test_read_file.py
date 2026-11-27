@@ -1,11 +1,13 @@
 """Tests for HuaweiSolarDevice.read_file: waiting for a file that is not ready, or a busy device, outside the lock."""
 
 import asyncio
+import struct
 from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
 from huawei_solar.exceptions import FileNotReadyError, ReadException
+from huawei_solar.files import ActiveAlarmsDataFile
 from huawei_solar.modbus_client import (
     FILE_BUSY_RETRY_INTERVAL,
     FILE_PREPARE_RETRY_INTERVAL,
@@ -16,12 +18,13 @@ from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar import AsyncHuaweiSolarClient
 from huawei_solar.device import EMMADevice, HuaweiSolarDevice, SUN2000Device
 
-RECORD = bytes(range(24))  # the content does not matter here
+RECORD = struct.pack(ActiveAlarmsDataFile.RECORD_STRUCT, 1, 3, 4006, 1794712200, 0, 0x0001, b"\x00\x02")
 
 
 def _client(unit_id: int) -> AsyncMock:
     client = AsyncMock(spec=AsyncHuaweiSolarClient)
     client.unit_id = unit_id
+    # register reads (the EMMA's time registers) are not supported here
     client.get.side_effect = ReadException("not supported", modbus_exception_code=0x02)
     return client
 
@@ -84,9 +87,11 @@ async def test_file_not_ready_is_asked_again_without_holding_the_lock(
         lock_held_while_waiting.append(emma.update_lock.locked())
 
     monkeypatch.setattr(asyncio, "sleep", fake_sleep)
-    lock_held = _answers(inverter, FileNotReadyError("preparing", progress=10), RECORD)
+    lock_held = _answers(emma, FileNotReadyError("preparing", progress=10), RECORD)
 
-    assert await asyncio.wait_for(inverter.read_file(0xA1), timeout=2) == RECORD
+    (alarm,) = await asyncio.wait_for(inverter.get_active_alarms(), timeout=2)
+
+    assert alarm.alarm_id == 4006
     assert lock_held == [True, True]
     assert lock_held_while_waiting == [False]
     assert not emma.update_lock.locked()
@@ -95,14 +100,14 @@ async def test_file_not_ready_is_asked_again_without_holding_the_lock(
 async def test_file_not_ready_after_all_retries_raises(
     emma_tree: tuple[EMMADevice, SUN2000Device], sleeps: list[float]
 ) -> None:
-    _, inverter = emma_tree
-    _answers(inverter, *[FileNotReadyError("preparing", progress=50)] * 4)
+    emma, inverter = emma_tree
+    _answers(emma, *[FileNotReadyError("preparing", progress=50)] * 4)
 
     with pytest.raises(FileNotReadyError) as err:
-        await inverter.read_file(0xA1, retries=3)
+        await inverter.get_active_alarms(retries=3)
 
     assert err.value.progress == 50
-    assert _get_file(inverter).await_count == 4
+    assert _get_file(emma).await_count == 4
     assert sleeps == [FILE_PREPARE_RETRY_INTERVAL] * 3
 
 
@@ -111,7 +116,7 @@ async def test_no_retry_when_retries_is_zero(emma_tree: tuple[EMMADevice, SUN200
     _answers(emma, FileNotReadyError("preparing", progress=0))
 
     with pytest.raises(FileNotReadyError):
-        await emma.read_file(0xA1, retries=0)
+        await emma.read_file(0xA1, b"\xe0\x02\xff\x00", retries=0)
 
     assert sleeps == []
 
