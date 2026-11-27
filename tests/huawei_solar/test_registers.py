@@ -1,9 +1,12 @@
 """Check if the register config is correct."""
 
 import logging
+from unittest.mock import Mock
 
 import huawei_solar.register_values as rv
 import pytest
+from huawei_solar.exceptions import WriteException
+from huawei_solar.modbus_client import AsyncHuaweiSolarClient
 from huawei_solar.registers import REGISTERS
 
 from huawei_solar import register_names as rn
@@ -50,6 +53,17 @@ def test_all_register_names_have_a_register() -> None:
             register_names_without_register.append(register_name)
 
     assert not register_names_without_register, f"Register names without a register: {register_names_without_register}"
+
+
+async def test_historical_generation_clearance_rejects_write() -> None:
+    """Reject the history-clear command before sending it to the inverter."""
+    transport = Mock()
+    client = AsyncHuaweiSolarClient(transport=transport, unit_id=1)
+
+    assert not REGISTERS[rn.HISTORICAL_GENERATION_CLEARANCE].writeable
+    with pytest.raises(WriteException, match="Register is not writable"):
+        await client.set(rn.HISTORICAL_GENERATION_CLEARANCE, 1)
+    transport.send_and_receive.assert_not_called()
 
 
 def test_storage_unit_1_state_of_health_register() -> None:

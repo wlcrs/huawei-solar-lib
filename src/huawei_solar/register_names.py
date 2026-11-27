@@ -1188,7 +1188,12 @@ AFCI_SC_REGISTER_V3 = RegisterName("afci_sc_register_v3")
 ALARM_CLEARANCE = RegisterName("alarm_clearance")
 """Clear manual active alarms and reset AFCI lock (write 1)."""
 HISTORICAL_GENERATION_CLEARANCE = RegisterName("historical_generation_clearance")
-"""Clear historical energy yield data (write 1)."""
+"""Clear historical energy yield data (40239), older SUN2000 protocol versions (V1/V2) only. Not writable.
+
+On V3 inverters (for example the SUN2000-12K-MAP0) the FusionSolar app's register table defines 40239 as
+"Reactive power (kvar)", an I32 read/write setting, and clears the energy history by writing 0 to 45010. The library
+cannot tell the protocol versions apart, so it refuses to write this register.
+"""
 CLEAR_PERFORMANCE_DATA = RegisterName("clear_performance_data")
 """Clear logged performance statistics data (write 1)."""
 RESTORE_DEFAULT_SETTINGS = RegisterName("restore_default_settings")
