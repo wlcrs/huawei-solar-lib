@@ -25,6 +25,8 @@ from .modbus_pdu import (
     HuaweiReadDeviceIdentificationPDU,
     LoginPDU,
     LoginRequestChallengePDU,
+    PerformanceDataFrame,
+    PerformanceDataPDU,
     PermissionDeniedError,
     StartFileUploadPDU,
     UploadFileFramePDU,
@@ -50,6 +52,9 @@ WAIT_FOR_CONNECTION_TIMEOUT = 5
 WAIT_FOR_LOGIN_TIMEOUT = 5
 
 HEARTBEAT_REGISTER = 49999
+
+MAX_U8 = 0xFF
+MAX_U32 = 0xFFFFFFFF
 
 FILE_UPLOAD_MAX_RETRIES = 6
 FILE_UPLOAD_RETRY_TIMEOUT = 10
@@ -278,6 +283,39 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
 
             return file_data
 
+    async def get_performance_data_frames(
+        self,
+        request_type: int,
+        start_time: int,
+        end_time: int,
+    ) -> list[PerformanceDataFrame]:
+        """Read all pages of a historical performance data request."""
+        validate_performance_data_request(request_type, start_time, end_time)
+        frames: list[PerformanceDataFrame] = []
+        try:
+            for frame_index in range(256):  # The frame index is an unsigned byte.
+                frame = await self.execute(PerformanceDataPDU(frame_index, request_type, start_time, end_time))
+                frames.append(frame)
+                if not frame.more:
+                    return frames
+        except PermissionDeniedError:
+            raise
+        except ModbusResponseError as err:
+            msg = f"Failed to read performance data type {request_type:#x}: received {type(err).__name__}"
+            raise ReadException(msg, modbus_exception_code=err.error_code) from err
+        except ModbusConnectionError as err:
+            msg = f"Connection failed when trying to read performance data type {request_type:#x}"
+            raise ConnectionInterruptedException(msg) from err
+        except TModbusError as err:
+            msg = f"Failed to read performance data type {request_type:#x}: {err}"
+            raise ReadException(msg) from err
+        except ValueError as err:
+            msg = f"Could not decode performance data type {request_type:#x}: {err}"
+            raise DecodeError(msg) from err
+
+        msg = "Device indicated more performance data after frame 255"
+        raise DecodeError(msg)
+
     async def login(self, username: str, password: str) -> bool:
         """Login onto the inverter."""
         _LOGGER.debug("Logging in '%s'", username)
@@ -347,6 +385,16 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
         else:
             _LOGGER.debug("Heartbeat succeeded")
             return True
+
+
+def validate_performance_data_request(request_type: int, start_time: int, end_time: int) -> None:
+    """Raise ValueError if a performance data request does not fit the 0x41/0x36 request fields."""
+    if not 0 <= request_type <= MAX_U8:
+        msg = f"Performance data request type must fit in one byte, got {request_type}"
+        raise ValueError(msg)
+    if not (0 <= start_time <= MAX_U32 and 0 <= end_time <= MAX_U32):
+        msg = f"Performance data time window must be unsigned 32-bit epochs, got {start_time}..{end_time}"
+        raise ValueError(msg)
 
 
 def create_client(

@@ -25,11 +25,13 @@ from huawei_solar.files import (
     PerformanceDataPoint,
     PerformanceRequestType,
 )
+from huawei_solar.modbus_client import validate_performance_data_request
 from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar.registers import REGISTERS
 
 if TYPE_CHECKING:
     from huawei_solar.modbus_client import AsyncHuaweiSolarClient
+    from huawei_solar.modbus_pdu import PerformanceDataFrame
     from huawei_solar.register_definitions import Result
 
 _LOGGER = logging.getLogger(__name__)
@@ -313,7 +315,15 @@ class HuaweiSolarDevice(ABC):
         end_time: datetime | int,
         cycle: int | None = None,
     ) -> list[PerformanceDataPoint]:
-        """Read Historical Performance / Energy Data from the device.
+        """Read historical performance / energy data from the device.
+
+        Uses Huawei's Modbus function 0x41 sub-function 0x36, paged by frame index, like the FusionSolar app.
+        `start_time` and `end_time` are passed to the device as given: an int as is, a datetime as its Unix
+        timestamp. The FusionSolar app sends the device's local wall-clock time encoded as if it were UTC, so pass
+        ints in that form unless the device runs on UTC. Returned times go through the device's usual conversion to
+        UTC.
+        `cycle` overrides the interval in seconds between the points of a segment for the fixed-interval request
+        types; monthly and yearly points follow the calendar.
 
         Targets: SUN2000 inverters, SmartLogger, EMMA (covering inverter yield,
         battery storage, and power meter telemetry).
@@ -321,12 +331,20 @@ class HuaweiSolarDevice(ABC):
         start_epoch = int(start_time.timestamp()) if isinstance(start_time, datetime) else start_time
         end_epoch = int(end_time.timestamp()) if isinstance(end_time, datetime) else end_time
 
-        file_data = await self.read_file(
-            InverterPerformanceDataFile.FILE_TYPE,
-            InverterPerformanceDataFile.query_within_timespan(request_type, start_epoch, end_epoch),
-        )
-        performance_file = InverterPerformanceDataFile(file_data, request_type=request_type, cycle=cycle)
-        return [replace(point, time=self._transform_datetime(point.time)) for point in performance_file.data_points]
+        validate_performance_data_request(request_type, start_epoch, end_epoch)  # before any login
+        frames = await self._read_performance_frames(request_type, start_epoch, end_epoch)
+        performance_data = InverterPerformanceDataFile(frames, request_type=request_type, cycle=cycle)
+        return [replace(point, time=self._transform_datetime(point.time)) for point in performance_data.data_points]
+
+    async def _read_performance_frames(
+        self,
+        request_type: PerformanceRequestType | int,
+        start_epoch: int,
+        end_epoch: int,
+    ) -> "list[PerformanceDataFrame]":
+        """Read all pages of a performance data request, holding the update lock once for all of them."""
+        async with self.update_lock:
+            return await self.client.get_performance_data_frames(request_type, start_epoch, end_epoch)
 
 
 class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
@@ -466,6 +484,27 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
 
                 # we have no login-credentials available, pass on permission error
                 raise
+
+    async def _read_performance_frames(
+        self,
+        request_type: PerformanceRequestType | int,
+        start_epoch: int,
+        end_epoch: int,
+    ) -> "list[PerformanceDataFrame]":
+        """Read all pages of a performance data request, logging in again if the device asks for it."""
+        async with self.update_lock:
+            if not await self.ensure_logged_in():
+                _LOGGER.warning("Could not login, reading performance data will probably fail")
+
+            try:
+                return await self.client.get_performance_data_frames(request_type, start_epoch, end_epoch)
+            except PermissionDeniedError:
+                if not self.__username:
+                    raise
+                if not await self.ensure_logged_in(force=True):
+                    _LOGGER.exception("Could not login to read performance data")
+                    raise
+                return await self.client.get_performance_data_frames(request_type, start_epoch, end_epoch)
 
     ############################
     # Everything write-related #
