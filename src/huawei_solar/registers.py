@@ -926,7 +926,7 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         target_device=TargetDevice.EMMA,
     ),
     rn.EMMA_POWER_CONTROL_MODE_AT_GRID_CONNECTION_POINT: U16Register(
-        rv.ActivePowerControlMode,
+        rv.EmmaActivePowerControlMode,
         1,
         40100,
         writeable=True,
@@ -946,7 +946,8 @@ EMMA_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         writeable=True,
         target_device=TargetDevice.EMMA,
     ),  # Was 47416
-    rn.EMMA_MAXIMUM_FEED_GRID_POWER_PERCENT: U16Register(
+    # FusionSolar allows 0.0 to 100.0% for this setting.
+    rn.EMMA_MAXIMUM_FEED_GRID_POWER_PERCENT: I16Register(
         "%",
         10,
         40109,

@@ -7,7 +7,7 @@ import pytest
 from huawei_solar.registers import REGISTERS
 
 from huawei_solar import register_names as rn
-from huawei_solar.register_definitions import TargetDevice
+from huawei_solar.register_definitions import Result, TargetDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +59,15 @@ def test_storage_unit_1_state_of_health_register() -> None:
     assert decoded.value == 98.5
     assert decoded.unit == "%"
     assert register.decode((0xFFFF,)).value is None
+
+
+@pytest.mark.parametrize(("raw", "percent"), [(0, 0.0), (123, 12.3), (1000, 100.0)])
+def test_emma_maximum_feed_grid_power_percent(raw: int, percent: float) -> None:
+    register = REGISTERS[rn.EMMA_MAXIMUM_FEED_GRID_POWER_PERCENT]
+    assert register.format == "h"
+    assert register.decode((raw,)) == Result(percent, "%")
+    assert register.encode(percent) == (raw,)
+    assert register.decode((0x7FFF,)) == Result(None, None)
 
 
 def test_feature_mask_30283_register() -> None:
