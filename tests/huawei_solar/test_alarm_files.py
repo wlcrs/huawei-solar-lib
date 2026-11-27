@@ -284,3 +284,8 @@ def test_history_trailing_bytes_are_ignored(caplog: pytest.LogCaptureFixture) ->
 
     assert len(alarms) == 1
     assert "20 trailing bytes in the history alarms file" in caplog.text
+
+
+def test_level_severity_grows_with_seriousness() -> None:
+    assert [level.severity for level in AlarmLevel] == [4, 3, 2, 1]
+    assert max(AlarmLevel, key=lambda level: level.severity) is AlarmLevel.CRITICAL

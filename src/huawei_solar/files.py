@@ -413,12 +413,21 @@ class OptimizerSystemInformationDataFile:
 
 
 class AlarmLevel(_IntEnumWithPrettyString):
-    """Alarm severity: control word bits 0-1, same scale as the FusionSolar alarm catalogue."""
+    """Alarm severity: control word bits 0-1, same scale as the FusionSolar alarm catalogue.
+
+    A lower value is more severe: compare `severity` rather than the enum values to rank alarms. (Releases 3.0.8 to
+    3.2.4 had this enum reversed: PROMPT=0, WARNING=1, MAJOR=2, CRITICAL=3.)
+    """
 
     CRITICAL = 0
     MAJOR = 1
     MINOR = 2
     WARNING = 3
+
+    @property
+    def severity(self) -> int:
+        """Return a rank that grows with severity: 4 for Critical down to 1 for Warning."""
+        return len(AlarmLevel) - self.value
 
 
 # Alarm ids of the LUNA2000 battery rack controller (BCU): their reason field packs the reason id with the
