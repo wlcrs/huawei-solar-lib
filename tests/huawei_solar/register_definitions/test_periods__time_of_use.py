@@ -73,16 +73,16 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__negative__end_time() -> None:
         huawei_ppr._validate([tou])
 
 
-def test__validate__tou_periods__HUAWEI_LUNA2000__start_time_bigger_than_end_time() -> None:
+def test__validate__tou_periods__HUAWEI_LUNA2000__start_time_equals_end_time() -> None:
     tou = HUAWEI_LUNA2000_TimeOfUsePeriod(
         start_time=15,
-        end_time=2,
+        end_time=15,
         charge_flag=ChargeFlag.DISCHARGE,
         days_effective=(True, True, True, True, True, True, True),
     )
     with pytest.raises(
         expected_exception=TimeOfUsePeriodsException,
-        match=r"TOU period is invalid \(start-time is greater than end-time\)",
+        match=r"TOU period is invalid \(start-time equals end-time\)",
     ):
         huawei_ppr._validate([tou])
 
