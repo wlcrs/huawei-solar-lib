@@ -283,7 +283,7 @@ REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.Q_U_SCHEDULING_EXIT_POWER_PERCENTAGE: I16Register("%", 1, 40198, writeable=True),
     rn.STARTUP: U16Register(None, 1, 40200, writeable=True, readable=False),
     rn.SHUTDOWN: U16Register(None, 1, 40201, writeable=True, readable=False),
-    rn.HISTORICAL_GENERATION_CLEARANCE: U16Register(None, 1, 40239, writeable=True, readable=False),
+    rn.HISTORICAL_GENERATION_CLEARANCE: U16Register(None, 1, 40239, readable=False),
     rn.ALARM_CLEARANCE: U16Register(None, 1, 42726, writeable=True, readable=False),
     rn.AFCI_SELF_CHECK: U16Register(None, 1, 42731, writeable=True, readable=False),
     rn.CLEAR_PERFORMANCE_DATA: U16Register(None, 1, 43677, writeable=True, readable=False),
