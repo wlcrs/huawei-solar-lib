@@ -2,7 +2,9 @@
 
 import asyncio
 import logging
+import struct
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from typing import Literal, TypeVar
 
 import tenacity
@@ -19,13 +21,14 @@ from tmodbus.exceptions import ModbusConnectionError, ModbusResponseError, TModb
 from tmodbus.pdu.base import BaseClientPDU
 from tmodbus.utils.crc import calculate_crc16
 
-from .exceptions import ConnectionInterruptedException, DecodeError, ReadException
+from .exceptions import ConnectionInterruptedException, DecodeError, FileNotReadyError, ReadException
 from .modbus_pdu import (
     CompleteUploadPDU,
     HuaweiReadDeviceIdentificationPDU,
     LoginPDU,
     LoginRequestChallengePDU,
     PermissionDeniedError,
+    StartFileUpload,
     StartFileUploadPDU,
     UploadFileFramePDU,
 )
@@ -53,6 +56,18 @@ HEARTBEAT_REGISTER = 49999
 
 FILE_UPLOAD_MAX_RETRIES = 6
 FILE_UPLOAD_RETRY_TIMEOUT = 10
+
+# Waiting and retrying a file read is done by HuaweiSolarDevice.read_file, outside the device's update lock.
+# A device that is still preparing a file answers the start frame with TLV 0x62 (progress %): FusionSolar sends the
+# start frame again after 3 s (ModbusDownloadFile, op6 DEFAULT_PREPARE_INTERVAL). It retries "busy" (exception 0x06,
+# and Huawei's 0xB0) every 10 s (op6 DEFAULT_RETRY_INTERVAL).
+FILE_PREPARE_RETRY_INTERVAL = 3
+FILE_BUSY_RETRY_INTERVAL = 10
+FILE_BUSY_EXCEPTION_CODES = frozenset({0x06, 0xB0})
+FILE_READ_RETRIES = 1
+# Exception codes on the end frame of an empty file that FusionSolar accepts as "empty file" (device failure, busy).
+_EMPTY_FILE_END_FRAME_EXCEPTION_CODES = frozenset({0x04, 0x06})
+_MAX_FILE_FRAME_NO = 0xFFFF
 
 
 RECONNECT_RETRY_STRATEGY = AsyncRetrying(
@@ -216,7 +231,16 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
         """Read a 'file' via Modbus.
 
         As defined by the 'Uploading Files' process described in 6.3.7.1 of
-        the Solar Inverter Modbus Interface Definitions PDF.
+        the Solar Inverter Modbus Interface Definitions PDF, with the robustness of the FusionSolar app
+        (ModbusDownloadFile):
+
+        - When the device answers the start frame with "still preparing the file" (TLV 0x62 below 100 %),
+          FileNotReadyError is raised at once: an empty result would read as an empty file (e.g. "no active
+          alarms"). This method does not wait or retry; HuaweiSolarDevice.read_file does, without holding the
+          device lock.
+        - Data frames are requested until the announced number of bytes has been received; extra bytes are cut off.
+        - An empty file is returned without checking its CRC, and exception 0x04/0x06 on its end frame is accepted.
+        - When a data frame fails, the end frame is still sent to close the transfer.
         """
         _LOGGER.debug(
             "Reading file %#x from server %d",
@@ -224,34 +248,21 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
             self.unit_id,
         )
         try:
-            # Start the upload
-            start_upload_response = await self.execute(
-                StartFileUploadPDU(
-                    file_type=file_type,
-                    customised_data=customized_data or b"",
-                ),
-            )
+            start_upload_response = await self._start_file_upload(file_type, customized_data or b"")
 
             file_length = start_upload_response.file_length
-            data_frame_length = start_upload_response.data_frame_length
+            data_frame_length = start_upload_response.frame_length_override or start_upload_response.data_frame_length
+            if file_length > 0 and data_frame_length == 0:
+                msg = f"Device announced file {file_type:#x} of {file_length} bytes with a frame length of 0"
+                raise DecodeError(msg)
 
-            # Request the data in 'frames'
+            try:
+                file_data = await self._read_file_frames(file_type, file_length)
+            except (ModbusResponseError, DecodeError, ValueError, struct.error):
+                await self._abort_file_upload(file_type)
+                raise
 
-            file_data: bytes = b""
-            next_frame_no = 0
-
-            while (next_frame_no * data_frame_length) < file_length:
-                data_upload_response = await self.execute(
-                    UploadFileFramePDU(file_type=file_type, frame_no=next_frame_no),
-                )
-
-                file_data += data_upload_response.frame_data
-                next_frame_no += 1
-
-            # Complete the upload and check the CRC
-            file_crc = await self.execute(
-                CompleteUploadPDU(file_type=file_type),
-            )
+            file_crc = await self._complete_file_upload(file_type, file_length)
 
         except PermissionDeniedError:
             raise
@@ -265,18 +276,82 @@ class AsyncHuaweiSolarClient(RegisterAwareModbusClient, AsyncModbusClient):
         except TModbusError as err:
             msg = f"Failed to read file {file_type:#x}: {err}"
             raise ReadException(msg) from err
-        else:
-            # swap upper and lower two bytes to match how computeCRC works
-            swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
+        except (ValueError, struct.error) as err:
+            msg = f"Invalid response while reading file {file_type:#x}: {err}"
+            raise DecodeError(msg) from err
 
-            if (calculated_crc := int.from_bytes(calculate_crc16(file_data))) != swapped_crc:
-                msg = (
-                    f"Computed CRC {calculated_crc:04x} for file {file_type} "
-                    f"does not match expected value {swapped_crc:04x}"
-                )
+        if file_crc is None:
+            # FusionSolar does not check the CRC of an empty file (uploadFinishResp)
+            return b""
+
+        # swap upper and lower two bytes to match how computeCRC works
+        swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
+
+        if (calculated_crc := int.from_bytes(calculate_crc16(file_data))) != swapped_crc:
+            msg = (
+                f"Computed CRC {calculated_crc:04x} for file {file_type} "
+                f"does not match expected value {swapped_crc:04x}"
+            )
+            raise DecodeError(msg)
+
+        return file_data
+
+    async def _start_file_upload(self, file_type: int, customized_data: bytes) -> StartFileUpload:
+        """Send the start frame; raise FileNotReadyError when the device is still preparing the file."""
+        response = await self.execute(StartFileUploadPDU(file_type=file_type, customised_data=customized_data))
+        if response.customised_data:
+            _LOGGER.debug(
+                "Start response for file %#x: length %d, frame length %d, custom data %s",
+                file_type,
+                response.file_length,
+                response.data_frame_length,
+                response.customised_data.hex(" "),
+            )
+        if response.is_preparing:
+            msg = f"File {file_type:#x} on server {self.unit_id} is still being prepared ({response.prepare_progress}%)"
+            raise FileNotReadyError(msg, progress=response.prepare_progress)
+        return response
+
+    async def _complete_file_upload(self, file_type: int, file_length: int) -> int | None:
+        """Send the end frame and return the file CRC, or None for an empty file (whose CRC is not checked).
+
+        Like FusionSolar, exception 0x04/0x06 on the end frame of an empty file still means "empty file".
+        """
+        try:
+            file_crc = await self.execute(CompleteUploadPDU(file_type=file_type))
+        except ModbusResponseError as err:
+            if file_length == 0 and err.error_code in _EMPTY_FILE_END_FRAME_EXCEPTION_CODES:
+                _LOGGER.debug("Exception %#04x on the end frame of empty file %#x: ignored", err.error_code, file_type)
+                return None
+            raise
+        return None if file_length == 0 else file_crc
+
+    async def _read_file_frames(self, file_type: int, file_length: int) -> bytes:
+        """Request data frames until `file_length` bytes have been received (FusionSolar uploadDataResp)."""
+        file_data = bytearray()
+        frame_no = 0
+        while len(file_data) < file_length:
+            if frame_no > _MAX_FILE_FRAME_NO:
+                msg = f"File {file_type:#x} of {file_length} bytes does not fit in {_MAX_FILE_FRAME_NO + 1} frames"
                 raise DecodeError(msg)
+            response = await self.execute(UploadFileFramePDU(file_type=file_type, frame_no=frame_no))
+            if response.frame_no != frame_no:
+                msg = f"Requested frame {frame_no} of file {file_type:#x}, received frame {response.frame_no}"
+                raise DecodeError(msg)
+            if not response.frame_data:
+                msg = f"Empty frame {frame_no} of file {file_type:#x} after {len(file_data)} of {file_length} bytes"
+                raise DecodeError(msg)
+            file_data += response.frame_data
+            frame_no += 1
 
-            return file_data
+        if len(file_data) > file_length:
+            _LOGGER.debug("Ignoring %d bytes beyond the length of file %#x", len(file_data) - file_length, file_type)
+        return bytes(file_data[:file_length])
+
+    async def _abort_file_upload(self, file_type: int) -> None:
+        """Send the end frame after a failed data frame, as FusionSolar does; errors are ignored."""
+        with suppress(TModbusError, ValueError, struct.error):
+            await self.execute(CompleteUploadPDU(file_type=file_type))
 
     async def login(self, username: str, password: str) -> bool:
         """Login onto the inverter."""

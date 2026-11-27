@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Self
 from huawei_solar import register_names as rn
 from huawei_solar.const import MAX_BATCHED_REGISTERS_COUNT, MAX_BATCHED_REGISTERS_GAP
 from huawei_solar.exceptions import (
+    FileNotReadyError,
     HuaweiSolarException,
     InvalidCredentials,
     ReadException,
@@ -24,6 +25,12 @@ from huawei_solar.files import (
     InverterPerformanceDataFile,
     PerformanceDataPoint,
     PerformanceRequestType,
+)
+from huawei_solar.modbus_client import (
+    FILE_BUSY_EXCEPTION_CODES,
+    FILE_BUSY_RETRY_INTERVAL,
+    FILE_PREPARE_RETRY_INTERVAL,
+    FILE_READ_RETRIES,
 )
 from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar.registers import REGISTERS
@@ -244,8 +251,45 @@ class HuaweiSolarDevice(ABC):
         assert self.update_lock.locked(), "update_lock must be held when calling _raw_get"
         return self._transform_register_values(name, await self.client.get(name))
 
-    async def read_file(self, file_type: int, customized_data: bytes | None = None) -> bytes:
-        """Wrap `get_file` from `AsyncHuaweiSolarClient`."""
+    async def read_file(
+        self,
+        file_type: int,
+        customized_data: bytes | None = None,
+        *,
+        retries: int = FILE_READ_RETRIES,
+    ) -> bytes:
+        """Wrap `get_file` from `AsyncHuaweiSolarClient`.
+
+        When the device answers that it is still preparing the file (FileNotReadyError) or that it is busy (exception
+        0x06 after the transport's own retries, or Huawei's 0xB0), wait 3 s or 10 s and try again, at most `retries`
+        times; then the error is raised. The update lock, which all devices behind one connection share, is only held
+        during each attempt, not while waiting. The default suits periodic polling: a file that is not ready yet is
+        read on a later poll. Pass `retries=0` to fail at once.
+        """
+        attempt = 0
+        while True:
+            try:
+                return await self._read_file_once(file_type, customized_data)
+            except FileNotReadyError as err:
+                if attempt >= retries:
+                    raise
+                delay: float = FILE_PREPARE_RETRY_INTERVAL
+                _LOGGER.debug("File %#x is being prepared (%s%%), asking again in %ss", file_type, err.progress, delay)
+            except ReadException as err:
+                if err.modbus_exception_code not in FILE_BUSY_EXCEPTION_CODES or attempt >= retries:
+                    raise
+                delay = FILE_BUSY_RETRY_INTERVAL
+                _LOGGER.debug(
+                    "Device busy (%#04x) reading file %#x, trying again in %ss",
+                    err.modbus_exception_code,
+                    file_type,
+                    delay,
+                )
+            attempt += 1
+            await asyncio.sleep(delay)
+
+    async def _read_file_once(self, file_type: int, customized_data: bytes | None) -> bytes:
+        """Read a file once, holding the update lock."""
         async with self.update_lock:
             return await self.client.get_file(file_type, customized_data)
 
@@ -435,11 +479,8 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
 
         return await super().stop()
 
-    async def read_file(self, file_type: int, customized_data: bytes | None = None) -> bytes:
-        """Wrap `get_file` from `AsyncHuaweiSolarClient`.
-
-        This method adds a retry-logic for when the login-sequence needs to be repeated.
-        """
+    async def _read_file_once(self, file_type: int, customized_data: bytes | None) -> bytes:
+        """Read a file once, holding the update lock, and log in again when the device answers "permission denied"."""
         async with self.update_lock:
             logged_in = await self.ensure_logged_in()
 
