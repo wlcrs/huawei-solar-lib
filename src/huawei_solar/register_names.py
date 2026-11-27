@@ -757,7 +757,7 @@ CHARGER_AC_WIRING_MODE = RegisterName("charger_ac_wiring_mode")
 CHARGER_INDICATOR_LIGHT_STATUS = RegisterName("charger_indicator_light_status")
 """Status / mode of the charger ring indicator LED light language (灯语状态, see ChargerIndicatorLightStatus).
 
-32-bit register spanning Modbus addresses 40038 and 40039.
+Read-only 32-bit register spanning Modbus addresses 40038 and 40039. The FusionSolar app only reads it for display.
 """
 CHARGER_SYSTEM_CATEGORY = RegisterName("charger_system_category")
 """System major equipment category classification code (spans registers 40040-40041)."""
@@ -796,7 +796,10 @@ CHARGER_METER_DERATING_CHARGE_CURRENT = RegisterName("charger_meter_derating_cha
 CHARGER_MIN_START_POWER = RegisterName("charger_min_start_power")
 """Minimum start power boundary setting (1.4 ~ 22.0 kW)."""
 CHARGER_ELECTRICITY_PRIORITY = RegisterName("charger_electricity_priority")
-"""Household energy consumption priority level (integer ranking 1 to 100, where 1 is highest priority)."""
+"""Household energy consumption priority level (integer ranking 1 to 100, where 1 is highest priority).
+
+Read on an SCharger-22KT-S0 behind an EMMA: the connector unit answers 41018 (100), the charger unit rejects it.
+"""
 CHARGER_DYNAMIC_POWER_CONTROL = RegisterName("charger_dynamic_power_control")
 """Dynamic power control / overload avoidance switch (0: Disabled, 1: Enabled)."""
 CHARGER_ONLINE_STATUS = RegisterName("charger_online_status")

@@ -4,7 +4,7 @@ import logging
 
 import huawei_solar.register_values as rv
 import pytest
-from huawei_solar.registers import REGISTERS
+from huawei_solar.registers import REGISTERS, SCHARGER_REGISTERS, SMART_AC_GUN_REGISTERS
 
 from huawei_solar import register_names as rn
 from huawei_solar.register_definitions import TargetDevice
@@ -50,6 +50,24 @@ def test_all_register_names_have_a_register() -> None:
             register_names_without_register.append(register_name)
 
     assert not register_names_without_register, f"Register names without a register: {register_names_without_register}"
+
+
+def test_charger_indicator_light_status_is_read_only() -> None:
+    """Verify the indicator light status register is read-only."""
+    register = REGISTERS[rn.CHARGER_INDICATOR_LIGHT_STATUS]
+    assert register.register == 40038
+    assert not register.writeable
+
+
+def test_charger_electricity_priority_register() -> None:
+    """Electricity priority stays on the connector unit, where the hardware answers it."""
+    name = rn.CHARGER_ELECTRICITY_PRIORITY
+    register = REGISTERS[name]
+    assert register.register == 41018
+    assert register.writeable
+    assert register.target_device == TargetDevice.SMART_AC_GUN
+    assert name in SMART_AC_GUN_REGISTERS
+    assert name not in SCHARGER_REGISTERS
 
 
 def test_storage_unit_1_state_of_health_register() -> None:

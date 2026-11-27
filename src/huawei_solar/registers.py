@@ -1078,7 +1078,7 @@ SCHARGER_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
         rv.ChargerAcWiringMode, 1, 40036, writeable=True, target_device=TargetDevice.SCHARGER
     ),
     rn.CHARGER_INDICATOR_LIGHT_STATUS: U32Register(
-        rv.ChargerIndicatorLightStatus, 1, 40038, writeable=True, target_device=TargetDevice.SCHARGER
+        rv.ChargerIndicatorLightStatus, 1, 40038, target_device=TargetDevice.SCHARGER
     ),
     rn.CHARGER_SYSTEM_CATEGORY: StringRegister(40040, 5, target_device=TargetDevice.SCHARGER),
     rn.CHARGER_MAX_FIXED_POWER: U32Register("kW", 10, 40054, writeable=True, target_device=TargetDevice.SCHARGER),
