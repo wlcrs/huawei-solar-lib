@@ -1,12 +1,16 @@
 """Register definitions of the complex registers containing time-periods."""
 
+import logging
 from dataclasses import dataclass
 from enum import IntEnum
+from itertools import pairwise
 from typing import Any
 
 from huawei_solar.exceptions import DecodeError, EncodeError, PeakPeriodsValidationError, TimeOfUsePeriodsException
 
-from .base import RegisterDefinition, Result
+from .base import RegisterDefinition, Result, TargetDevice
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +27,13 @@ class ChargeFlag(IntEnum):
 
     CHARGE = 0
     DISCHARGE = 1
+    DISCHARGE_TO_GRID_AND_LOAD = 2
+    """Discharge to the grid and load.
+
+    The app offers this mode only on supported inverters (30343 bit 5) and
+    SDongles (30308 bit 6), and never for EMMA register 40004. The device must
+    support the mode. The library does not check the feature mask.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,41 +159,74 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
     format_size = 1 + 4 * HUAWEI_LUNA2000_TOU_PERIODS
     length = 43
 
+    def __init__(
+        self,
+        register: int,
+        *,
+        writeable: bool = False,
+        readable: bool = True,
+        target_device: TargetDevice = TargetDevice.SUN2000,
+        allow_discharge_to_grid: bool = False,
+    ) -> None:
+        """Create a time-of-use register definition.
+
+        Set allow_discharge_to_grid to permit encoding the discharge-to-grid-and-load
+        flag. The inverter must support it (30343 bit 5). The library does not check
+        the feature mask.
+        """
+        super().__init__(register, writeable=writeable, readable=readable, target_device=target_device)
+        self._allow_discharge_to_grid = allow_discharge_to_grid
+
     def decode(self, values: tuple[Any, ...]) -> Result[list[HUAWEI_LUNA2000_TimeOfUsePeriod]]:
         """Decode time of use register."""
         number_of_periods = values[0]
-        if number_of_periods > HUAWEI_LUNA2000_TOU_PERIODS:
-            msg = f"Device reported {number_of_periods} TOU periods, but the maximum is {HUAWEI_LUNA2000_TOU_PERIODS}"
-            raise DecodeError(msg)
+        if number_of_periods & 0x8000:
+            # the app reads the count as a signed 16-bit value, so this means no periods
+            _LOGGER.debug("Device reported a TOU period count of %#x, reading no periods", number_of_periods)
+            number_of_periods = 0
+        elif number_of_periods > HUAWEI_LUNA2000_TOU_PERIODS:
+            _LOGGER.warning(
+                "Device reported %d TOU periods, clamping to %d",
+                number_of_periods,
+                HUAWEI_LUNA2000_TOU_PERIODS,
+            )
+            number_of_periods = HUAWEI_LUNA2000_TOU_PERIODS
 
-        def _decode_huawei_luna2000_tou_period(
-            start_time: int,
-            end_time: int,
-            charge: int,
-            days_effective: int,
-        ) -> HUAWEI_LUNA2000_TimeOfUsePeriod:
-            return HUAWEI_LUNA2000_TimeOfUsePeriod(
-                start_time,
-                end_time,
-                ChargeFlag(charge),
-                _days_effective_parser(days_effective),
+        periods = []
+        for idx in range(number_of_periods):
+            start_time, end_time, charge, week_mask = values[1 + idx * 4 : 1 + ((idx + 1) * 4)]
+            if start_time == end_time or week_mask == 0:
+                # like the app: such an entry is not an active period
+                _LOGGER.debug(
+                    "Skipping inactive TOU period %d (start=%d, end=%d, week_mask=%#x)",
+                    idx + 1,
+                    start_time,
+                    end_time,
+                    week_mask,
+                )
+                continue
+
+            try:
+                charge_flag = ChargeFlag(charge)
+            except ValueError as exc:
+                # The app drops entries with an unknown flag; fail instead, so the unknown value is noticed.
+                msg = f"Unknown TOU charge flag {charge} in period {idx + 1}"
+                raise DecodeError(msg) from exc
+
+            periods.append(
+                HUAWEI_LUNA2000_TimeOfUsePeriod(start_time, end_time, charge_flag, _days_effective_parser(week_mask)),
             )
 
-        return Result(
-            [
-                _decode_huawei_luna2000_tou_period(*values[1 + idx * 4 : 1 + ((idx + 1) * 4)])
-                for idx in range(number_of_periods)
-            ],
-            unit=None,
-        )
+        return Result(periods, unit=None)
 
     def _validate(
         self,
         data: list[HUAWEI_LUNA2000_TimeOfUsePeriod],
     ) -> None:
         """Validate data type."""
-        if len(data) == 0:
-            return  # nothing to check
+        if len(data) > HUAWEI_LUNA2000_TOU_PERIODS:
+            msg = f"Too many TOU periods: got {len(data)}, maximum is {HUAWEI_LUNA2000_TOU_PERIODS}"
+            raise TimeOfUsePeriodsException(msg)
 
         # Sanity check of each period individually
         for tou_period in data:
@@ -197,27 +241,41 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
                 raise TimeOfUsePeriodsException(
                     msg,
                 )
-            if tou_period.start_time >= tou_period.end_time:
-                msg = "TOU period is invalid (start-time is greater than end-time)"
-                raise TimeOfUsePeriodsException(
-                    msg,
-                )
+            if tou_period.start_time == 24 * 60:
+                # the app offers 24:00 only as an end time
+                msg = "TOU period is invalid (start-time is 24:00)"
+                raise TimeOfUsePeriodsException(msg)
+            if tou_period.start_time == tou_period.end_time:
+                msg = "TOU period is invalid (start-time equals end-time)"
+                raise TimeOfUsePeriodsException(msg)
+            if tou_period.charge_flag not in tuple(ChargeFlag):
+                msg = f"TOU period has an unknown charge flag {tou_period.charge_flag}"
+                raise TimeOfUsePeriodsException(msg)
+            if tou_period.charge_flag == ChargeFlag.DISCHARGE_TO_GRID_AND_LOAD and not self._allow_discharge_to_grid:
+                msg = "Discharge to grid and load is unsupported for this TOU register"
+                raise TimeOfUsePeriodsException(msg)
 
-        for day_idx in range(7):
-            # find all ranges that are valid for the given day
-            active_periods: list[HUAWEI_LUNA2000_TimeOfUsePeriod] = list(
-                filter(lambda period: period.days_effective[day_idx], data),
-            )
+        self._validate_no_overlap(data)
 
-            active_periods.sort(key=lambda a: a.start_time)
+    @staticmethod
+    def _validate_no_overlap(data: list[HUAWEI_LUNA2000_TimeOfUsePeriod]) -> None:
+        intervals_by_day: list[list[tuple[int, int]]] = [[] for _ in range(7)]
+        for period in data:
+            start_time, end_time = period.start_time, period.end_time
+            wraps_midnight = start_time > end_time
+            end_on_selected_day = 24 * 60 if wraps_midnight else end_time
+            for day in range(7):
+                if not period.days_effective[day]:
+                    continue
+                if start_time < end_on_selected_day:
+                    intervals_by_day[day].append((start_time, end_on_selected_day))
+                if wraps_midnight and end_time > 0:
+                    intervals_by_day[(day + 1) % 7].append((0, end_time))
 
-            for period_idx in range(1, len(active_periods)):
-                current_period = active_periods[period_idx]
-                prev_period = active_periods[period_idx - 1]
-                if (
-                    prev_period.start_time <= current_period.start_time < prev_period.end_time
-                    or prev_period.start_time < current_period.end_time <= prev_period.end_time
-                ):
+        # The intervals are half-open, so a shared endpoint is allowed.
+        for intervals in intervals_by_day:
+            for (_, previous_end), (start, _) in pairwise(sorted(intervals)):
+                if start < previous_end:
                     msg = "TOU periods are overlapping"
                     raise TimeOfUsePeriodsException(msg)
 
@@ -227,10 +285,6 @@ class HUAWEI_LUNA2000_TimeOfUseRegisters(RegisterDefinition[list[HUAWEI_LUNA2000
     ) -> tuple[Any, ...]:
         """Encode Time Of Use Period registers."""
         self._validate(data)
-
-        if len(data) > HUAWEI_LUNA2000_TOU_PERIODS:
-            msg = f"Too many TOU periods: got {len(data)}, maximum is {HUAWEI_LUNA2000_TOU_PERIODS}"
-            raise TimeOfUsePeriodsException(msg)
 
         values = [len(data)]
 

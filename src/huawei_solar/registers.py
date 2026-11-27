@@ -601,6 +601,7 @@ BATTERY_REGISTERS: dict[rn.RegisterName, RegisterDefinition[Any]] = {
     rn.STORAGE_HUAWEI_LUNA2000_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS: HUAWEI_LUNA2000_TimeOfUseRegisters(
         47255,
         writeable=True,
+        allow_discharge_to_grid=True,
     ),
     rn.STORAGE_EXCESS_PV_ENERGY_USE_IN_TOU: U16Register(
         rv.StorageExcessPvEnergyUseInTOU,
