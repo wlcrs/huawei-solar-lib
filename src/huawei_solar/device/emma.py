@@ -7,7 +7,7 @@ from typing import Any
 
 from huawei_solar import register_names as rn
 from huawei_solar import register_values as rv
-from huawei_solar.exceptions import ReadException
+from huawei_solar.exceptions import HuaweiSolarException, ReadException
 from huawei_solar.register_definitions import Result
 
 from .base import HuaweiSolarDevice
@@ -20,6 +20,10 @@ class EMMADevice(HuaweiSolarDevice):
 
     Also called 'SmartHEMS' by Huawei.
     """
+
+    # Alarm files of the EMMA and of the devices behind it are read through the EMMA, like FusionSolar does.
+    _is_alarm_mount_master = True
+    _routes_mounted_alarms = True
 
     software_version: str
     battery_type: rv.StorageProductModel = rv.StorageProductModel.NONE
@@ -178,3 +182,20 @@ class EMMADevice(HuaweiSolarDevice):
             return Result(self._transform_datetime(result.value), result.unit)
 
         return result
+
+    def _has_utc_reference(self) -> bool:
+        return self._use_host_timezone or self._utc_offset is not None
+
+    async def _refresh_utc_offset(self) -> None:
+        """Derive the UTC offset again from 31003 - 40470, so that a DST change since start-up is followed.
+
+        Called before alarm files are read, with the update lock held. If the registers cannot be read, the offset
+        found at start-up is kept.
+        """
+        with suppress(HuaweiSolarException, TimeoutError):
+            local_time = (await self.client.get(rn.EMMA_LOCAL_TIME)).value
+            system_time = (await self.client.get(rn.EMMA_SYSTEM_TIME)).value
+            if local_time is not None and system_time is not None:
+                diff_minutes = round((local_time - system_time).total_seconds() / 60)
+                self._utc_offset = timedelta(minutes=diff_minutes)
+                self._adopt_matching_host_timezone(self._utc_offset)

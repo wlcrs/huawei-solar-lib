@@ -153,6 +153,14 @@ class LoginPDU(BaseSubFunctionClientPDU[bool]):
 register_pdu_class(LoginPDU)
 
 
+# The customised data of a start response holds 4 reserved bytes, then (tag u8, length u8, value) TLVs
+# (FusionSolar ModbusDownloadFile.procTag).
+START_UPLOAD_RESERVED_LENGTH = 4
+START_UPLOAD_TAG_FRAME_LENGTH = 0x60
+START_UPLOAD_TAG_PREPARE_PROGRESS = 0x62
+FILE_PREPARED_PROGRESS = 100
+
+
 @dataclass(frozen=True, slots=True)
 class StartFileUpload:
     """Contents of StartFileUpload response."""
@@ -160,6 +168,43 @@ class StartFileUpload:
     file_length: int
     data_frame_length: int
     customised_data: bytes
+
+    @property
+    def tlvs(self) -> dict[int, bytes]:
+        """Return the TLVs that follow the reserved bytes of the customised data, by tag.
+
+        A truncated last TLV keeps the bytes that are there: FusionSolar reads the progress byte of TLV 0x62
+        whatever its length says.
+        """
+        result: dict[int, bytes] = {}
+        offset = START_UPLOAD_RESERVED_LENGTH
+        data = self.customised_data
+        while offset + 2 <= len(data):
+            tag, length = data[offset], data[offset + 1]
+            offset += 2
+            if offset + length > len(data):
+                _LOGGER.debug("Truncated TLV %#04x in start response: %s", tag, data.hex(" "))
+            result[tag] = data[offset : offset + length]
+            offset += length
+        return result
+
+    @property
+    def prepare_progress(self) -> int | None:
+        """Return how far (in %) the device is in preparing the file, if it reports it (TLV 0x62)."""
+        value = self.tlvs.get(START_UPLOAD_TAG_PREPARE_PROGRESS)
+        return value[0] if value else None
+
+    @property
+    def is_preparing(self) -> bool:
+        """Return True when the device is still preparing the file: its length is not valid yet."""
+        progress = self.prepare_progress
+        return progress is not None and progress < FILE_PREPARED_PROGRESS
+
+    @property
+    def frame_length_override(self) -> int | None:
+        """Return the data frame length announced in TLV 0x60, if any (big-endian)."""
+        value = self.tlvs.get(START_UPLOAD_TAG_FRAME_LENGTH)
+        return int.from_bytes(value[:4]) if value else None
 
 
 @dataclass(frozen=True)

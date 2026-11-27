@@ -3,14 +3,17 @@
 import asyncio
 import logging
 import time
+import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from huawei_solar import register_names as rn
 from huawei_solar.const import MAX_BATCHED_REGISTERS_COUNT, MAX_BATCHED_REGISTERS_GAP
 from huawei_solar.exceptions import (
+    FileNotReadyError,
     HuaweiSolarException,
     InvalidCredentials,
     ReadException,
@@ -25,6 +28,12 @@ from huawei_solar.files import (
     PerformanceDataPoint,
     PerformanceRequestType,
 )
+from huawei_solar.modbus_client import (
+    FILE_BUSY_EXCEPTION_CODES,
+    FILE_BUSY_RETRY_INTERVAL,
+    FILE_PREPARE_RETRY_INTERVAL,
+    FILE_READ_RETRIES,
+)
 from huawei_solar.modbus_pdu import PermissionDeniedError
 from huawei_solar.registers import REGISTERS
 
@@ -38,6 +47,11 @@ _LOGGER = logging.getLogger(__name__)
 HEARTBEAT_INTERVAL = 15
 
 
+def _retries_kwarg(retries: int | None) -> dict[str, int]:
+    """Pass `retries` to read_file only when given, so overrides with the older signature keep working."""
+    return {} if retries is None else {"retries": retries}
+
+
 WRITE_TEST_REGISTER = rn.TIME_ZONE
 
 
@@ -49,6 +63,12 @@ class HuaweiSolarDevice(ABC):
     update_lock: asyncio.Lock
     primary_device: "HuaweiSolarDevice | None" = None
     _use_host_timezone: bool = False
+
+    # FusionSolar treats an EMMA or a SmartLogger, and the devices behind it, as "mounted" devices: it queries their
+    # history alarm files with tag 0x24 instead of the 0x20 used for a directly connected inverter or SDongle.
+    _is_alarm_mount_master: ClassVar[bool] = False
+    # ... and reads their active alarm files through the master on unit 0 with custom data E0 02 <address> 00.
+    _routes_mounted_alarms: ClassVar[bool] = False
 
     def __init__(
         self,
@@ -244,8 +264,45 @@ class HuaweiSolarDevice(ABC):
         assert self.update_lock.locked(), "update_lock must be held when calling _raw_get"
         return self._transform_register_values(name, await self.client.get(name))
 
-    async def read_file(self, file_type: int, customized_data: bytes | None = None) -> bytes:
-        """Wrap `get_file` from `AsyncHuaweiSolarClient`."""
+    async def read_file(
+        self,
+        file_type: int,
+        customized_data: bytes | None = None,
+        *,
+        retries: int = FILE_READ_RETRIES,
+    ) -> bytes:
+        """Wrap `get_file` from `AsyncHuaweiSolarClient`.
+
+        When the device answers that it is still preparing the file (FileNotReadyError) or that it is busy (exception
+        0x06 after the transport's own retries, or Huawei's 0xB0), wait 3 s or 10 s and try again, at most `retries`
+        times; then the error is raised. The update lock, which all devices behind one connection share, is only held
+        during each attempt, not while waiting. The default suits periodic polling: a file that is not ready yet is
+        read on a later poll. Pass `retries=0` to fail at once.
+        """
+        attempt = 0
+        while True:
+            try:
+                return await self._read_file_once(file_type, customized_data)
+            except FileNotReadyError as err:
+                if attempt >= retries:
+                    raise
+                delay: float = FILE_PREPARE_RETRY_INTERVAL
+                _LOGGER.debug("File %#x is being prepared (%s%%), asking again in %ss", file_type, err.progress, delay)
+            except ReadException as err:
+                if err.modbus_exception_code not in FILE_BUSY_EXCEPTION_CODES or attempt >= retries:
+                    raise
+                delay = FILE_BUSY_RETRY_INTERVAL
+                _LOGGER.debug(
+                    "Device busy (%#04x) reading file %#x, trying again in %ss",
+                    err.modbus_exception_code,
+                    file_type,
+                    delay,
+                )
+            attempt += 1
+            await asyncio.sleep(delay)
+
+    async def _read_file_once(self, file_type: int, customized_data: bytes | None) -> bytes:
+        """Read a file once, holding the update lock."""
         async with self.update_lock:
             return await self.client.get_file(file_type, customized_data)
 
@@ -266,42 +323,155 @@ class HuaweiSolarDevice(ABC):
         assert self.update_lock.locked(), "update_lock must be held when calling _raw_set"
         return await self.client.set(name, value)
 
-    async def get_active_alarms(self, equip_id: int = 0) -> list[ActiveAlarm]:
-        """Read Active Alarms Data File from the device.
+    def _alarm_mount_master(self) -> "HuaweiSolarDevice | None":
+        """Return the EMMA or SmartLogger that manages this device's alarm files (possibly itself), if any."""
+        if self._is_alarm_mount_master:
+            return self
+        primary = self.primary_device
+        if primary is not None and primary._is_alarm_mount_master:  # noqa: SLF001 (same class hierarchy)
+            return primary
+        return None
 
-        Targets: SUN2000 inverters, SmartLogger, EMMA, and other Huawei Solar devices supporting Modbus file upload.
+    def _alarm_router(self) -> "HuaweiSolarDevice | None":
+        """Return the EMMA through which this device's active alarm file is read (possibly itself), if any."""
+        master = self._alarm_mount_master()
+        if master is not None and master._routes_mounted_alarms:  # noqa: SLF001 (same class hierarchy)
+            return master
+        return None
+
+    def _alarm_clock(self) -> tuple[Callable[[datetime], datetime], Callable[[datetime | int], int]]:
+        """Return the (decode, encode) conversions between UTC and the timestamps in this device's alarm files.
+
+        Behind an EMMA the EMMA's UTC offset is used, as long as the EMMA knows it: SmartGuard and SCharger have no
+        time zone of their own, and an inverter's own time registers are not reliable behind an EMMA.
         """
-        file_data = await self.read_file(
-            ActiveAlarmsDataFile.FILE_TYPE,
-            ActiveAlarmsDataFile.query_active_alarms(equip_id),
-        )
-        active_alarms_file = ActiveAlarmsDataFile(file_data)
-        return [
-            replace(alarm, occur_time=self._transform_datetime(alarm.occur_time)) for alarm in active_alarms_file.alarms
-        ]
+        router = self._alarm_router()
+        clock = router if router is not None and router._has_utc_reference() else self  # noqa: SLF001
+        return clock._transform_datetime, clock._to_device_epoch  # noqa: SLF001 (same class hierarchy)
+
+    async def _refresh_alarm_clock(self) -> None:
+        """Let the EMMA re-read its UTC offset before it is applied to alarm times, so DST changes are followed."""
+        router = self._alarm_router()
+        if router is not None:
+            async with self.update_lock:
+                await router._refresh_utc_offset()  # noqa: SLF001 (same class hierarchy)
+
+    def _has_utc_reference(self) -> bool:
+        """Return True when this device knows how its local wall-clock time relates to UTC."""
+        return self._use_host_timezone
+
+    async def _refresh_utc_offset(self) -> None:  # noqa: B027
+        """Re-read the device's UTC offset, if it has one; called with the update lock held."""
+
+    def _to_device_epoch(self, value: datetime | int) -> int:
+        """Convert a point in time to the device-local wall-clock epoch used in file queries.
+
+        This is the inverse of `_transform_datetime`. An int is taken to be a device epoch already and returned
+        unchanged. A naive datetime is taken to be in the host's local time, like `datetime.timestamp()` does.
+        """
+        if isinstance(value, int):
+            return value
+        if value.tzinfo is None:
+            value = value.astimezone()
+        if self._use_host_timezone:
+            return int(value.astimezone().replace(tzinfo=UTC).timestamp())
+        # Every other transform subtracts a fixed offset (time zone, DST, the EMMA's UTC offset): add it back.
+        offset = value - self._transform_datetime(value)
+        return int((value + offset).timestamp())
+
+    async def get_active_alarms(
+        self,
+        equip_id: int = 0,
+        *,
+        direct: bool = False,
+        retries: int | None = None,
+    ) -> list[ActiveAlarm]:
+        """Read the active alarms of this device from the active alarms file (0xA1).
+
+        Like FusionSolar, the active alarms of an EMMA and of the devices behind it are read through the EMMA's
+        unit with custom data `E0 02 <address> 00`: the device's unit id, or 0xFF for the EMMA itself. Other
+        devices are read on their own unit with custom data `11 04 00000000`. `direct=True` forces the latter for
+        a device behind an EMMA.
+
+        Occurrence times are converted from the device's local wall-clock time to UTC; behind an EMMA with the
+        EMMA's offset, which is read again first. A file that the device is still preparing is asked for again
+        `retries` times (default: see `read_file`), then FileNotReadyError is raised; it is never reported as
+        "no alarms".
+
+        `equip_id` is deprecated and ignored: the value of the 0x11 query is not a device selector, FusionSolar
+        always sends 0. Call this method on the device whose alarms are wanted instead.
+        """
+        if equip_id:
+            warnings.warn(
+                "The equip_id argument of get_active_alarms is ignored: call it on the device to query instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
+
+        await self._refresh_alarm_clock()
+        router = None if direct else self._alarm_router()
+        if router is not None:
+            target = None if router is self else self.client.unit_id
+            # read_file takes the update lock, which is shared with the EMMA: take it only there.
+            file_data = await router.read_file(
+                ActiveAlarmsDataFile.FILE_TYPE,
+                ActiveAlarmsDataFile.query_mounted_active_alarms(target),
+                **_retries_kwarg(retries),
+            )
+            active_alarms_file = ActiveAlarmsDataFile(file_data, hems_layout=True)
+        else:
+            file_data = await self.read_file(
+                ActiveAlarmsDataFile.FILE_TYPE,
+                ActiveAlarmsDataFile.query_active_alarms(),
+                **_retries_kwarg(retries),
+            )
+            # FusionSolar decodes every file read in an EMMA session with the EMMA flag layout
+            active_alarms_file = ActiveAlarmsDataFile(file_data, hems_layout=self._routes_mounted_alarms)
+
+        to_utc, _ = self._alarm_clock()
+        return [replace(alarm, occur_time=to_utc(alarm.occur_time)) for alarm in active_alarms_file.alarms]
 
     async def get_history_alarms(
         self,
         start_time: datetime | int,
         end_time: datetime | int,
+        *,
+        retries: int | None = None,
     ) -> list[HistoryAlarm]:
         """Read History Alarms Data File from the device.
 
         Targets: SUN2000 inverters, SmartLogger, EMMA, and other Huawei Solar devices supporting Modbus file upload.
+
+        The window is given as datetimes, which are converted to the device's local wall-clock epoch, or as ints,
+        which are taken to be device epochs already. Like FusionSolar, an EMMA or SmartLogger and the devices
+        behind it are queried with tag 0x24 (alarms recovered within the window), a directly connected inverter or
+        SDongle with tag 0x20 (alarms that occurred within the window). The file is read on the device's own unit.
+        Unlike FusionSolar, a SmartLogger V5 also gets little-endian times with tag 0x24: the library cannot tell it
+        apart (see `HistoryAlarmsDataFile.query_within_timespan`).
         """
-        start_epoch = int(start_time.timestamp()) if isinstance(start_time, datetime) else start_time
-        end_epoch = int(end_time.timestamp()) if isinstance(end_time, datetime) else end_time
+        await self._refresh_alarm_clock()
+        to_utc, to_device_epoch = self._alarm_clock()
+        tag = (
+            HistoryAlarmsDataFile.TAG_MOUNTED_RECOVER_TIME
+            if self._alarm_mount_master() is not None
+            else HistoryAlarmsDataFile.TAG_OCCUR_TIME
+        )
 
         file_data = await self.read_file(
             HistoryAlarmsDataFile.FILE_TYPE,
-            HistoryAlarmsDataFile.query_within_timespan(start_epoch, end_epoch),
+            HistoryAlarmsDataFile.query_within_timespan(
+                to_device_epoch(start_time),
+                to_device_epoch(end_time),
+                tag=tag,
+            ),
+            **_retries_kwarg(retries),
         )
         history_alarms_file = HistoryAlarmsDataFile(file_data)
         return [
             replace(
                 alarm,
-                occur_time=self._transform_datetime(alarm.occur_time),
-                recover_time=self._transform_datetime(alarm.recover_time),
+                occur_time=to_utc(alarm.occur_time),
+                recover_time=to_utc(alarm.recover_time),
             )
             for alarm in history_alarms_file.alarms
         ]
@@ -435,11 +605,8 @@ class HuaweiSolarDeviceWithLogin(HuaweiSolarDevice, ABC):
 
         return await super().stop()
 
-    async def read_file(self, file_type: int, customized_data: bytes | None = None) -> bytes:
-        """Wrap `get_file` from `AsyncHuaweiSolarClient`.
-
-        This method adds a retry-logic for when the login-sequence needs to be repeated.
-        """
+    async def _read_file_once(self, file_type: int, customized_data: bytes | None) -> bytes:
+        """Read a file once, holding the update lock, and log in again when the device answers "permission denied"."""
         async with self.update_lock:
             logged_in = await self.ensure_logged_in()
 

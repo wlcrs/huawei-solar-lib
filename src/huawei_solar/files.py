@@ -2,10 +2,13 @@
 
 import logging
 import struct
+import warnings
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import ClassVar
+from typing import Any, ClassVar, NamedTuple
 
+from huawei_solar.alarm_names import CATALOGUE_LEVEL_OVERRIDES, HUAWEI_FILE_ALARM_CODES, is_manual_clear_alarm
 from huawei_solar.exceptions import DecodeError
 from huawei_solar.register_definitions.string import bytes_to_string
 from huawei_solar.register_values import HUAWEI_ALARM_CODES, Alarm, _IntEnumWithPrettyString
@@ -412,26 +415,137 @@ class OptimizerSystemInformationDataFile:
 
 
 class AlarmLevel(_IntEnumWithPrettyString):
-    """Alarm severity level extracted from control word bits 0-1."""
+    """Alarm severity: control word bits 0-1, same scale as the FusionSolar alarm catalogue.
 
-    PROMPT = 0  # Suggestion / informational notification
-    WARNING = 1  # Minor warning
-    MAJOR = 2  # Major alarm
-    CRITICAL = 3  # Critical fault requiring immediate action
+    A lower value is more severe: compare `severity` rather than the enum values to rank alarms. (Releases 3.0.8 to
+    3.2.4 had this enum reversed: PROMPT=0, WARNING=1, MAJOR=2, CRITICAL=3.)
+    """
+
+    CRITICAL = 0
+    MAJOR = 1
+    MINOR = 2
+    WARNING = 3
+
+    @property
+    def severity(self) -> int:
+        """Return a rank that grows with severity: 4 for Critical down to 1 for Warning."""
+        return len(AlarmLevel) - self.value
+
+
+# Alarm ids of the LUNA2000 battery rack controller (BCU): their reason field packs the reason id with the
+# battery pack slot and the cabinet number.
+_BCU_ALARM_IDS = range(3000, 4000)
+
+
+class _AlarmReason(NamedTuple):
+    reason_id: int
+    topn: bool
+    location: bool
+    slot: int | None
+    cabinet: int | None
+
+
+def _decode_reason(alarm_id: int, control_word: int, raw: bytes, *, hems_layout: bool) -> _AlarmReason:
+    """Decode the 2-byte reason field of an alarm record like FusionSolar does.
+
+    The reason field is not a little-endian u16 like the rest of the record. Normally the reason id is the
+    second byte. Two flag bits in the control word mark a "TopN" alarm (reason in the first byte) or a "Location"
+    alarm (a little-endian bitfield with the slot and cabinet). LUNA2000 BCU alarms that are not TopN use the
+    same bitfield, big-endian.
+
+    The flag bits are 11 (TopN) and 10 (Location) in history records and in records read through an EMMA
+    (`hems_layout`), and 12 and 11 otherwise.
+    """
+    topn_bit, location_bit = (11, 10) if hems_layout else (12, 11)
+    topn_flag = (control_word >> topn_bit) & 1
+    location_flag = (control_word >> location_bit) & 1
+    topn = topn_flag == 1 and location_flag == 0
+    location = topn_flag == 1 and location_flag == 1
+
+    if location:
+        word = raw[0] | (raw[1] << 8)
+    elif alarm_id in _BCU_ALARM_IDS and not topn:
+        word = (raw[0] << 8) | raw[1]
+    else:
+        return _AlarmReason(raw[0] if topn else raw[1], topn=topn, location=False, slot=None, cabinet=None)
+
+    return _AlarmReason(word & 0x3F, topn=topn, location=location, slot=(word >> 6) & 0x3F, cabinet=(word >> 12) & 0x0F)
+
+
+_LEVEL_BY_NAME = {str(level).lower(): level for level in AlarmLevel}
+
+
+def lookup_alarm(alarm_id: int) -> Alarm | None:
+    """Return the name and level of an alarm id from the alarm files, if known.
+
+    EMMA, SmartGuard and SCharger alarms come from `HUAWEI_FILE_ALARM_CODES`, SUN2000 and SmartLogger alarms from
+    `HUAWEI_ALARM_CODES`.
+    """
+    return HUAWEI_FILE_ALARM_CODES.get(alarm_id) or HUAWEI_ALARM_CODES.get(alarm_id)
+
+
+class _AlarmRecordMixin:
+    """Properties shared by ActiveAlarm and HistoryAlarm."""
+
+    __slots__ = ()
+
+    alarm_id: int
+    control_word: int
+    reason_id: int
+
+    @property
+    def level(self) -> AlarmLevel:
+        """Alarm severity level from the control word (bits 0-1)."""
+        return AlarmLevel(self.control_word & 0b11)
+
+    @property
+    def alarm_info(self) -> Alarm | None:
+        """Look up the name and catalogue level of this alarm."""
+        return lookup_alarm(self.alarm_id)
+
+    @property
+    def name(self) -> str:
+        """Return the alarm name, or "Alarm <id>-<reason>" when the id is not known."""
+        info = self.alarm_info
+        return info.name if info else f"Alarm {self.alarm_id}-{self.reason_id}"
+
+    @property
+    def effective_level(self) -> AlarmLevel:
+        """Return the catalogue level when the alarm is known, otherwise the control word level.
+
+        FusionSolar shows the catalogue level instead of the control word level when it knows the alarm.
+        """
+        level_name = CATALOGUE_LEVEL_OVERRIDES.get(self.alarm_id)
+        if level_name is None:
+            info = self.alarm_info
+            if info is None:
+                return self.level
+            level_name = info.level
+        return _LEVEL_BY_NAME.get(level_name.lower(), self.level)
+
+    @property
+    def manual_clear(self) -> bool:
+        """Return True when the alarm stays active until it is cleared manually (per the FusionSolar catalogue)."""
+        return is_manual_clear_alarm(self.alarm_id, self.reason_id)
 
 
 @dataclass(frozen=True, slots=True)
-class ActiveAlarm:
+class ActiveAlarm(_AlarmRecordMixin):
     """Active Alarm entry.
 
     Attributes:
         serial_no: Monotonically increasing unique sequence ID assigned by device firmware.
-        equip_id: Logical Modbus device address / slave ID of reporting unit.
+        equip_id: Logical address of the reporting device (its Modbus unit behind an EMMA).
         alarm_id: Huawei alarm identifier code (maps to device alarm catalog, e.g. 2001, 2062).
         occur_time: Timestamp when the alarm condition was initially triggered.
-        alarm_param: Auxiliary fault parameter (e.g. faulty PV string index, phase, or measured value).
-        control_word: Raw 16-bit control bitmask containing severity level (bits 0-1) and routing flags.
-        reason_id: Cause / sub-cause code specifying the precise failure mode or physical slot/location.
+        alarm_param: Auxiliary fault parameter (signed; e.g. faulty PV string index, phase, or measured value).
+        control_word: Raw 16-bit control word: severity level (bits 0-1) and the TopN/Location flags.
+        reason_id: Cause / sub-cause code specifying the precise failure mode.
+        topn: The control word marks this as a "TopN" alarm.
+        location: The control word marks this as a "Location" alarm, with a slot and cabinet number.
+        slot: Battery pack slot number (Location alarms and LUNA2000 BCU alarms 3000-3999), otherwise None.
+        cabinet: Cabinet number (Location alarms and LUNA2000 BCU alarms 3000-3999), otherwise None.
+        reason_raw: The two raw bytes of the reason field, as a big-endian number (for debugging).
 
     """
 
@@ -442,59 +556,45 @@ class ActiveAlarm:
     alarm_param: int
     control_word: int
     reason_id: int
-
-    @property
-    def level(self) -> AlarmLevel:
-        """Extract alarm severity level from control word (Bits 0-1)."""
-        level_val = (((self.control_word >> 1) & 1) * 2) + (self.control_word & 1)
-        return AlarmLevel(level_val)
-
-    @property
-    def alarm_info(self) -> Alarm | None:
-        """Look up full Alarm metadata from master alarm catalog."""
-        return HUAWEI_ALARM_CODES.get(self.alarm_id)
-
-    @property
-    def name(self) -> str:
-        """Return alarm name or fallback to Alarm ID."""
-        info = self.alarm_info
-        return info.name if info else f"Unknown Alarm {self.alarm_id}"
+    topn: bool = False
+    location: bool = False
+    slot: int | None = None
+    cabinet: int | None = None
+    reason_raw: int = 0
 
 
 class ActiveAlarmsDataFile:
-    """Active Alarms Data File (File Type 0xA1 / 161)."""
+    """Active Alarms Data File (File Type 0xA1 / 161).
+
+    A bare array of 20-byte records without a header. Little-endian, except for the reason field (see
+    `_decode_reason`).
+    """
 
     FILE_TYPE = 0xA1
-    RECORD_STRUCT = "<IHHIIHH"
+    # serial, equip id, alarm id, occur time, parameter (signed), control word, raw reason field
+    RECORD_STRUCT = "<IHHIiH2s"
+    TAG_MOUNTED_DEVICE = 0xE0
+    MOUNT_MASTER_ADDRESS = 0xFF
 
-    def __init__(self, file_data: bytes) -> None:
-        """Decode Active Alarms file."""
+    def __init__(self, file_data: bytes, *, hems_layout: bool = False) -> None:
+        """Decode Active Alarms file.
+
+        Set `hems_layout` when the file was read through an EMMA: the TopN/Location flags then sit one bit lower
+        in the control word.
+        """
         self.alarms: list[ActiveAlarm] = []
 
-        record_size = struct.calcsize(ActiveAlarmsDataFile.RECORD_STRUCT)
-        if len(file_data) < record_size:
-            return
-
-        record_count = len(file_data) // record_size
-        offset = 0
-
         try:
-            for _ in range(record_count):
-                (
-                    serial_no,
-                    equip_id,
-                    alarm_id,
-                    occur_time,
-                    alarm_param,
-                    control_word,
-                    reason_id,
-                ) = struct.unpack_from(
-                    ActiveAlarmsDataFile.RECORD_STRUCT,
-                    file_data,
-                    offset,
-                )
-                offset += record_size
-
+            for (
+                serial_no,
+                equip_id,
+                alarm_id,
+                occur_time,
+                alarm_param,
+                control_word,
+                raw_reason,
+            ) in _iter_alarm_records(ActiveAlarmsDataFile.RECORD_STRUCT, file_data, "active"):
+                reason = _decode_reason(alarm_id, control_word, raw_reason, hems_layout=hems_layout)
                 self.alarms.append(
                     ActiveAlarm(
                         serial_no=serial_no,
@@ -503,7 +603,12 @@ class ActiveAlarmsDataFile:
                         occur_time=datetime.fromtimestamp(occur_time, tz=UTC),
                         alarm_param=alarm_param,
                         control_word=control_word,
-                        reason_id=reason_id,
+                        reason_id=reason.reason_id,
+                        topn=reason.topn,
+                        location=reason.location,
+                        slot=reason.slot,
+                        cabinet=reason.cabinet,
+                        reason_raw=int.from_bytes(raw_reason),
                     )
                 )
         except struct.error as err:
@@ -512,24 +617,63 @@ class ActiveAlarmsDataFile:
 
     @staticmethod
     def query_active_alarms(equip_id: int = 0) -> bytes:
-        """Create query custom data for active alarms file download."""
-        # Tag 0x11, Length 4, equip_id uint32
-        return struct.pack(">BBI", 0x11, 4, equip_id)
+        """Create the custom data to read the active alarms of a directly connected inverter or SDongle.
+
+        FusionSolar sends tag 0x11, length 4, value 0 to the device's own unit. The value is not a device selector:
+        `equip_id` is deprecated and ignored (FutureWarning).
+        """
+        if equip_id:
+            warnings.warn(
+                "The equip_id argument of query_active_alarms is ignored: the 0x11 query value is always 0.",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return struct.pack(">BBI", 0x11, 4, 0)
+
+    @staticmethod
+    def query_mounted_active_alarms(logical_address: int | None = None) -> bytes:
+        """Create the custom data to read active alarms through an EMMA (or SmartLogger) on its own unit.
+
+        FusionSolar sends `E0 02 <address> 00`: the logical address (Modbus unit id) of the device behind the EMMA,
+        or 0xFF for the EMMA itself (`logical_address` None or 0).
+        """
+        address = logical_address or ActiveAlarmsDataFile.MOUNT_MASTER_ADDRESS
+        return bytes((ActiveAlarmsDataFile.TAG_MOUNTED_DEVICE, 2, address, 0))
+
+
+def _iter_alarm_records(record_struct: str, file_data: bytes, kind: str) -> Iterator[tuple[Any, ...]]:
+    """Unpack the fixed-size records of an alarm file, ignoring an incomplete trailing record."""
+    record_size = struct.calcsize(record_struct)
+    record_count, trailing = divmod(len(file_data), record_size)
+    if trailing:
+        _LOGGER.warning(
+            "Ignoring %d trailing bytes in the %s alarms file: %s",
+            trailing,
+            kind,
+            file_data[-trailing:].hex(" "),
+        )
+    for index in range(record_count):
+        yield struct.unpack_from(record_struct, file_data, index * record_size)
 
 
 @dataclass(frozen=True, slots=True)
-class HistoryAlarm:
+class HistoryAlarm(_AlarmRecordMixin):
     """Historical Alarm entry.
 
     Attributes:
         serial_no: Monotonically increasing unique sequence ID assigned by device firmware.
-        equip_id: Logical Modbus device address / slave ID of reporting unit.
+        equip_id: Logical address of the reporting device (its Modbus unit behind an EMMA).
         alarm_id: Huawei alarm identifier code (maps to device alarm catalog, e.g. 2001, 2062).
         occur_time: Timestamp when the alarm condition was initially triggered.
         recover_time: Timestamp when the alarm condition cleared or recovered.
-        alarm_param: Auxiliary fault parameter (e.g. faulty PV string index, phase, or measured value).
-        control_word: Raw 16-bit control bitmask containing severity level (bits 0-1) and routing flags.
-        reason_id: Cause / sub-cause code specifying the precise failure mode or physical slot/location.
+        alarm_param: Auxiliary fault parameter (signed; e.g. faulty PV string index, phase, or measured value).
+        control_word: Raw 16-bit control word: severity level (bits 0-1) and the TopN/Location flags.
+        reason_id: Cause / sub-cause code specifying the precise failure mode.
+        topn: The control word marks this as a "TopN" alarm.
+        location: The control word marks this as a "Location" alarm, with a slot and cabinet number.
+        slot: Battery pack slot number (Location alarms and LUNA2000 BCU alarms 3000-3999), otherwise None.
+        cabinet: Cabinet number (Location alarms and LUNA2000 BCU alarms 3000-3999), otherwise None.
+        reason_raw: The two raw bytes of the reason field, as a big-endian number (for debugging).
 
     """
 
@@ -541,60 +685,43 @@ class HistoryAlarm:
     alarm_param: int
     control_word: int
     reason_id: int
-
-    @property
-    def level(self) -> AlarmLevel:
-        """Extract alarm severity level from control word (Bits 0-1)."""
-        level_val = (((self.control_word >> 1) & 1) * 2) + (self.control_word & 1)
-        return AlarmLevel(level_val)
-
-    @property
-    def alarm_info(self) -> Alarm | None:
-        """Look up full Alarm metadata from master alarm catalog."""
-        return HUAWEI_ALARM_CODES.get(self.alarm_id)
-
-    @property
-    def name(self) -> str:
-        """Return alarm name or fallback to Alarm ID."""
-        info = self.alarm_info
-        return info.name if info else f"Unknown Alarm {self.alarm_id}"
+    topn: bool = False
+    location: bool = False
+    slot: int | None = None
+    cabinet: int | None = None
+    reason_raw: int = 0
 
 
 class HistoryAlarmsDataFile:
-    """History Alarms Data File (File Type 0xA2 / 162)."""
+    """History Alarms Data File (File Type 0xA2 / 162).
+
+    A bare array of 24-byte records without a header. Little-endian, except for the reason field (see
+    `_decode_reason`). FusionSolar always decodes the TopN/Location flags of history records in the EMMA layout.
+    """
 
     FILE_TYPE = 0xA2
-    RECORD_STRUCT = "<IHHIIIHH"
+    # serial, equip id, alarm id, occur time, recover time, parameter (signed), control word, raw reason field
+    RECORD_STRUCT = "<IHHIIiH2s"
+    TAG_OCCUR_TIME = 0x20
+    TAG_RECOVER_TIME = 0x21
+    TAG_MOUNTED_RECOVER_TIME = 0x24
 
     def __init__(self, file_data: bytes) -> None:
         """Decode History Alarms file."""
         self.alarms: list[HistoryAlarm] = []
 
-        record_size = struct.calcsize(HistoryAlarmsDataFile.RECORD_STRUCT)
-        if len(file_data) < record_size:
-            return
-
-        record_count = len(file_data) // record_size
-        offset = 0
-
         try:
-            for _ in range(record_count):
-                (
-                    serial_no,
-                    equip_id,
-                    alarm_id,
-                    occur_time,
-                    recover_time,
-                    alarm_param,
-                    control_word,
-                    reason_id,
-                ) = struct.unpack_from(
-                    HistoryAlarmsDataFile.RECORD_STRUCT,
-                    file_data,
-                    offset,
-                )
-                offset += record_size
-
+            for (
+                serial_no,
+                equip_id,
+                alarm_id,
+                occur_time,
+                recover_time,
+                alarm_param,
+                control_word,
+                raw_reason,
+            ) in _iter_alarm_records(HistoryAlarmsDataFile.RECORD_STRUCT, file_data, "history"):
+                reason = _decode_reason(alarm_id, control_word, raw_reason, hems_layout=True)
                 self.alarms.append(
                     HistoryAlarm(
                         serial_no=serial_no,
@@ -604,7 +731,12 @@ class HistoryAlarmsDataFile:
                         recover_time=datetime.fromtimestamp(recover_time, tz=UTC),
                         alarm_param=alarm_param,
                         control_word=control_word,
-                        reason_id=reason_id,
+                        reason_id=reason.reason_id,
+                        topn=reason.topn,
+                        location=reason.location,
+                        slot=reason.slot,
+                        cabinet=reason.cabinet,
+                        reason_raw=int.from_bytes(raw_reason),
                     )
                 )
         except struct.error as err:
@@ -612,11 +744,25 @@ class HistoryAlarmsDataFile:
             raise DecodeError(msg) from err
 
     @staticmethod
-    def query_within_timespan(start_time: int, end_time: int, tag: int = 0x24) -> bytes:
-        """Create query custom data for history alarms file download within given timeframe."""
-        if tag == 0x24:  # noqa: PLR2004
-            # Tag 0x24 (36), Length 10, start_time uint32, end_time uint32, -1 (signed byte), 0 (byte)
-            return struct.pack("<BBIIbb", tag, 10, start_time, end_time, -1, 0)
+    def query_within_timespan(
+        start_time: int,
+        end_time: int,
+        tag: int = 0x24,
+        *,
+        big_endian_times: bool = False,
+    ) -> bytes:
+        """Create query custom data for history alarms file download within given timeframe.
+
+        The times are device-local wall-clock epochs. Tag 0x24 is what FusionSolar sends to an EMMA or SmartLogger
+        and to the devices behind it, tag 0x20 what it sends to a directly connected inverter or SDongle.
+
+        Tag 0x24 carries little-endian times, except for a SmartLogger V5 (product model "Logger"), to which
+        FusionSolar sends them big-endian (`big_endian_times`). The library does not detect a SmartLogger V5.
+        """
+        if tag == HistoryAlarmsDataFile.TAG_MOUNTED_RECOVER_TIME:
+            # Tag 0x24 (36), Length 10, start_time uint32, end_time uint32, -1 (signed byte), order 0 (by recovery time)
+            # Little-endian times, unlike the other tags, except for a SmartLogger V5.
+            return struct.pack(">BBIIbb" if big_endian_times else "<BBIIbb", tag, 10, start_time, end_time, -1, 0)
         # Tag 0x20 / 0x21 (32 / 33), Length 9, start_time uint32, end_time uint32, -1 (signed byte)
         return struct.pack(">BBIIb", tag, 9, start_time, end_time, -1)
 

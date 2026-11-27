@@ -8,12 +8,15 @@ from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 import pytest
+from huawei_solar.exceptions import ReadException
 
 from huawei_solar import AsyncHuaweiSolarClient
 from huawei_solar import register_names as rn
 from huawei_solar import register_values as rv
 from huawei_solar.device import EMMADevice, SmartLoggerDevice
 from huawei_solar.register_definitions import Result
+
+_NOT_SUPPORTED = "Modbus exception 0x03"
 
 
 @pytest.fixture
@@ -85,6 +88,8 @@ async def test_emma_active_alarms_adjusted_to_utc(
     file_data = struct.pack("<IHHIIHH", 1, 0, 2001, local_epoch, 0, 0, 1)
 
     monkeypatch.setattr(emma_device.client, "get_file", AsyncMock(return_value=file_data))
+    # the offset is read again before alarm files are decoded; keep the one set above
+    monkeypatch.setattr(emma_device.client, "get", AsyncMock(side_effect=ReadException(_NOT_SUPPORTED)))
 
     alarms = await emma_device.get_active_alarms()
     assert len(alarms) == 1

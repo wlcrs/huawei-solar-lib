@@ -14,6 +14,12 @@ from .base import HuaweiSolarDevice
 class SmartLoggerDevice(HuaweiSolarDevice):
     """A SmartLogger device."""
 
+    # History alarms keep query tag 0x24, as FusionSolar sends it (with big-endian times to a SmartLogger V5, which
+    # is not detected here). FusionSolar also reads the active alarms of a SmartLogger and of the devices behind it
+    # through unit 0 (E0 02 <address> 00), but that has not been tested on a SmartLogger, so active alarms are still
+    # read on the device's own unit.
+    _is_alarm_mount_master = True
+
     software_version: str | None = None
     _time_zone: int | None = None
     _dst_state: int | None = None
