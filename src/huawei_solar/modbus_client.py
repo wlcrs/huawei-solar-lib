@@ -126,6 +126,7 @@ class TimeoutAwareSmartTransport(AsyncSmartTransport):
         """Initialize the timeout-aware smart transport."""
         self.consecutive_timeouts_before_reconnect = consecutive_timeouts_before_reconnect
         self._consecutive_timeouts = 0
+        self._closed_on_request = False
         super().__init__(
             base_transport,
             wait_between_requests=wait_between_requests,
@@ -138,13 +139,38 @@ class TimeoutAwareSmartTransport(AsyncSmartTransport):
             retry_on_device_failure=retry_on_device_failure,
         )
 
+    async def open(self) -> None:
+        """Open the connection. This also re-enables auto-reconnect after close()."""
+        async with self._communication_lock:
+            # cleared under the lock, so a request queued before this open() still sees the closed state
+            self._closed_on_request = False
+            self._must_reconnect = False
+            await self._open()
+
+    async def close(self) -> None:
+        """Close the connection, and do not reconnect until open() is called again.
+
+        Without this, a request that was queued while the connection was being closed (for example the next request
+        of a batch read, or a read that was waiting for the update lock) would reopen the connection through
+        auto-reconnect, and that connection would stay open.
+        """
+        self._closed_on_request = True
+        await super().close()
+
     async def _do_auto_reconnect(self) -> None:
         """Reconnect to the Modbus device and reset consecutive timeouts."""
+        if self._closed_on_request:
+            msg = "The connection was closed and is not reopened until connect() is called"
+            raise ModbusConnectionError(msg)
         await super()._do_auto_reconnect()
         self._consecutive_timeouts = 0
 
     async def send_and_receive(self, unit_id: int, pdu: BaseClientPDU[RT]) -> RT:
         """Send a request and force a reconnect after repeated timeouts."""
+        if self._closed_on_request and not self._communication_lock.locked():
+            # closed and idle: fail at once instead of going through the retry strategy
+            msg = "The connection was closed and is not reopened until connect() is called"
+            raise ModbusConnectionError(msg)
         try:
             response: RT = await super().send_and_receive(unit_id, pdu)
         except TimeoutError:

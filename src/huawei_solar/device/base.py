@@ -37,6 +37,9 @@ _LOGGER = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL = 15
 
+# How long stop() waits for an update in progress before it closes the connection anyway (seconds)
+STOP_WAIT_FOR_UPDATE_TIMEOUT = 30
+
 
 WRITE_TEST_REGISTER = rn.TIME_ZONE
 
@@ -220,10 +223,38 @@ class HuaweiSolarDevice(ABC):
             return result
 
     async def stop(self) -> bool:
-        """Stop the device connection."""
-        if not self.primary_device:
-            # if primary_device is None, we are the primary device, so we should also stop the client
-            await self.client.disconnect()
+        """Stop the device connection.
+
+        Only the primary device closes the connection. It first waits for the update lock, so a batch read or write
+        that is in progress finishes instead of losing its connection halfway. The wait for the lock is capped at
+        STOP_WAIT_FOR_UPDATE_TIMEOUT seconds; after that it closes the connection anyway (the transport still lets
+        the request in flight finish). Requests made after this do not reopen the connection.
+        Do not call this while holding `update_lock`.
+        """
+        if self.primary_device:
+            # sub-devices share the primary device's connection: the primary device closes it
+            return True
+
+        try:
+            async with asyncio.timeout(STOP_WAIT_FOR_UPDATE_TIMEOUT):
+                await self.update_lock.acquire()
+        except TimeoutError:
+            _LOGGER.warning(
+                "An update was still running after %d seconds, closing the connection anyway",
+                STOP_WAIT_FOR_UPDATE_TIMEOUT,
+            )
+            await asyncio.shield(self.client.disconnect())
+            return True
+        except asyncio.CancelledError:
+            # still close the connection when the caller gives up waiting
+            await asyncio.shield(self.client.disconnect())
+            raise
+
+        try:
+            # shielded: if stop() is cancelled now, the connection is still closed
+            await asyncio.shield(self.client.disconnect())
+        finally:
+            self.update_lock.release()
 
         return True
 
