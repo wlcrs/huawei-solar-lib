@@ -15,11 +15,33 @@ def test_storage_working_mode_third_party_dispatch() -> None:
     )
 
 
-def test_active_power_control_mode_remote_output_control() -> None:
-    """47415 = 200 is "Remote output control" in the app."""
-    assert (
-        REGISTERS[rn.ACTIVE_POWER_CONTROL_MODE].decode((200,)).value == rv.ActivePowerControlMode.REMOTE_OUTPUT_CONTROL
-    )
+@pytest.mark.parametrize(
+    "mode", [rv.ActivePowerControlMode.DI_ACTIVE_SCHEDULING, rv.ActivePowerControlMode.REMOTE_OUTPUT_CONTROL]
+)
+def test_inverter_active_power_control_modes(mode: rv.ActivePowerControlMode) -> None:
+    register = REGISTERS[rn.ACTIVE_POWER_CONTROL_MODE]
+    assert register.decode((mode.value,)).value is mode
+    assert register.encode(mode) == (mode.value,)
+
+
+@pytest.mark.parametrize(
+    ("code", "mode"),
+    [
+        (0, rv.EmmaActivePowerControlMode.UNLIMITED),
+        (5, rv.EmmaActivePowerControlMode.ZERO_POWER_GRID_CONNECTION),
+        (6, rv.EmmaActivePowerControlMode.POWER_LIMITED_GRID_CONNECTION_WATT),
+        (7, rv.EmmaActivePowerControlMode.POWER_LIMITED_GRID_CONNECTION_PERCENT),
+    ],
+)
+def test_emma_active_power_control_mode_decodes_to_enum(code: int, mode: rv.EmmaActivePowerControlMode) -> None:
+    register = REGISTERS[rn.EMMA_POWER_CONTROL_MODE_AT_GRID_CONNECTION_POINT]
+    assert register.decode((code,)).value is mode
+
+
+def test_emma_active_power_control_mode_rejects_unknown_value() -> None:
+    register = REGISTERS[rn.EMMA_POWER_CONTROL_MODE_AT_GRID_CONNECTION_POINT]
+    with pytest.raises(DecodeError, match="not a valid EmmaActivePowerControlMode"):
+        register.decode((1,))
 
 
 def test_storage_working_mode_still_rejects_unknown_values() -> None:

@@ -149,7 +149,7 @@ class StorageExcessPvEnergyUseInTOU(_IntEnumWithPrettyString):
 
 
 class ActivePowerControlMode(_IntEnumWithPrettyString):
-    """Active Power Control Mode."""
+    """Inverter active power control mode (register 47415)."""
 
     UNLIMITED = 0  # default mode
     DI_ACTIVE_SCHEDULING = 1
@@ -158,6 +158,18 @@ class ActivePowerControlMode(_IntEnumWithPrettyString):
     POWER_LIMITED_GRID_CONNECTION_PERCENT = 7
     REMOTE_OUTPUT_CONTROL = 200
     """Shown as "Remote output control" by the FusionSolar app, which offers it when bit 11 of 30215 is set."""
+
+
+class EmmaActivePowerControlMode(_IntEnumWithPrettyString):
+    """Active power control mode returned by EMMA register 40100.
+
+    Writes accept integer codes and the corresponding legacy ActivePowerControlMode members.
+    """
+
+    UNLIMITED = ActivePowerControlMode.UNLIMITED.value
+    ZERO_POWER_GRID_CONNECTION = ActivePowerControlMode.ZERO_POWER_GRID_CONNECTION.value
+    POWER_LIMITED_GRID_CONNECTION_WATT = ActivePowerControlMode.POWER_LIMITED_GRID_CONNECTION_WATT.value
+    POWER_LIMITED_GRID_CONNECTION_PERCENT = ActivePowerControlMode.POWER_LIMITED_GRID_CONNECTION_PERCENT.value
 
 
 class MeterStatus(_IntEnumWithPrettyString):
