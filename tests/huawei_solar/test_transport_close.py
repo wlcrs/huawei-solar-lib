@@ -1,12 +1,14 @@
 """The transport does not reopen a connection that was closed on request."""
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from huawei_solar.modbus_client import TimeoutAwareSmartTransport
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_none
+from tmodbus import AsyncTcpTransport
 from tmodbus.exceptions import ModbusConnectionError
+from tmodbus.pdu.base import BaseClientPDU
 from tmodbus.transport.async_base import AsyncBaseTransport
 
 
@@ -43,7 +45,7 @@ class _FakeBaseTransport(AsyncBaseTransport):
 def _transport(base: _FakeBaseTransport) -> TimeoutAwareSmartTransport:
     no_wait = AsyncRetrying(wait=wait_none(), stop=stop_after_attempt(3), reraise=True)
     return TimeoutAwareSmartTransport(
-        base,
+        cast("AsyncTcpTransport", base),
         auto_reconnect=AsyncRetrying(
             wait=wait_none(), stop=stop_after_attempt(2), retry=retry_if_exception_type(ModbusConnectionError)
         ),
@@ -51,17 +53,22 @@ def _transport(base: _FakeBaseTransport) -> TimeoutAwareSmartTransport:
     )
 
 
+async def _send(transport: TimeoutAwareSmartTransport, pdu: str) -> str:
+    """Send a request; the fake connection echoes the "PDU" (a plain string) back."""
+    return cast("str", await transport.send_and_receive(1, cast("BaseClientPDU[Any]", pdu)))
+
+
 async def test_request_after_close_does_not_reconnect() -> None:
     """After close(), a request fails instead of opening a new connection."""
     base = _FakeBaseTransport()
     transport = _transport(base)
     await transport.open()
-    assert await transport.send_and_receive(1, "a") == "a"
+    assert await _send(transport, "a") == "a"
 
     await transport.close()
 
     with pytest.raises(ModbusConnectionError):
-        await transport.send_and_receive(1, "b")
+        await _send(transport, "b")
     assert base.events == ["open", "request a", "close"]
     assert not transport.is_open()
 
@@ -73,10 +80,10 @@ async def test_request_queued_during_close_does_not_reconnect() -> None:
     await transport.open()
 
     base.release_request.clear()
-    first = asyncio.create_task(transport.send_and_receive(1, "first"))
+    first = asyncio.create_task(_send(transport, "first"))
     await asyncio.sleep(0)
     close = asyncio.create_task(transport.close())
-    second = asyncio.create_task(transport.send_and_receive(1, "second"))
+    second = asyncio.create_task(_send(transport, "second"))
     await asyncio.sleep(0)
     base.release_request.set()
 
@@ -96,7 +103,7 @@ async def test_open_after_close_enables_requests_again() -> None:
 
     await transport.open()
 
-    assert await transport.send_and_receive(1, "c") == "c"
+    assert await _send(transport, "c") == "c"
     assert base.events == ["open", "close", "open", "request c"]
 
 
@@ -107,7 +114,7 @@ async def test_lost_connection_still_reconnects() -> None:
     await transport.open()
     base.opened = False  # dropped by the device
 
-    assert await transport.send_and_receive(1, "d") == "d"
+    assert await _send(transport, "d") == "d"
     assert base.events == ["open", "open", "request d"]
 
 
@@ -118,10 +125,10 @@ async def test_open_after_a_rejected_request_does_not_reconnect_again() -> None:
     await transport.open()
 
     base.release_request.clear()
-    first = asyncio.create_task(transport.send_and_receive(1, "first"))
+    first = asyncio.create_task(_send(transport, "first"))
     await asyncio.sleep(0)
     close = asyncio.create_task(transport.close())
-    queued = asyncio.create_task(transport.send_and_receive(1, "queued"))
+    queued = asyncio.create_task(_send(transport, "queued"))
     await asyncio.sleep(0)
     base.release_request.set()
     await first
@@ -130,7 +137,7 @@ async def test_open_after_a_rejected_request_does_not_reconnect_again() -> None:
         await queued
 
     await transport.open()
-    assert await transport.send_and_receive(1, "after") == "after"
+    assert await _send(transport, "after") == "after"
     assert base.events == ["open", "request first", "close", "open", "request after"]
 
 
@@ -141,10 +148,10 @@ async def test_request_queued_before_open_does_not_reconnect() -> None:
     await transport.open()
 
     base.release_request.clear()
-    first = asyncio.create_task(transport.send_and_receive(1, "first"))
+    first = asyncio.create_task(_send(transport, "first"))
     await asyncio.sleep(0)
     close = asyncio.create_task(transport.close())
-    queued = asyncio.create_task(transport.send_and_receive(1, "queued"))
+    queued = asyncio.create_task(_send(transport, "queued"))
     reopen = asyncio.create_task(transport.open())
     await asyncio.sleep(0)
     base.release_request.set()
