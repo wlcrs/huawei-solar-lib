@@ -9,7 +9,7 @@ import huawei_solar.register_values as rv
 import pytest
 from huawei_solar.exceptions import ReadException, WriteException
 from huawei_solar.files import ActiveAlarmsDataFile, HistoryAlarmsDataFile, PerformanceRequestType
-from huawei_solar.modbus_pdu import PermissionDeniedError
+from huawei_solar.modbus_pdu import PerformanceDataFrame, PerformanceDataPDU, PermissionDeniedError
 from huawei_solar.register_values import StorageProductModel
 from huawei_solar.registers import REGISTERS
 
@@ -737,7 +737,7 @@ async def test_file_timestamps_adjusted_for_inverter_timezone(
     sun2000_device: SUN2000Device,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Timestamps read from alarm and performance files are converted to UTC."""
+    """Timestamps read from alarm files are converted to UTC."""
     sun2000_device._time_zone = -300
     sun2000_device._dst = True
 
@@ -748,14 +748,11 @@ async def test_file_timestamps_adjusted_for_inverter_timezone(
 
     active_payload = struct.pack(ActiveAlarmsDataFile.RECORD_STRUCT, 1, 0, 2001, raw_occur, 0, 0, 1)
     history_payload = struct.pack(HistoryAlarmsDataFile.RECORD_STRUCT, 1, 0, 2001, raw_occur, raw_recover, 0, 0, 1)
-    performance_payload = struct.pack(">IBi", raw_occur, 4, 150)
 
     async def mock_read_file(file_type: int, customized_data: bytes | None = None) -> bytes:
-        if file_type == ActiveAlarmsDataFile.FILE_TYPE:
-            return active_payload
-        if file_type == HistoryAlarmsDataFile.FILE_TYPE:
-            return history_payload
-        return performance_payload
+        return {ActiveAlarmsDataFile.FILE_TYPE: active_payload, HistoryAlarmsDataFile.FILE_TYPE: history_payload}[
+            file_type
+        ]
 
     monkeypatch.setattr(sun2000_device, "read_file", mock_read_file)
 
@@ -768,9 +765,107 @@ async def test_file_timestamps_adjusted_for_inverter_timezone(
     assert history_alarms[0].occur_time == expected_occur
     assert history_alarms[0].recover_time == expected_recover
 
-    perf_points = await sun2000_device.get_performance_data(PerformanceRequestType.HOUR_POWER, 0, 1)
-    assert len(perf_points) == 1
-    assert perf_points[0].time == expected_occur
+
+async def test_performance_data_locks_paging_and_adjusts_timestamps(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sun2000_device._time_zone = -300
+    sun2000_device._dst = True
+    request_type = PerformanceRequestType.HOUR_POWER
+    start = datetime(2026, 8, 21, 7, tzinfo=UTC)
+    start_epoch = int(start.timestamp())
+    end_epoch = start_epoch + 7200
+
+    async def execute(pdu: PerformanceDataPDU) -> PerformanceDataFrame:
+        assert sun2000_device.update_lock.locked()
+        assert (pdu.request_type, pdu.start_time, pdu.end_time) == (request_type, start_epoch, end_epoch)
+        payload = struct.pack(">IBi", start_epoch + pdu.frame_index * 3600, 4, 150)
+        return PerformanceDataFrame(pdu.frame_index, request_type, pdu.frame_index == 0, 1, payload)
+
+    mock_execute = AsyncMock(side_effect=execute)
+    monkeypatch.setattr(sun2000_device.client, "execute", mock_execute)
+
+    points = await sun2000_device.get_performance_data(request_type, start, end_epoch)
+
+    assert not sun2000_device.update_lock.locked()
+    assert mock_execute.await_count == 2
+    assert [point.time for point in points] == [
+        datetime(2026, 8, 21, 11, tzinfo=UTC),
+        datetime(2026, 8, 21, 12, tzinfo=UTC),
+    ]
+
+
+async def test_performance_data_retries_once_after_permission_denied(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sun2000_device._HuaweiSolarDeviceWithLogin__username = "installer"  # type: ignore[attr-defined]
+    request_type = PerformanceRequestType.HOUR_POWER
+    events: list[tuple[str, bool | int]] = []
+    denied = PermissionDeniedError(0x41)
+
+    async def ensure_logged_in(*, force: bool = False) -> bool:
+        assert sun2000_device.update_lock.locked()
+        events.append(("login", force))
+        return True
+
+    async def execute(pdu: PerformanceDataPDU) -> PerformanceDataFrame:
+        assert sun2000_device.update_lock.locked()
+        events.append(("frame", pdu.frame_index))
+        if pdu.frame_index == 1:
+            raise denied
+        return PerformanceDataFrame(pdu.frame_index, request_type, more=True, segment_count=0, payload=b"")
+
+    monkeypatch.setattr(sun2000_device, "ensure_logged_in", ensure_logged_in)
+    monkeypatch.setattr(sun2000_device.client, "execute", execute)
+
+    with pytest.raises(PermissionDeniedError):
+        await sun2000_device.get_performance_data(request_type, 0, 1)
+
+    assert events == [("login", False), ("frame", 0), ("frame", 1), ("login", True), ("frame", 0), ("frame", 1)]
+    assert not sun2000_device.update_lock.locked()
+
+
+async def test_performance_data_relogin_retry_keeps_only_the_retried_pages(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After a denial on a later page and a successful login, only the pages of the retry are decoded."""
+    sun2000_device._HuaweiSolarDeviceWithLogin__username = "installer"  # type: ignore[attr-defined]
+    request_type = PerformanceRequestType.HOUR_POWER
+    attempts = {"count": 0}
+
+    async def ensure_logged_in(*, force: bool = False) -> bool:
+        return True
+
+    async def execute(pdu: PerformanceDataPDU) -> PerformanceDataFrame:
+        if pdu.frame_index == 0:
+            attempts["count"] += 1
+        if attempts["count"] == 1 and pdu.frame_index == 1:
+            raise PermissionDeniedError(0x41)
+        value = 100 * attempts["count"] + pdu.frame_index
+        payload = struct.pack(">IBi", 3600 * pdu.frame_index, 4, value)
+        return PerformanceDataFrame(pdu.frame_index, request_type, pdu.frame_index == 0, 1, payload)
+
+    monkeypatch.setattr(sun2000_device, "ensure_logged_in", ensure_logged_in)
+    monkeypatch.setattr(sun2000_device.client, "execute", execute)
+
+    points = await sun2000_device.get_performance_data(request_type, 0, 7200)
+
+    assert [point.value for point in points] == [2.0, 2.01]
+
+
+async def test_performance_data_rejects_out_of_range_window_before_login(
+    sun2000_device: SUN2000Device,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    login = AsyncMock()
+    monkeypatch.setattr(sun2000_device, "ensure_logged_in", login)
+
+    with pytest.raises(ValueError, match="unsigned 32-bit"):
+        await sun2000_device.get_performance_data(PerformanceRequestType.HOUR_POWER, -1, 1)
+    login.assert_not_called()
 
 
 def test_feature_mask_30316_all_ones_decodes_as_a_mask() -> None:

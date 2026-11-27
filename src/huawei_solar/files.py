@@ -2,11 +2,15 @@
 
 import logging
 import struct
+from calendar import monthrange
+from collections.abc import Iterable
+from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import ClassVar
 
 from huawei_solar.exceptions import DecodeError
+from huawei_solar.modbus_pdu import PerformanceDataFrame
 from huawei_solar.register_definitions.string import bytes_to_string
 from huawei_solar.register_values import HUAWEI_ALARM_CODES, Alarm, _IntEnumWithPrettyString
 
@@ -650,11 +654,16 @@ class PerformanceDataPoint:
 
 
 class InverterPerformanceDataFile:
-    """Inverter History & Energy Performance Data File (File Type 0xA3 / 163)."""
+    """Decode Huawei Modbus 0x41/0x36 performance frames or their bare segment payloads.
 
-    FILE_TYPE = 0xA3
-    HUAWEI_FUNCTION_CODE = 0x41
-    SUB_FUNCTION_PERFORMANCE_DATA = 0x36
+    Each segment starts with a device timestamp and byte count, followed by signed
+    32-bit samples. Monthly and yearly buckets advance by calendar months or years
+    in UTC from the segment start, clamping the day to the end of shorter months.
+    The cycle override applies to the fixed-interval request types.
+    """
+
+    _SEGMENT_HEADER = struct.Struct(">IB")
+    _SAMPLE = struct.Struct(">i")
 
     # Gains corresponding to PerformanceRequestType
     GAINS: ClassVar[dict[PerformanceRequestType | int, int]] = {
@@ -674,98 +683,103 @@ class InverterPerformanceDataFile:
         PerformanceRequestType.ABSORB_YEAR_POWER: 100,
     }
 
-    # Default interval cycles in seconds
+    # App cycles in seconds. Insulation and daily battery energy default to daily
+    # samples. Absorbed energy follows the corresponding generation interval.
     DEFAULT_CYCLES: ClassVar[dict[PerformanceRequestType | int, int]] = {
-        PerformanceRequestType.HOUR_POWER: 300,  # 5-minute intervals
-        PerformanceRequestType.DAY_POWER: 86400,  # 1 day
-        PerformanceRequestType.MONTH_POWER: 2592000,  # ~30 days
-        PerformanceRequestType.YEAR_POWER: 31536000,  # ~365 days
+        PerformanceRequestType.HOUR_POWER: 3600,
+        PerformanceRequestType.DAY_POWER: 86400,
+        PerformanceRequestType.MONTH_POWER: 2678400,
+        PerformanceRequestType.YEAR_POWER: 32140800,
         PerformanceRequestType.OUTPUT_POWER: 300,
         PerformanceRequestType.INSULATION_RESISTANCE: 86400,
         PerformanceRequestType.BATTERY_CHARGE_AND_DISCHARGE_POWER: 300,
         PerformanceRequestType.METER_POWER: 300,
         PerformanceRequestType.BATTERY_CHARGE_DAY_POWER: 86400,
         PerformanceRequestType.BATTERY_DISCHARGE_DAY_POWER: 86400,
-        PerformanceRequestType.ABSORB_HOUR_POWER: 300,
+        PerformanceRequestType.ABSORB_HOUR_POWER: 3600,
         PerformanceRequestType.ABSORB_DAY_POWER: 86400,
-        PerformanceRequestType.ABSORB_MONTH_POWER: 2592000,
-        PerformanceRequestType.ABSORB_YEAR_POWER: 31536000,
+        PerformanceRequestType.ABSORB_MONTH_POWER: 2678400,
+        PerformanceRequestType.ABSORB_YEAR_POWER: 32140800,
     }
 
     def __init__(
         self,
-        file_data: bytes,
+        file_data: bytes | Iterable[PerformanceDataFrame],
         request_type: PerformanceRequestType | int = PerformanceRequestType.HOUR_POWER,
         cycle: int | None = None,
     ) -> None:
-        """Decode Inverter History & Performance Data File."""
+        """Decode frames in order, validating each frame's segment count."""
         self.data_points: list[PerformanceDataPoint] = []
         self.request_type = request_type
 
-        try:
-            req_enum = (
-                PerformanceRequestType(request_type)
-                if isinstance(request_type, int) and request_type in PerformanceRequestType._value2member_map_
-                else request_type
-            )
-        except (ValueError, KeyError):
-            req_enum = request_type
+        with suppress(ValueError):
+            request_type = PerformanceRequestType(request_type)
 
-        gain = InverterPerformanceDataFile.GAINS.get(req_enum, 100)
-        cycle_seconds = cycle or InverterPerformanceDataFile.DEFAULT_CYCLES.get(req_enum, 300)
-
-        offset = 0
-        try:
-            # Handle optional frame header if raw Modbus 0x41 0x36 frame:
-            # [0:addr, 1:0x41, 2:0x36, 3:datalen, 4:index, 5:seg_count]
-            if (
-                len(file_data) > 6  # noqa: PLR2004
-                and file_data[1] == InverterPerformanceDataFile.HUAWEI_FUNCTION_CODE
-                and file_data[2] == InverterPerformanceDataFile.SUB_FUNCTION_PERFORMANCE_DATA
-            ):
-                segment_count = file_data[5] & 0x3F
-                offset = 6
-            elif len(file_data) >= 5:  # noqa: PLR2004
-                # Raw segment data stream without function wrapper
-                segment_count = None
-            else:
-                return
-
-            seg_idx = 0
-            while offset + 5 <= len(file_data):
-                if segment_count is not None and seg_idx >= segment_count:
-                    break
-
-                (start_time, tdata_length) = struct.unpack_from(">IB", file_data, offset)
-                offset += 5
-
-                point_count = tdata_length // 4
-                for j in range(point_count):
-                    if offset + 4 > len(file_data):
-                        break
-                    (raw_value,) = struct.unpack_from(">i", file_data, offset)
-                    offset += 4
-
-                    point_time = start_time + (j * cycle_seconds)
-                    self.data_points.append(
-                        PerformanceDataPoint(
-                            time=datetime.fromtimestamp(point_time, tz=UTC),
-                            request_type=req_enum,
-                            value=raw_value / gain,
-                        )
+        gain = self.GAINS.get(request_type, 100)
+        # like before, a cycle of 0 (or None) means the default for the request type
+        cycle_seconds = cycle or self.DEFAULT_CYCLES.get(request_type, 300)
+        if isinstance(file_data, bytes):
+            self._decode_segments(file_data, None, request_type, gain, cycle_seconds)
+        else:
+            for frame in file_data:
+                if frame.request_type != request_type:
+                    msg = (
+                        f"Performance data frame has request type {int(frame.request_type)}, "
+                        f"expected {int(request_type)}"
                     )
-                seg_idx += 1
-        except struct.error as err:
-            msg = "Could not decode inverter performance data file: the contents is corrupted."
-            raise DecodeError(msg) from err
+                    raise DecodeError(msg)
+                self._decode_segments(frame.payload, frame.segment_count, request_type, gain, cycle_seconds)
+
+    def _decode_segments(
+        self,
+        payload: bytes,
+        segment_count: int | None,
+        request_type: PerformanceRequestType | int,
+        gain: int,
+        cycle: int,
+    ) -> None:
+        offset = 0
+        decoded_segments = 0
+        while offset < len(payload):
+            if len(payload) - offset < self._SEGMENT_HEADER.size:
+                msg = "Incomplete performance data segment header"
+                raise DecodeError(msg)
+            start_time, nbytes = self._SEGMENT_HEADER.unpack_from(payload, offset)
+            offset += self._SEGMENT_HEADER.size
+            end_offset = offset + nbytes
+            if end_offset > len(payload) or nbytes % self._SAMPLE.size:
+                msg = f"Invalid performance data segment length: {nbytes} bytes with {len(payload) - offset} remaining"
+                raise DecodeError(msg)
+
+            start = datetime.fromtimestamp(start_time, tz=UTC)
+            for index, (raw_value,) in enumerate(self._SAMPLE.iter_unpack(payload[offset:end_offset])):
+                self.data_points.append(
+                    PerformanceDataPoint(
+                        time=self._point_time(start, index, request_type, cycle),
+                        request_type=request_type,
+                        value=raw_value / gain,
+                    )
+                )
+            offset = end_offset
+            decoded_segments += 1
+
+        if segment_count is not None and decoded_segments != segment_count:
+            msg = f"Performance data frame declares {segment_count} segments, found {decoded_segments}"
+            raise DecodeError(msg)
 
     @staticmethod
-    def query_within_timespan(
+    def _point_time(
+        start: datetime,
+        index: int,
         request_type: PerformanceRequestType | int,
-        start_time: int,
-        end_time: int,
-    ) -> bytes:
-        """Create query custom data for performance/history data file download within given timeframe."""
-        # Format: Tag 0x30, Length 12, SubId 0, Type 0, RequestType, StartTime, EndTime, 0xFF
-        req_type_val = int(request_type)
-        return struct.pack(">BBHBBIIB", 0x30, 12, 0, 0, req_type_val, start_time, end_time, 0xFF)
+        cycle: int,
+    ) -> datetime:
+        if request_type in (PerformanceRequestType.MONTH_POWER, PerformanceRequestType.ABSORB_MONTH_POWER):
+            years, month_index = divmod(start.month - 1 + index, 12)
+            year, month = start.year + years, month_index + 1
+        elif request_type in (PerformanceRequestType.YEAR_POWER, PerformanceRequestType.ABSORB_YEAR_POWER):
+            year, month = start.year + index, start.month
+        else:
+            return start + timedelta(seconds=index * cycle)
+
+        return start.replace(year=year, month=month, day=min(start.day, monthrange(year, month)[1]))

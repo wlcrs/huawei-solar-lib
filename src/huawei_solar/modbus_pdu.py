@@ -336,6 +336,89 @@ class CompleteUploadPDU(BaseSubFunctionClientPDU[int]):
 register_pdu_class(CompleteUploadPDU)
 
 
+@dataclass(frozen=True, slots=True)
+class PerformanceDataFrame:
+    """One page of historical performance data."""
+
+    frame_index: int
+    request_type: int
+    more: bool
+    segment_count: int
+    payload: bytes
+
+
+@dataclass(frozen=True)
+class PerformanceDataPDU(BaseSubFunctionClientPDU[PerformanceDataFrame]):
+    """Request a page of historical performance data."""
+
+    function_code = 0x41
+    sub_function_code = 0x36
+    # The byte count is at RTU ADU offset 3 because the unit ID precedes the PDU.
+    # tmodbus frames this via the inherited get_expected_response_data_length,
+    # which receives data starting at the sub-function and reads the count at data[1].
+    rtu_byte_count_pos = 3
+
+    frame_index: int
+    request_type: int
+    start_time: int
+    end_time: int
+
+    def encode_request(self) -> bytes:
+        """Encode the frame index, request type and time range."""
+        data_length = 10
+        return struct.pack(
+            ">BBBBBII",
+            self.function_code,
+            self.sub_function_code,
+            data_length,
+            self.frame_index,
+            self.request_type,
+            self.start_time,
+            self.end_time,
+        )
+
+    def decode_response(self, response: bytes) -> PerformanceDataFrame:
+        """Validate the response header and extract the segment payload."""
+        header = struct.Struct(">BBBBBB")
+        if len(response) < header.size:
+            msg = "Incomplete performance data response header"
+            raise ValueError(msg)
+
+        function_code, sub_function_code, data_length, frame_index, request_type, flags = header.unpack_from(response)
+
+        if function_code != self.function_code:
+            msg = f"Invalid function code: expected {self.function_code:02x}, received {function_code:02x}"
+            raise ValueError(msg)
+
+        if sub_function_code != self.sub_function_code:
+            msg = f"Invalid sub function code: expected {self.sub_function_code:02x}, received {sub_function_code:02x}"
+            raise ValueError(msg)
+
+        expected_data_length = len(response) - 3  # Count only bytes following the length byte.
+        if data_length != expected_data_length:
+            msg = f"Invalid data length: expected {expected_data_length}, received {data_length}"
+            raise ValueError(msg)
+
+        if frame_index != self.frame_index:
+            msg = f"Invalid frame index: expected {self.frame_index}, received {frame_index}"
+            raise ValueError(msg)
+
+        if request_type != self.request_type:
+            msg = f"Invalid request type: expected {self.request_type}, received {request_type}"
+            raise ValueError(msg)
+
+        return PerformanceDataFrame(
+            frame_index=frame_index,
+            request_type=request_type,
+            more=bool(flags & 0x80),
+            segment_count=flags & 0x3F,
+            payload=response[header.size :],
+        )
+
+
+register_pdu_class(PerformanceDataPDU)
+
+
 class PermissionDeniedError(ModbusResponseError):
     """Permission Denied exception.
 
